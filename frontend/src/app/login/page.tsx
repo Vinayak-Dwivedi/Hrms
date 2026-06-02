@@ -6,6 +6,8 @@ import { EmployeeLoginForm } from "@/features/auth/components/employee-login-for
 // matches the mockup. PNG / JPG / WebP all work; if you change the
 // extension, update the src below to match.
 const ILLUSTRATION_SRC = "/login-illustration.png";
+const LOGO_SRC = "/ileads.png";
+const LOGIN_BACKGROUND_SRC = "/login-banner.png"
 
 export default function EmployeeLoginPage() {
   return (
@@ -29,7 +31,7 @@ export default function EmployeeLoginPage() {
         */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={ILLUSTRATION_SRC}
+          src={LOGIN_BACKGROUND_SRC}
           alt="HRMS — Human Resource Management System"
           style={{
             width: "100%",
@@ -48,7 +50,7 @@ export default function EmployeeLoginPage() {
           style={{ padding: "28px 40px" }}
         >
           <Image
-            src="/logo.webp"
+            src={LOGO_SRC}
             alt="iLeads"
             width={120}
             height={48}
