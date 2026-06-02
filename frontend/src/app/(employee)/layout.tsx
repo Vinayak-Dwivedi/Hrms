@@ -1,0 +1,9 @@
+import EmployeeShell from "@/components/employee/EmployeeShell";
+
+export default function EmployeeLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <EmployeeShell>{children}</EmployeeShell>;
+}

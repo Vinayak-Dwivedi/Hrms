@@ -29,6 +29,14 @@ const schema = z.object({
 
   AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+
+  // Optional. If set, the API uses Redis for refresh-token revocation +
+  // shared rate-limit state. If unset (typical for local dev on Windows),
+  // both features degrade: revocation is a no-op, rate-limit uses in-memory.
+  REDIS_URL: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
 });
 
 const parsed = schema.safeParse(process.env);
