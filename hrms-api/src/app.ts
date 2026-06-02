@@ -12,6 +12,7 @@ import { healthRouter } from "@/routes/health.router";
 import { hrmsRouter } from "@/routes/hrms.router";
 import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
+import { attendanceRouter } from "@/routes/attendance.router";
 
 export function createApp() {
   const app = express();
@@ -57,6 +58,7 @@ export function createApp() {
   app.use("/api/me",      requireAuth, meRouter);
   app.use("/api/manager", requireAuth, managerRouter);
   app.use("/api/hrms",    requireAuth, hrmsRouter);
+  app.use("/api/attendance", requireAuth, attendanceRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

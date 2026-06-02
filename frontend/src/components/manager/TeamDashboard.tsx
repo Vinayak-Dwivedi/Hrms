@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Send, SlidersHorizontal } from "lucide-react";
+import { Check, Send, SlidersHorizontal, Upload } from "lucide-react";
+import Link from "next/link";
 import type { TeamAttendanceResponse } from "@/lib/hrms-client";
 
 type AttCellStatus = "P" | "A" | "L" | "HD" | "W" | "—";
@@ -201,6 +202,13 @@ export default function TeamDashboard({
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/attendance/bulk-upload"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border no-underline transition-colors hover:bg-red-50"
+            style={{ borderColor: "#dc143c", color: "#dc143c" }}
+          >
+            <Upload size={14} /> Upload Attendance
+          </Link>
           <button
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors hover:bg-gray-50"
             style={{ borderColor: "#d1d5db", color: "#374151" }}
