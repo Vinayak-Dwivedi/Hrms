@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
+import { env } from "@/env";
 import { db } from "@/db/runtime";
 import { accounts, users } from "@/db/schema";
 import {
@@ -8,8 +9,13 @@ import {
   setAccessCookie,
   setRefreshCookie,
 } from "@/lib/cookies";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "@/lib/jwt";
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "@/lib/jwt";
 import { verifyPassword } from "@/lib/password";
+import { isJtiRevoked, revokeJti } from "@/lib/redis";
 import { requireAuth } from "@/middleware/auth";
 import { ApiError } from "@/middleware/error";
 
@@ -24,6 +30,22 @@ const loginSchema = z
 
 function shapeUser(u: { id: string; email: string; name: string; role: string }) {
   return { id: u.id, email: u.email, name: u.name, role: u.role };
+}
+
+function refreshTokenFromRequest(req: import("express").Request): string | null {
+  const cookie = req.cookies?.[env.REFRESH_COOKIE_NAME];
+  if (typeof cookie === "string" && cookie.length > 0) return cookie;
+  const authz = req.header("authorization") ?? req.header("Authorization");
+  if (typeof authz === "string") {
+    const m = authz.match(/^Bearer\s+(.+)$/i);
+    if (m) return m[1]?.trim() ?? null;
+  }
+  return null;
+}
+
+function ttlFromExp(exp: number | undefined): number {
+  if (!exp) return 0;
+  return Math.max(0, exp - Math.floor(Date.now() / 1000));
 }
 
 async function lookupUserWithCredential(email: string) {
@@ -77,11 +99,7 @@ authRouter.post("/login", async (req, res, next) => {
 // ── POST /api/auth/refresh ──────────────────────────────────────────────────
 authRouter.post("/refresh", async (req, res, next) => {
   try {
-    const rt =
-      req.cookies?.[process.env.REFRESH_COOKIE_NAME ?? "hrms_rt"] ??
-      // also accept Bearer for non-browser flows
-      (req.header("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null);
-
+    const rt = refreshTokenFromRequest(req);
     if (!rt) {
       throw new ApiError(401, "NO_REFRESH_TOKEN", "Refresh token missing.");
     }
@@ -93,6 +111,13 @@ authRouter.post("/refresh", async (req, res, next) => {
       throw new ApiError(401, "REFRESH_INVALID", "Refresh token invalid or expired.");
     }
 
+    // Rotation: a revoked refresh token must not be exchangeable for a new
+    // one. Without this check, a leaked refresh token stays usable until its
+    // 7-day expiry. With Redis, /logout puts the jti on the denylist.
+    if (await isJtiRevoked(claims.jti)) {
+      throw new ApiError(401, "REFRESH_REVOKED", "Refresh token has been revoked.");
+    }
+
     const [u] = await db
       .select({ id: users.id, email: users.email, name: users.name, role: users.role })
       .from(users)
@@ -100,6 +125,9 @@ authRouter.post("/refresh", async (req, res, next) => {
       .limit(1);
 
     if (!u) throw new ApiError(401, "USER_NOT_FOUND", "User no longer exists.");
+
+    // Revoke the just-used refresh jti so this exact token can't be replayed.
+    await revokeJti(claims.jti, ttlFromExp(claims.exp));
 
     const access = signAccessToken({ sub: u.id, email: u.email, role: u.role });
     const { token: newRefresh } = signRefreshToken({ sub: u.id });
@@ -112,9 +140,25 @@ authRouter.post("/refresh", async (req, res, next) => {
 });
 
 // ── POST /api/auth/logout ───────────────────────────────────────────────────
-authRouter.post("/logout", (_req, res) => {
-  clearAuthCookies(res);
-  res.status(204).end();
+authRouter.post("/logout", async (req, res, next) => {
+  try {
+    const rt = refreshTokenFromRequest(req);
+    if (rt) {
+      // Best-effort: parse the refresh token and put its jti on the denylist
+      // so the same cookie can't be reused after the user has signed out.
+      // Invalid/expired tokens are silently ignored — there's nothing to revoke.
+      try {
+        const claims = verifyRefreshToken(rt);
+        await revokeJti(claims.jti, ttlFromExp(claims.exp));
+      } catch {
+        /* ignore */
+      }
+    }
+    clearAuthCookies(res);
+    res.status(204).end();
+  } catch (e) {
+    next(e);
+  }
 });
 
 // ── GET /api/auth/me ────────────────────────────────────────────────────────

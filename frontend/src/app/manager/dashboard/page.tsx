@@ -40,13 +40,13 @@ const ROLE_ROUTES: Record<string, string> = {
   HR: "/hr/dashboard",
 };
 
-function Ring({ used, total }: { used: number; total: number }) {
+function Ring({ used, total, className }: { used: number; total: number; className?: string }) {
   const r = 28,
     stroke = 5;
   const circ = 2 * Math.PI * r;
   const dash = total > 0 ? (used / total) * circ : 0;
   return (
-    <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+    <div className={className} style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
       <svg width={72} height={72} viewBox="0 0 72 72">
         <circle
           cx={36}
@@ -409,7 +409,7 @@ export default function ManagerDashboardPage() {
                     className="flex items-center gap-4 py-4 border-b last:border-0 last:pb-0"
                     style={{ borderColor: "#f3f4f6" }}
                   >
-                    <Ring used={item.used} total={item.total} />
+                    <Ring className="font-bold" used={item.used} total={item.total} />
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-900">
                         {item.label}

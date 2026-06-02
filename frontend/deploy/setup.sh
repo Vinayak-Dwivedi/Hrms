@@ -54,7 +54,9 @@ fi
 log "Installing system packages"
 sudo apt-get update -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  curl ca-certificates gnupg git build-essential nginx postgresql-16 postgresql-contrib-16
+  curl ca-certificates gnupg git build-essential nginx \
+  postgresql-16 postgresql-contrib-16 \
+  redis-server
 
 if ! command -v node >/dev/null 2>&1 || ! node -v | grep -q '^v22\.'; then
   log "Installing Node 22 (NodeSource)"
@@ -83,6 +85,13 @@ sudo -u postgres psql -d "$DB_NAME" -c "CREATE EXTENSION IF NOT EXISTS citext;" 
 sudo -u postgres psql -d "$DB_NAME" -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;" >/dev/null
 
 DATABASE_URL="postgres://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME"
+
+# ── 3b. Redis ───────────────────────────────────────────────────────────────
+# Used by the API for refresh-token revocation and shared rate-limit state.
+# Local-only binding (Redis default on Ubuntu); never expose to the public SG.
+log "Configuring Redis"
+sudo systemctl enable --now redis-server
+REDIS_URL="redis://127.0.0.1:6379"
 
 # ── 4. detect public hostname ───────────────────────────────────────────────
 log "Detecting EC2 public hostname"
@@ -129,6 +138,7 @@ ACCESS_COOKIE_NAME=hrms_at
 REFRESH_COOKIE_NAME=hrms_rt
 AUTH_RATE_LIMIT_WINDOW_MS=60000
 AUTH_RATE_LIMIT_MAX=10
+REDIS_URL=$REDIS_URL
 SEED_EMPLOYEE_PASSWORD=Employee@12345!
 SEED_MANAGER_PASSWORD=Manager@12345!
 EOF
@@ -168,9 +178,10 @@ const sql = postgres(dbUrl, { max: 1, connect_timeout: 10 });
 })().catch(e => { console.error(e.message); process.exit(1); });
 NODE
 
-log "API: seeding HRMS demo + users (idempotent)"
+log "API: seeding HRMS demo + users + holidays (idempotent)"
 npm run seed:hrms || true
 npm run seed:users || true
+npm run seed:holidays || true
 
 log "API: build"
 npm run build
@@ -178,8 +189,8 @@ npm run build
 sudo tee /etc/systemd/system/hrms-api.service >/dev/null <<UNIT
 [Unit]
 Description=HRMS API (Express)
-After=network.target postgresql.service
-Wants=postgresql.service
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
 
 [Service]
 Type=simple

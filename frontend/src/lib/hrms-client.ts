@@ -37,6 +37,9 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
     throw new Error(`API ${res.status}: ${text || res.statusText}`);
   }
   return (await res.json()) as T;
@@ -94,6 +97,7 @@ interface MeResponse {
   lastName: string;
   fullName: string;
   initials: string;
+  avatarUrl: string | null;
   workEmail: string | null;
   phone: string;
   role: string | null;
@@ -111,6 +115,7 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     role: me.role ?? "Employee",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
+    avatarUrl: me.avatarUrl ?? null,
   };
 }
 
@@ -374,6 +379,55 @@ export async function fetchMyLeaveBalances(): Promise<UILeaveType[]> {
   }));
 }
 
+// ────────────────────── upcoming holidays ──────────────────────────────────
+
+export interface UpcomingHoliday {
+  id: number;
+  date: string; // YYYY-MM-DD
+  name: string;
+  type: "National" | "Regional" | "Optional";
+  branchId: number | null;
+}
+
+export async function fetchUpcomingHolidays(
+  limit = 5,
+): Promise<UpcomingHoliday[]> {
+  const data = await jsonFetch<{ holidays: UpcomingHoliday[] }>(
+    `/me/holidays?upcoming=true&limit=${limit}`,
+  );
+  return data.holidays;
+}
+
+// ────────────────────── weekly attendance rollup ───────────────────────────
+
+export interface WeekAttendanceTotals {
+  totalWorkingMinutes: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  lateArrivals: number;
+}
+
+export interface WeekAttendanceDay {
+  date: string;
+  dayLabel: string;
+  record: RawAttendance | null;
+}
+
+export interface WeekAttendance {
+  weekStart: string;
+  weekEnd: string;
+  days: WeekAttendanceDay[];
+  totals: WeekAttendanceTotals;
+}
+
+export async function fetchWeekAttendance(
+  anchorDate?: string,
+): Promise<WeekAttendance> {
+  const qs = anchorDate ? `?date=${anchorDate}` : "";
+  return jsonFetch<WeekAttendance>(`/me/attendance/week${qs}`);
+}
+
 // ═══════════════════════════ Manager view ═══════════════════════════
 
 export async function fetchCurrentManager(): Promise<UIEmployee> {
@@ -384,6 +438,7 @@ export async function fetchCurrentManager(): Promise<UIEmployee> {
     role: me.role ?? "Manager",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
+    avatarUrl: me.avatarUrl ?? null,
   };
 }
 

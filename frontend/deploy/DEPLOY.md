@@ -3,10 +3,18 @@
 One-shot deploy of the **split** HRMS stack to a single Ubuntu EC2 box. Two
 Node services share the host — both live in this monorepo:
 
-| Service     | Port | Dir                  | Process              |
-|-------------|------|----------------------|----------------------|
-| `hrms-web`  | 3000 | `~/hrms/frontend`    | Next.js              |
-| `hrms-api`  | 4000 | `~/hrms/hrms-api`    | Express + JWT auth   |
+| Service     | Port  | Dir                  | Process              |
+|-------------|-------|----------------------|----------------------|
+| `hrms-web`  | 3000  | `~/hrms/frontend`    | Next.js              |
+| `hrms-api`  | 4000  | `~/hrms/hrms-api`    | Express + JWT auth   |
+
+Two stateful services back them, both bound to `127.0.0.1` only (never
+expose either port through the security group):
+
+| Service    | Port | Used for                                              |
+|------------|------|-------------------------------------------------------|
+| Postgres 16| 5432 | Application data                                      |
+| Redis 7    | 6379 | Refresh-token revocation + shared rate-limit counters |
 
 Postgres 16 and nginx also run on the same box. nginx is the only public
 listener; it routes:
@@ -60,8 +68,8 @@ If your `.pem` private key has ever been pasted anywhere outside your laptop's
 | HTTP  | 80   | `0.0.0.0/0`       | Public site access        |
 | HTTPS | 443  | `0.0.0.0/0`       | Later, when you add TLS   |
 
-Do **not** open ports `3000`, `4000`, or `5432` to the internet — nginx is
-the only public-facing layer and only on port 80/443.
+Do **not** open ports `3000`, `4000`, `5432`, or `6379` to the internet —
+nginx is the only public-facing layer and only on port 80/443.
 
 ---
 
@@ -145,6 +153,10 @@ sudo systemctl restart nginx            # after editing /etc/nginx/sites-availab
 
 # Connect to Postgres
 sudo -u postgres psql hrms_prod
+
+# Connect to Redis (CLI on the box)
+redis-cli ping            # → PONG
+redis-cli --scan --pattern 'hrms:*' | head   # active keys
 ```
 
 ### Deploy a new commit
@@ -264,9 +276,13 @@ and on the web:
 - **HTTP-only by default.** The seed `COOKIE_SECURE=false` is for the initial
   EC2-DNS demo. **Flip it to `true` the moment you add TLS** so auth cookies
   stop traveling in the clear.
-- **JWT revocation is best-effort.** Refresh tokens include a `jti` claim, but
-  there is no server-side revocation list yet. Logging out clears the cookies
-  on the client; if a refresh token leaked, it's valid until its expiry.
+- **Refresh-token revocation runs through Redis.** `/api/auth/logout` puts
+  the refresh-token `jti` on a Redis denylist (`hrms:jwt:revoked:<jti>`,
+  TTL = remaining refresh lifetime), and `/api/auth/refresh` rotates +
+  revokes the old `jti` so replays fail. If Redis is unreachable, the API
+  fails open (treats tokens as not revoked) — annoying but never locks
+  legitimate users out. Access tokens are short-lived (15m) and not
+  individually tracked.
 - **No backups configured.** For real use, schedule a daily
   `pg_dump hrms_prod | gzip > /var/backups/hrms-$(date +%F).sql.gz` via cron
   and copy off-box, or switch to RDS with automated snapshots.
@@ -282,10 +298,13 @@ When you want this to actually scale:
 - Run the **API behind an ALB** with multiple EC2 instances or an ECS service;
   keep the web on its own ALB and target group. Terminate TLS at the ALBs and
   let nginx in front of the box go away.
-- Move the `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` / DB password into
-  **AWS Secrets Manager** and have the API pull them at boot.
-- Add a **refresh-token revocation table** so `logout` can invalidate the
-  `jti` server-side, not just clear the cookie.
+- Move the `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` / DB password / Redis
+  auth into **AWS Secrets Manager** and have the API pull them at boot.
+- Move Redis off-box to **ElastiCache for Redis** (cluster mode disabled is
+  fine to start). The integration is URL-only — set `REDIS_URL` in
+  `~/hrms/hrms-api/.env` to `rediss://<cluster-endpoint>:6379` and restart
+  `hrms-api`. Don't co-locate Redis with the app if you run more than one
+  EC2 box.
 - Move Next.js static assets to **S3 + CloudFront** by enabling
   `output: "standalone"` and `images.unoptimized` — or move the web tier to
   Vercel and keep the API on EC2 / ECS.

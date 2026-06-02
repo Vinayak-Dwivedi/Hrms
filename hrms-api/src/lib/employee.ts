@@ -19,6 +19,7 @@ export async function loadCurrentEmployee(userId: string) {
       phone: employees.phone,
       gender: employees.gender,
       joiningDate: employees.joiningDate,
+      profilePhotoUrl: employees.profilePhotoUrl,
       designationId: employees.designationId,
       departmentId: employees.departmentId,
       gradeId: employees.gradeId,

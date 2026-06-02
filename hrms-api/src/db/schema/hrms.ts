@@ -747,6 +747,34 @@ export const broadcasts = pgTable(
 );
 
 // ───────────────────────────────────────────────────────────────────────────
+// GROUP 8 — HOLIDAY CALENDAR
+// ───────────────────────────────────────────────────────────────────────────
+//
+// A single company-wide calendar. branchId is optional — null means "all
+// branches". When we add multiple branches that observe different sets of
+// regional holidays, a branch-specific row overrides / supplements the null
+// row for that branch on that date.
+
+export const holidays = pgTable(
+  "holidays",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date").notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    type: holidayTypeEnum("type").notNull().default("National"),
+    branchId: integer("branch_id").references(() => branches.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table: any) => [
+    index("idx_holidays_date").on(table.date),
+  ],
+);
+
+// ───────────────────────────────────────────────────────────────────────────
 // INFERRED TYPES
 // ───────────────────────────────────────────────────────────────────────────
 export type Branch = typeof branches.$inferSelect;
@@ -782,4 +810,6 @@ export type NewLeaveRequest = typeof leaveRequests.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type Broadcast = typeof broadcasts.$inferSelect;
+export type Holiday = typeof holidays.$inferSelect;
+export type NewHoliday = typeof holidays.$inferInsert;
 export type NewBroadcast = typeof broadcasts.$inferInsert;

@@ -37,10 +37,11 @@ export function verifyAccessToken(token: string): AccessClaims {
   return payload;
 }
 
-export function verifyRefreshToken(token: string): RefreshClaims {
+export function verifyRefreshToken(token: string): RefreshClaims & { exp: number } {
   const payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as jwt.JwtPayload & RefreshClaims;
   if (payload.type !== "refresh") {
     throw new jwt.JsonWebTokenError("wrong token type");
   }
-  return payload;
+  // Refresh tokens are always signed with an expiresIn, so exp is present.
+  return payload as RefreshClaims & { exp: number };
 }

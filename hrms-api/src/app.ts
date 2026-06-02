@@ -3,16 +3,41 @@ import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import { RedisStore } from "rate-limit-redis";
 import { env } from "@/env";
+import { getRedis } from "@/lib/redis";
 import { errorHandler, notFoundHandler } from "@/middleware/error";
-import { requestId } from "@/middleware/request-id";
 import { requireAuth } from "@/middleware/auth";
+import { requestId } from "@/middleware/request-id";
 import { authRouter } from "@/routes/auth.router";
 import { healthRouter } from "@/routes/health.router";
 import { hrmsRouter } from "@/routes/hrms.router";
 import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
 import { attendanceRouter } from "@/routes/attendance.router";
+
+function buildAuthRateLimiter() {
+  const redis = getRedis();
+  const opts: Parameters<typeof rateLimit>[0] = {
+    windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
+    max: env.AUTH_RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      error: { code: "RATE_LIMITED", message: "Too many requests. Slow down." },
+    },
+  };
+  if (redis) {
+    opts.store = new RedisStore({
+      // ioredis call signature: (command, ...args). The store passes the
+      // raw command + args; we forward unchanged.
+      sendCommand: (command: string, ...args: string[]) =>
+        redis.call(command, ...args) as Promise<any>,
+      prefix: "hrms:rl:auth:",
+    });
+  }
+  return rateLimit(opts);
+}
 
 export function createApp() {
   const app = express();
@@ -43,17 +68,7 @@ export function createApp() {
 
   app.use("/api/health", healthRouter);
 
-  app.use(
-    "/api/auth",
-    rateLimit({
-      windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
-      max: env.AUTH_RATE_LIMIT_MAX,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: { code: "RATE_LIMITED", message: "Too many requests. Slow down." } },
-    }),
-    authRouter,
-  );
+  app.use("/api/auth", buildAuthRateLimiter(), authRouter);
 
   app.use("/api/me",      requireAuth, meRouter);
   app.use("/api/manager", requireAuth, managerRouter);
