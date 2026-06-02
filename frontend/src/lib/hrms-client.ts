@@ -1,0 +1,604 @@
+// Browser-side fetch helpers for /api/hrms/*. Each helper returns the
+// shape the UI components already expect (see src/lib/dashboard.ts), so
+// pages can swap mock arrays for the API response with minimal changes.
+
+import type {
+  AttendanceRecord as UIAttendanceRecord,
+  DayAttendance,
+  Employee as UIEmployee,
+  LeaveRequest as UILeaveRequest,
+  LeaveStatus,
+  LeaveType as UILeaveType,
+} from "./dashboard";
+
+// Base URL of the hrms-api Express service.
+//   - Dev (laptop): set NEXT_PUBLIC_API_URL=http://localhost:4000
+//   - Prod (EC2):   leave empty; nginx proxies same-origin requests to :4000.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+function buildUrl(path: string): string {
+  // Route by prefix to the matching hrms-api router mount point.
+  //   /me/...      → /api/me/...
+  //   /manager/... → /api/manager/...
+  //   anything else  → /api/hrms/<path>  (generic CRUD)
+  if (path === "/me" || path.startsWith("/me/")) return `${API_BASE}/api${path}`;
+  if (path === "/manager" || path.startsWith("/manager/")) return `${API_BASE}/api${path}`;
+  return `${API_BASE}/api/hrms${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(buildUrl(path), {
+    ...init,
+    credentials: "include", // send/receive httpOnly auth cookies
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API ${res.status}: ${text || res.statusText}`);
+  }
+  return (await res.json()) as T;
+}
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+
+export interface LoggedInUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+export async function signIn(email: string, password: string): Promise<LoggedInUser> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(body?.error?.message ?? `Sign-in failed (${res.status})`);
+  }
+  const data = (await res.json()) as { user: LoggedInUser };
+  return data.user;
+}
+
+export async function signOut(): Promise<void> {
+  await fetch(`${API_BASE}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  }).catch(() => {
+    /* swallow — caller redirects regardless */
+  });
+}
+
+export async function fetchAuthMe(): Promise<LoggedInUser | null> {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    credentials: "include",
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`/auth/me failed: ${res.status}`);
+  const data = (await res.json()) as { user: LoggedInUser };
+  return data.user;
+}
+
+// ───────────────────────────── /me ─────────────────────────────
+
+interface MeResponse {
+  id: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  initials: string;
+  workEmail: string | null;
+  phone: string;
+  role: string | null;
+  department: string | null;
+  grade: string | null;
+  branch: string | null;
+  joiningDate: string;
+}
+
+export async function fetchCurrentEmployee(): Promise<UIEmployee> {
+  const me = await jsonFetch<MeResponse>("/me");
+  return {
+    id: String(me.id),
+    name: me.fullName,
+    role: me.role ?? "Employee",
+    initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
+    employeeId: me.empId,
+  };
+}
+
+// ────────────────────── attendance / punch card ─────────────────────
+
+interface RawAttendance {
+  date: string;
+  punchIn: string | null;
+  punchOut: string | null;
+  workingMinutes: number | null;
+  lateByMinutes: number;
+  earlyExitMinutes: number;
+  status: string;
+  location: string | null;
+}
+
+function formatTimeOfDay(t: string | null): string | null {
+  if (!t) return null;
+  const [hStr, mStr] = t.split(":");
+  let h = Number(hStr);
+  const m = Number(mStr);
+  const period = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${h}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function formatMinutes(min: number | null | undefined): string {
+  if (!min || min <= 0) return "0h 0m";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}h ${m}m`;
+}
+
+export async function fetchTodayAttendance(): Promise<UIAttendanceRecord> {
+  const data = await jsonFetch<{ record: RawAttendance | null }>(
+    "/me/attendance/today",
+  );
+  const r = data.record;
+  if (!r) {
+    return {
+      punchIn: null,
+      punchOut: null,
+      workingHours: "0h 0m",
+      shift: "9:00 – 6:00",
+      isCheckedIn: false,
+    };
+  }
+  return {
+    punchIn: formatTimeOfDay(r.punchIn),
+    punchOut: formatTimeOfDay(r.punchOut),
+    workingHours: formatMinutes(r.workingMinutes),
+    shift: "9:00 – 6:00",
+    isCheckedIn: Boolean(r.punchIn && !r.punchOut),
+  };
+}
+
+export async function punchIn(): Promise<UIAttendanceRecord> {
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-in", { method: "POST" });
+  return fetchTodayAttendance();
+}
+
+export async function punchOut(): Promise<UIAttendanceRecord> {
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-out", { method: "POST" });
+  return fetchTodayAttendance();
+}
+
+// ───────────────────── attendance calendar ────────────────────────
+
+function mapAttStatus(s: string): DayAttendance["status"] {
+  switch (s) {
+    case "Present":
+      return "Present";
+    case "Absent":
+      return "Absent";
+    case "Half Day":
+      return "HalfDay";
+    case "Leave":
+      return "Leave";
+    case "Holiday":
+      return "Holiday";
+    case "Weekend":
+      return "Weekend";
+    default:
+      return "Present";
+  }
+}
+
+export async function fetchMonthAttendance(
+  year: number,
+  month1: number,
+): Promise<DayAttendance[]> {
+  const data = await jsonFetch<{ records: RawAttendance[] }>(
+    `/me/attendance/month?year=${year}&month=${month1}`,
+  );
+  return data.records.map((r) => ({
+    date: r.date,
+    status: mapAttStatus(r.status),
+    punchIn: formatTimeOfDay(r.punchIn) ?? undefined,
+    punchOut: formatTimeOfDay(r.punchOut),
+    hoursWorked: formatMinutes(r.workingMinutes),
+    lateBy: r.lateByMinutes ? `${r.lateByMinutes}m` : undefined,
+    earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
+    location: r.location ?? undefined,
+  }));
+}
+
+// ───────────────────────── leave ─────────────────────────────────
+
+interface RawLeaveRequest {
+  id: number;
+  fromDate: string;
+  toDate: string;
+  days: string;
+  durationType: "Full Day" | "First Half" | "Second Half";
+  reason: string;
+  status: string;
+  appliedOn: string;
+  managerDecidedAt: string | null;
+  hrDecidedAt: string | null;
+  createdAt: string;
+  leaveTypeName: string;
+  leaveTypeCode: string;
+}
+
+function mapLeaveStatus(s: string): LeaveStatus {
+  if (s === "Approved") return "Approved";
+  if (s === "Rejected") return "Rejected";
+  if (s === "Cancelled") return "Cancelled";
+  // Pending / Forwarded → treated as Pending in the employee view
+  return "Pending";
+}
+
+export async function fetchMyLeaveRequests(): Promise<UILeaveRequest[]> {
+  const data = await jsonFetch<{ requests: RawLeaveRequest[] }>(
+    "/me/leave-requests",
+  );
+  return data.requests.map((r) => {
+    const decidedAt = r.hrDecidedAt ?? r.managerDecidedAt ?? r.createdAt;
+    return {
+      id: String(r.id),
+      appliedOn: r.appliedOn,
+      leaveType: r.leaveTypeName as UILeaveRequest["leaveType"],
+      leaveTypeCode: r.leaveTypeCode,
+      startDate: r.fromDate,
+      endDate: r.toDate,
+      duration: Number(r.days),
+      isHalfDay: r.durationType !== "Full Day",
+      reason: r.reason,
+      status: mapLeaveStatus(r.status),
+      approvedOn: decidedAt,
+    };
+  });
+}
+
+export async function cancelLeaveRequest(id: string): Promise<void> {
+  await jsonFetch(`/me/leave-requests/${id}/cancel`, { method: "POST" });
+}
+
+export interface SubmitLeaveInput {
+  leaveTypeCode: string;
+  fromDate: string;
+  toDate: string;
+  days: number;
+  durationType: "Full Day" | "First Half" | "Second Half";
+  reason: string;
+}
+
+export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void> {
+  await jsonFetch("/me/leave-requests", {
+    method: "POST",
+    body: JSON.stringify({
+      leaveTypeCode: input.leaveTypeCode,
+      fromDate: input.fromDate,
+      toDate: input.toDate,
+      days: input.days,
+      durationType: input.durationType,
+      reason: input.reason,
+    }),
+  });
+}
+
+// ─────────────────── Regularisation ───────────────────
+
+export interface SubmitRegularisationInput {
+  date: string;
+  requestedPunchIn: string; // HH:MM:SS or HH:MM (server expects HH:MM:SS)
+  requestedPunchOut: string;
+  reason: string;
+  originalIssue?: string;
+}
+
+export async function submitRegularisationRequest(
+  input: SubmitRegularisationInput,
+  scope: "employee" | "manager" = "employee",
+): Promise<void> {
+  const base = scope === "manager" ? "/manager/me" : "/me";
+  await jsonFetch(`${base}/regularisation-requests`, {
+    method: "POST",
+    body: JSON.stringify({
+      date: input.date,
+      requestedPunchIn:
+        input.requestedPunchIn.length === 5
+          ? `${input.requestedPunchIn}:00`
+          : input.requestedPunchIn,
+      requestedPunchOut:
+        input.requestedPunchOut.length === 5
+          ? `${input.requestedPunchOut}:00`
+          : input.requestedPunchOut,
+      reason: input.reason,
+      originalIssue: input.originalIssue,
+    }),
+  });
+}
+
+export interface MyRegularisationRow {
+  id: number;
+  date: string;
+  originalIssue: string | null;
+  requestedPunchIn: string;
+  requestedPunchOut: string;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected";
+  approverRemarks: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchMyRegularisationRequests(
+  scope: "employee" | "manager" = "employee",
+): Promise<MyRegularisationRow[]> {
+  const base = scope === "manager" ? "/manager/me" : "/me";
+  const data = await jsonFetch<{ requests: MyRegularisationRow[] }>(
+    `${base}/regularisation-requests`,
+  );
+  return data.requests;
+}
+
+// ────────────────────── leave balances (dashboard side panel) ──────────────
+
+interface RawLeaveBalance {
+  leaveTypeId: number;
+  name: string;
+  code: string;
+  openingBalance: string;
+  used: string;
+  closingBalance: string;
+}
+
+export async function fetchMyLeaveBalances(): Promise<UILeaveType[]> {
+  const data = await jsonFetch<{ balances: RawLeaveBalance[] }>(
+    "/me/leave-balances",
+  );
+  return data.balances.map((b) => ({
+    id: String(b.leaveTypeId),
+    name: b.name,
+    code: b.code,
+    used: Number(b.used),
+    total: Number(b.openingBalance),
+    available: Number(b.closingBalance),
+  }));
+}
+
+// ═══════════════════════════ Manager view ═══════════════════════════
+
+export async function fetchCurrentManager(): Promise<UIEmployee> {
+  const me = await jsonFetch<MeResponse>("/manager/me");
+  return {
+    id: String(me.id),
+    name: me.fullName,
+    role: me.role ?? "Manager",
+    initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
+    employeeId: me.empId,
+  };
+}
+
+export async function fetchManagerTodayAttendance(): Promise<UIAttendanceRecord> {
+  const data = await jsonFetch<{ record: RawAttendance | null }>(
+    "/manager/me/attendance/today",
+  );
+  const r = data.record;
+  if (!r) {
+    return {
+      punchIn: null,
+      punchOut: null,
+      workingHours: "0h 0m",
+      shift: "9:00 – 6:00",
+      isCheckedIn: false,
+    };
+  }
+  return {
+    punchIn: formatTimeOfDay(r.punchIn),
+    punchOut: formatTimeOfDay(r.punchOut),
+    workingHours: formatMinutes(r.workingMinutes),
+    shift: "9:00 – 6:00",
+    isCheckedIn: Boolean(r.punchIn && !r.punchOut),
+  };
+}
+
+export async function fetchManagerMonthAttendance(
+  year: number,
+  month1: number,
+): Promise<DayAttendance[]> {
+  const data = await jsonFetch<{ records: RawAttendance[] }>(
+    `/manager/me/attendance/month?year=${year}&month=${month1}`,
+  );
+  return data.records.map((r) => ({
+    date: r.date,
+    status: mapAttStatus(r.status),
+    punchIn: formatTimeOfDay(r.punchIn) ?? undefined,
+    punchOut: formatTimeOfDay(r.punchOut),
+    hoursWorked: formatMinutes(r.workingMinutes),
+    lateBy: r.lateByMinutes ? `${r.lateByMinutes}m` : undefined,
+    earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
+    location: r.location ?? undefined,
+  }));
+}
+
+export async function fetchManagerLeaveRequests(): Promise<UILeaveRequest[]> {
+  const data = await jsonFetch<{ requests: RawLeaveRequest[] }>(
+    "/manager/me/leave-requests",
+  );
+  return data.requests.map((r) => ({
+    id: String(r.id),
+    appliedOn: r.appliedOn,
+    leaveType: r.leaveTypeName as UILeaveRequest["leaveType"],
+    leaveTypeCode: r.leaveTypeCode,
+    startDate: r.fromDate,
+    endDate: r.toDate,
+    duration: Number(r.days),
+    isHalfDay: r.durationType !== "Full Day",
+    reason: r.reason,
+    status: mapLeaveStatus(r.status),
+    approvedOn: r.hrDecidedAt ?? r.managerDecidedAt ?? r.createdAt,
+  }));
+}
+
+export async function fetchManagerLeaveBalances(): Promise<UILeaveType[]> {
+  const data = await jsonFetch<{ balances: RawLeaveBalance[] }>(
+    "/manager/me/leave-balances",
+  );
+  return data.balances.map((b) => ({
+    id: String(b.leaveTypeId),
+    name: b.name,
+    code: b.code,
+    used: Number(b.used),
+    total: Number(b.openingBalance),
+    available: Number(b.closingBalance),
+  }));
+}
+
+// ───────────────── Team ─────────────────
+
+export interface TeamMember {
+  id: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  designation: string | null;
+  grade: string | null;
+}
+
+export async function fetchTeam(): Promise<TeamMember[]> {
+  const data = await jsonFetch<{ team: TeamMember[] }>("/manager/team");
+  return data.team;
+}
+
+export interface TeamAttendanceResponse {
+  from: string;
+  to: string;
+  team: Array<{
+    id: number;
+    empId: string;
+    firstName: string;
+    lastName: string;
+    designation: string | null;
+  }>;
+  records: Array<{
+    employeeId: number;
+    date: string;
+    punchIn: string | null;
+    punchOut: string | null;
+    workingMinutes: number | null;
+    lateByMinutes: number;
+    earlyExitMinutes: number;
+    status: string;
+    location: string | null;
+  }>;
+}
+
+export async function fetchTeamAttendance(
+  from?: string,
+  to?: string,
+): Promise<TeamAttendanceResponse> {
+  const q = new URLSearchParams();
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  const qs = q.toString();
+  return jsonFetch<TeamAttendanceResponse>(
+    `/manager/team/attendance${qs ? `?${qs}` : ""}`,
+  );
+}
+
+// ───────────────── Leave approvals ─────────────────
+
+export interface ApprovalLeaveRequest {
+  id: number;
+  employeeId: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  designation: string | null;
+  leaveTypeName: string;
+  leaveTypeCode: string;
+  fromDate: string;
+  toDate: string;
+  days: string;
+  durationType: "Full Day" | "First Half" | "Second Half";
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected" | "Forwarded" | "Cancelled";
+  appliedOn: string;
+  managerDecision: string | null;
+  managerDecidedAt: string | null;
+  managerRemarks: string | null;
+}
+
+export async function fetchLeaveApprovals(
+  status?: "all" | "pending" | "approved" | "rejected" | "forwarded",
+): Promise<ApprovalLeaveRequest[]> {
+  const qs = status && status !== "all" ? `?status=${status}` : "";
+  const data = await jsonFetch<{ requests: ApprovalLeaveRequest[] }>(
+    `/manager/leave-approvals${qs}`,
+  );
+  return data.requests;
+}
+
+export async function approveLeaveRequest(id: number) {
+  await jsonFetch(`/manager/leave-approvals/${id}/approve`, { method: "POST" });
+}
+
+export async function rejectLeaveRequest(id: number, remarks?: string) {
+  await jsonFetch(`/manager/leave-approvals/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ remarks }),
+  });
+}
+
+export async function forwardLeaveRequest(id: number) {
+  await jsonFetch(`/manager/leave-approvals/${id}/forward`, { method: "POST" });
+}
+
+// ───────────────── Regularisation approvals ─────────────────
+
+export interface ApprovalRegRequest {
+  id: number;
+  employeeId: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  date: string;
+  originalIssue: string | null;
+  requestedPunchIn: string;
+  requestedPunchOut: string;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected";
+  approverRemarks: string | null;
+  decidedAt: string | null;
+}
+
+export async function fetchRegularisationApprovals(
+  status?: "all" | "pending" | "approved" | "rejected",
+): Promise<ApprovalRegRequest[]> {
+  const qs = status && status !== "all" ? `?status=${status}` : "";
+  const data = await jsonFetch<{ requests: ApprovalRegRequest[] }>(
+    `/manager/regularisation-approvals${qs}`,
+  );
+  return data.requests;
+}
+
+export async function approveRegRequest(id: number) {
+  await jsonFetch(`/manager/regularisation-approvals/${id}/approve`, {
+    method: "POST",
+  });
+}
+
+export async function rejectRegRequest(id: number, remarks?: string) {
+  await jsonFetch(`/manager/regularisation-approvals/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ remarks }),
+  });
+}
