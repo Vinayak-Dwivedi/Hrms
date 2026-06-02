@@ -5,30 +5,21 @@ import {
   BookOpen,
   Briefcase,
   Calendar as CalendarIcon,
+  ChevronDown,
   Clock,
   FileText,
   LogOut,
+  Menu,
   Receipt,
   Users,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
-import {
-  fetchCurrentEmployee,
-  fetchTodayAttendance,
-  signOut,
-  type LoggedInUser as _LoggedInUser,
-} from "@/lib/hrms-client";
-import type {
-  AttendanceRecord,
-  Employee,
-} from "@/lib/dashboard";
+import { fetchCurrentEmployee, signOut } from "@/lib/hrms-client";
+import type { Employee } from "@/lib/dashboard";
 
 // ── nav config ───────────────────────────────────────────────────────────────
-// The single source of truth for sidebar items. Order = display order.
-// `match` is used to highlight the active entry — a path matches if it
-// equals the href, starts with `${href}/`, or is listed in `also`.
 type NavEntry = {
   icon: typeof Briefcase;
   label: string;
@@ -81,41 +72,56 @@ function breadcrumbFor(pathname: string): string {
   return derived || "Dashboard";
 }
 
-// ── small avatar primitives ──────────────────────────────────────────────────
+// ── header avatar (initials only — no hardcoded photo asset) ────────────────
 
-function SidebarAvatar({ initials }: { initials: string }) {
+function HeaderAvatar({
+  initials,
+  src,
+}: {
+  initials: string;
+  src?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showImg = src && !failed;
   return (
     <div
-      className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
+      className="rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0"
       style={{
-        width: 56,
-        height: 56,
-        background:
-          "linear-gradient(135deg, #ec4899 0%, #be185d 100%)",
-        fontSize: 18,
-        letterSpacing: 0.5,
-      }}
-    >
-      {initials}
-    </div>
-  );
-}
-
-function HeaderAvatar({ initials }: { initials: string }) {
-  return (
-    <div
-      className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
-      style={{
-        width: 32,
-        height: 32,
-        background: "#7c3aed",
+        width: 34,
+        height: 34,
+        background: showImg ? "#fff" : "#7c3aed",
         fontSize: 12,
         letterSpacing: 0.5,
       }}
     >
-      {initials}
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={initials}
+          width={34}
+          height={34}
+          onError={() => setFailed(true)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      ) : (
+        initials
+      )}
     </div>
   );
+}
+
+// ── persistence for collapsed state ──────────────────────────────────────────
+const COLLAPSE_KEY = "hrms.sidebar.collapsed";
+
+function loadCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(COLLAPSE_KEY) === "1";
 }
 
 // ── the shell ────────────────────────────────────────────────────────────────
@@ -129,22 +135,33 @@ export default function EmployeeShell({
   const pathname = usePathname();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
-  const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(loadCollapsed());
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* localStorage disabled — fine */
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [emp, att] = await Promise.all([
-          fetchCurrentEmployee(),
-          fetchTodayAttendance(),
-        ]);
+        const emp = await fetchCurrentEmployee();
         if (cancelled) return;
         setEmployee(emp);
-        setAttendance(att);
       } catch {
-        // The page itself will surface fetch errors; the shell stays usable
-        // with placeholder text.
+        /* page surfaces fetch errors itself */
       }
     })();
     return () => {
@@ -159,6 +176,7 @@ export default function EmployeeShell({
 
   const initials = employee?.initials ?? "··";
   const crumb = breadcrumbFor(pathname);
+  const sidebarWidth = collapsed ? 72 : 240;
 
   return (
     <div
@@ -169,75 +187,76 @@ export default function EmployeeShell({
       <aside
         className="flex flex-col shrink-0"
         style={{
-          width: 240,
+          width: sidebarWidth,
           background: "#fff",
           borderRight: "1px solid #e5e7eb",
+          transition: "width 180ms ease",
         }}
       >
+        {/* Logo + hamburger */}
         <div
-          className="flex items-center justify-between px-5"
-          style={{ height: 72, borderBottom: "1px solid #f3f4f6" }}
+          className="flex items-center"
+          style={{
+            height: 72,
+            padding: collapsed ? "0 16px" : "0 16px 0 20px",
+            borderBottom: "1px solid #f3f4f6",
+            justifyContent: collapsed ? "center" : "space-between",
+            gap: 8,
+          }}
         >
-          <div>
-            <p
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#dc143c",
-                lineHeight: 1,
-              }}
-            >
-              iLeads
-            </p>
-            <p
-              style={{
-                fontSize: 10,
-                color: "#9ca3af",
-                letterSpacing: 1.5,
-                marginTop: 4,
-              }}
-            >
-              EMPLOYEE PORTAL
-            </p>
-          </div>
-        </div>
-
-        <div className="px-5 py-5 flex flex-col items-center text-center">
-          <SidebarAvatar initials={initials} />
-          <p
-            className="text-[14px] font-semibold text-gray-900 mt-3 leading-tight"
-            style={{ minHeight: 18 }}
-          >
-            {employee?.name ?? "Loading…"}
-          </p>
-          <p className="text-[12px] text-gray-500 leading-tight">
-            {employee?.role ?? ""}
-          </p>
-          {employee?.employeeId && (
-            <div
-              className="mt-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold"
-              style={{ background: "#fff1f2", color: "#be185d" }}
-            >
-              {employee.employeeId}
-            </div>
-          )}
-          {attendance && (
-            <div
-              className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
-              style={{ background: "#dcfce7", color: "#166534" }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
+          {!collapsed && (
+            <div>
+              <p
                 style={{
-                  background: attendance.punchIn ? "#16a34a" : "#9ca3af",
+                  fontSize: 19,
+                  fontWeight: 700,
+                  color: "#dc143c",
+                  lineHeight: 1,
                 }}
-              />
-              {attendance.punchIn ? "CHECKED IN" : "CHECKED OUT"}
+              >
+                iLeads
+              </p>
+              <p
+                style={{
+                  fontSize: 10,
+                  color: "#9ca3af",
+                  letterSpacing: 1.5,
+                  marginTop: 4,
+                }}
+              >
+                EMPLOYEE PORTAL
+              </p>
             </div>
           )}
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="flex items-center justify-center rounded-lg"
+            style={{
+              width: 32,
+              height: 32,
+              background: "#fff1f2",
+              border: "1px solid #fecdd3",
+              color: "#be185d",
+              cursor: "pointer",
+            }}
+          >
+            <Menu size={15} />
+          </button>
         </div>
 
-        <nav className="flex flex-col gap-1 px-3 flex-1">
+        {/*
+          Profile card removed — identity lives in the header (top-right) and
+          the dashboard's Punch hero card. The block is intentionally gone,
+          not commented, to keep this file clean.
+        */}
+
+        {/* Nav */}
+        <nav
+          className="flex flex-col gap-1 flex-1"
+          style={{ padding: collapsed ? "10px 10px" : "8px 12px" }}
+        >
           {EMPLOYEE_NAV.map(({ icon: Icon, label, href }) => {
             const entry = EMPLOYEE_NAV.find((e) => e.label === label);
             const active = entry ? isNavActive(entry, pathname) : false;
@@ -245,42 +264,58 @@ export default function EmployeeShell({
               <a
                 key={label}
                 href={href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium no-underline"
+                title={collapsed ? label : undefined}
+                className="flex items-center rounded-xl text-[13px] font-medium no-underline"
                 style={{
                   color: active ? "#fff" : "#4b5563",
                   background: active
                     ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
                     : "transparent",
+                  padding: collapsed ? "10px 0" : "10px 12px",
+                  gap: 12,
+                  justifyContent: collapsed ? "center" : "flex-start",
                 }}
               >
                 <Icon size={16} />
-                {label}
+                {!collapsed && label}
               </a>
             );
           })}
         </nav>
 
-        <div className="px-3 py-4" style={{ borderTop: "1px solid #f3f4f6" }}>
+        {/* Footer */}
+        <div
+          style={{
+            borderTop: "1px solid #f3f4f6",
+            padding: collapsed ? "12px 10px" : "12px 12px",
+          }}
+        >
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-[13px] font-semibold"
+            title={collapsed ? "Log out" : undefined}
+            className="flex items-center rounded-xl text-[13px] font-semibold w-full"
             style={{
               background: "#fee2e2",
               color: "#dc2626",
               border: "none",
               cursor: "pointer",
+              padding: collapsed ? "10px 0" : "10px 12px",
+              gap: 12,
+              justifyContent: collapsed ? "center" : "flex-start",
             }}
           >
             <LogOut size={16} />
-            Log out
+            {!collapsed && "Log out"}
           </button>
-          <p
-            className="text-[10px] mt-3 text-center"
-            style={{ color: "#9ca3af" }}
-          >
-            iLeads HRMS {APP_VERSION} · {APP_LOCATION}
-          </p>
+          {!collapsed && (
+            <p
+              className="text-[10px] mt-3 text-center"
+              style={{ color: "#9ca3af" }}
+            >
+              iLeads HRMS {APP_VERSION} · {APP_LOCATION}
+            </p>
+          )}
         </div>
       </aside>
 
@@ -319,10 +354,11 @@ export default function EmployeeShell({
               />
             </button>
             <div className="flex items-center gap-2">
-              <HeaderAvatar initials={initials} />
+              <HeaderAvatar initials={initials} src={employee?.avatarUrl} />
               <span className="text-sm font-semibold text-gray-700">
                 {employee?.name ?? "—"}
               </span>
+              <ChevronDown size={14} style={{ color: "#9ca3af" }} />
             </div>
           </div>
         </header>

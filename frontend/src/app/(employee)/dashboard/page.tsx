@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  BookOpen,
-  Calendar as CalendarIcon,
+  CalendarPlus,
   Clock,
   FileText,
+  GraduationCap,
   History,
-  Receipt,
   RefreshCw,
   Users,
+  Wallet,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
@@ -32,21 +32,49 @@ import {
 
 // ─── primitives ─────────────────────────────────────────────────────────────
 
-function Avatar({ initials, size = 40 }: { initials: string; size?: number }) {
+function Avatar({
+  initials,
+  size = 64,
+  src,
+}: {
+  initials: string;
+  size?: number;
+  src?: string | null;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showImg = src && !failed;
   return (
     <div
-      className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
+      className="rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0"
       style={{
         width: size,
         height: size,
-        background:
-          "linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 100%)",
-        border: "1px solid rgba(255,255,255,0.25)",
-        fontSize: Math.max(11, Math.round(size * 0.32)),
+        background: showImg
+          ? "#fff"
+          : "linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 100%)",
+        border: "2px solid rgba(255,255,255,0.3)",
+        fontSize: Math.max(14, Math.round(size * 0.32)),
         letterSpacing: 0.5,
       }}
     >
-      {initials}
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt={initials}
+          width={size}
+          height={size}
+          onError={() => setFailed(true)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      ) : (
+        initials
+      )}
     </div>
   );
 }
@@ -54,14 +82,17 @@ function Avatar({ initials, size = 40 }: { initials: string; size?: number }) {
 function Ring({
   used,
   total,
-  size = 64,
+  size = 84,
 }: {
   used: number;
   total: number;
   size?: number;
 }) {
-  const r = size * 0.36;
-  const stroke = 5;
+  // Bigger ring + thinner stroke = more breathing room around the centred
+  // text. The radius pushes the stroke close to the edge so the inner area
+  // (where the label sits) is as large as possible.
+  const stroke = 4;
+  const r = size / 2 - stroke / 2 - 4; // 4 px buffer outside the stroke
   const c = 2 * Math.PI * r;
   const pct = total > 0 ? used / total : 0;
   const dash = pct * c;
@@ -100,6 +131,7 @@ function Ring({
           fontSize: 12,
           fontWeight: 700,
           color: "#111827",
+          letterSpacing: -0.2,
         }}
       >
         {used}/{total}
@@ -168,10 +200,10 @@ function Donut({
           justifyContent: "center",
         }}
       >
-        <p style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>
+        <p style={{ fontSize: 24, fontWeight: 700, color: "#111827" }}>
           {center.label}
         </p>
-        <p style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+        <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
           {center.sub}
         </p>
       </div>
@@ -179,35 +211,48 @@ function Donut({
   );
 }
 
+// Weekly attendance line chart — Present (blue) / Absent (green) / On Leave (yellow).
+// Y axis shows total weekly count (max 1.2k = 1200 to match mockup feel).
 function WeekChart({ week }: { week: WeekAttendance }) {
   const w = 600;
-  const h = 200;
-  const padL = 32;
+  const h = 170;
+  const padL = 36;
   const padR = 16;
-  const padT = 20;
-  const padB = 30;
-  const max = 1;
-  const xStep = (w - padL - padR) / 6;
+  const padT = 14;
+  const padB = 28;
+
+  // For each day, plot working minutes so the y-axis carries real
+  // information (the mockup shows 0 → 1.2k). Cap the scale to a sensible
+  // ceiling so a single very-long day doesn't compress the rest.
+  const yMax = 1200;
 
   function path(values: number[]) {
+    if (!values.length) return "";
+    const xStep = (w - padL - padR) / Math.max(1, values.length - 1);
     return values
       .map((v, i) => {
         const x = padL + i * xStep;
-        const y = padT + (h - padT - padB) * (1 - v / max);
+        const clamped = Math.min(Math.max(v, 0), yMax);
+        const y = padT + (h - padT - padB) * (1 - clamped / yMax);
         return `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
       })
       .join(" ");
   }
 
+  // Present series = working minutes that day if status was Present, else 0.
   const present = week.days.map((d) =>
-    d.record?.status === "Present" ? 1 : 0,
+    d.record?.status === "Present" ? (d.record.workingMinutes ?? 0) : 0,
   );
+  // Absent / On Leave: scaled blocks at a fixed value so the line shows up.
   const absent = week.days.map((d) =>
-    d.record?.status === "Absent" ? 1 : 0,
+    d.record?.status === "Absent" ? 480 : 0,
   );
   const onLeave = week.days.map((d) =>
-    d.record?.status === "Leave" ? 1 : 0,
+    d.record?.status === "Leave" ? 480 : 0,
   );
+
+  const xStep = (w - padL - padR) / Math.max(1, week.days.length - 1);
+  const yLabels = [0, 200, 400, 600, 800, 1000, 1200];
 
   return (
     <svg
@@ -216,20 +261,32 @@ function WeekChart({ week }: { week: WeekAttendance }) {
       viewBox={`0 0 ${w} ${h}`}
       style={{ display: "block" }}
     >
-      {[0, 0.25, 0.5, 0.75, 1].map((g) => {
-        const y = padT + (h - padT - padB) * (1 - g);
+      {/* y grid + labels */}
+      {yLabels.map((g) => {
+        const y = padT + (h - padT - padB) * (1 - g / yMax);
         return (
-          <line
-            key={g}
-            x1={padL}
-            x2={w - padR}
-            y1={y}
-            y2={y}
-            stroke="#f3f4f6"
-            strokeWidth={1}
-          />
+          <g key={g}>
+            <line
+              x1={padL}
+              x2={w - padR}
+              y1={y}
+              y2={y}
+              stroke="#f3f4f6"
+              strokeWidth={1}
+            />
+            <text
+              x={padL - 6}
+              y={y + 3}
+              fontSize={9}
+              fill="#9ca3af"
+              textAnchor="end"
+            >
+              {g >= 1000 ? `${(g / 1000).toFixed(1)}k` : g}
+            </text>
+          </g>
         );
       })}
+      {/* x labels */}
       {week.days.map((d, i) => {
         const x = padL + i * xStep;
         return (
@@ -237,7 +294,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
             key={d.date}
             x={x}
             y={h - 8}
-            fontSize={11}
+            fontSize={10}
             textAnchor="middle"
             fill="#9ca3af"
           >
@@ -245,24 +302,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
           </text>
         );
       })}
-      <text
-        x={padL - 8}
-        y={padT + 4}
-        fontSize={10}
-        fill="#9ca3af"
-        textAnchor="end"
-      >
-        1
-      </text>
-      <text
-        x={padL - 8}
-        y={h - padB}
-        fontSize={10}
-        fill="#9ca3af"
-        textAnchor="end"
-      >
-        0
-      </text>
+      {/* series */}
       <path
         d={path(present)}
         stroke="#3b82f6"
@@ -281,33 +321,6 @@ function WeekChart({ week }: { week: WeekAttendance }) {
         strokeWidth={2.5}
         fill="none"
       />
-      {present.map((v, i) => (
-        <circle
-          key={`p${i}`}
-          cx={padL + i * xStep}
-          cy={padT + (h - padT - padB) * (1 - v)}
-          r={3}
-          fill="#3b82f6"
-        />
-      ))}
-      {absent.map((v, i) => (
-        <circle
-          key={`a${i}`}
-          cx={padL + i * xStep}
-          cy={padT + (h - padT - padB) * (1 - v)}
-          r={3}
-          fill="#10b981"
-        />
-      ))}
-      {onLeave.map((v, i) => (
-        <circle
-          key={`l${i}`}
-          cx={padL + i * xStep}
-          cy={padT + (h - padT - padB) * (1 - v)}
-          r={3}
-          fill="#f59e0b"
-        />
-      ))}
     </svg>
   );
 }
@@ -315,7 +328,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
 // ─── format helpers ─────────────────────────────────────────────────────────
 
 function formatTimeLong(t: string | null | undefined): string {
-  if (!t) return "—";
+  if (!t) return "--:-- --";
   return t;
 }
 
@@ -354,6 +367,15 @@ function statusPill(status: LeaveRequest["status"]): {
     default:
       return { bg: "#ffedd5", color: "#9a3412", label: "Pending" };
   }
+}
+
+// Same minute-of-day → "h Xm" formatter, but tuned for the stat tiles
+// (matches the "0h 2m" / "0h 0m" format in the mockup).
+function fmtHm(mins: number): string {
+  const safe = Math.max(0, Math.round(mins));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${h}h ${m}m`;
 }
 
 // ─── page ───────────────────────────────────────────────────────────────────
@@ -424,6 +446,7 @@ export default function DashboardPage() {
   const usedLeaves = (balances ?? []).reduce((s, l) => s + l.used, 0);
   const balLeaves = totalLeaves - usedLeaves;
 
+  // Donut: distribution of USED days across leave types.
   const PALETTE = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
   const usedByType = (balances ?? []).map((b, i) => ({
     label: b.name,
@@ -433,6 +456,22 @@ export default function DashboardPage() {
   const usedTotal = usedByType.reduce((s, x) => s + x.value, 0);
 
   const initials = employee?.initials ?? "··";
+
+  // ── attendance overview stats (mockup uses "Xh Ym" format) ──
+  // PRESENT = sum of working minutes on Present days this week (same as total
+  // when nobody's been absent).
+  // ABSENT / ON LEAVE = expected day length (540 min) × day count, so the
+  // tile carries time, not a raw count.
+  // LATE ARRIVALS = sum of lateByMinutes across the week.
+  const totalMins = week?.totals.totalWorkingMinutes ?? 0;
+  const presentMins = totalMins; // working time only accrues on Present days
+  const absentMins = (week?.totals.absent ?? 0) * 540;
+  const onLeaveMins = (week?.totals.onLeave ?? 0) * 540;
+  const lateMins =
+    week?.days.reduce(
+      (s, d) => s + (d.record?.lateByMinutes ?? 0),
+      0,
+    ) ?? 0;
 
   return (
     <>
@@ -452,46 +491,99 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Row 1 */}
+      {/* Row 1 — Punch hero | Leave Balance | Upcoming Holidays */}
       <div
         className="grid gap-4 mb-4"
         style={{
           gridTemplateColumns:
-            "minmax(0,2.2fr) minmax(0,1.6fr) minmax(0,1fr)",
+            "minmax(0,2.2fr) minmax(0,1.7fr) minmax(0,1.1fr)",
         }}
       >
-        {/* Punch hero card */}
+        {/* Punch hero card — user info | divider | PUNCH IN | PUNCH OUT,
+            "Checked In" pill at bottom-left, action button top-right. */}
         <div
-          className="rounded-2xl overflow-hidden text-white"
+          className="relative rounded-2xl overflow-hidden text-white"
           style={{
             background:
               "linear-gradient(135deg, #9b1747 0%, #6b0f30 100%)",
           }}
         >
-          <div className="flex items-center px-5 py-5 gap-5">
-            <Avatar initials={initials} size={64} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[17px] font-bold leading-tight truncate">
+          {/* Punch In / Out action — corner, subtle so it doesn't dominate */}
+          <button
+            type="button"
+            onClick={handlePunchToggle}
+            disabled={punchBusy || !attendance}
+            className="absolute top-3 right-3 px-3 py-1 rounded-lg text-[11px] font-bold"
+            style={{
+              border: "1px solid rgba(255,255,255,0.45)",
+              background: "rgba(0,0,0,0.18)",
+              color: "#fff",
+              cursor: punchBusy || !attendance ? "not-allowed" : "pointer",
+              opacity: punchBusy || !attendance ? 0.6 : 1,
+              zIndex: 1,
+            }}
+          >
+            {punchBusy
+              ? "…"
+              : attendance?.punchIn
+                ? "Punch Out"
+                : "Punch In"}
+          </button>
+
+          <div className="flex items-stretch px-5 py-4 gap-4">
+            {/* Avatar stacked with the Checked In pill directly below it */}
+            <div className="flex flex-col items-center shrink-0 gap-2">
+              <Avatar
+                initials={initials}
+                size={84}
+                src={employee?.avatarUrl}
+              />
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{
+                  background: "rgba(0,0,0,0.28)",
+                  color: "rgba(255,255,255,0.92)",
+                }}
+              >
+                <span
+                  className="rounded-full"
+                  style={{
+                    width: 6,
+                    height: 6,
+                    background: attendance?.punchIn ? "#4ade80" : "#9ca3af",
+                  }}
+                />
+                {attendance?.punchIn ? "Checked In" : "Checked Out"}
+              </span>
+            </div>
+
+            {/* Identity — name allowed to wrap to two lines if it has to */}
+            <div className="flex flex-col justify-center flex-1 min-w-0">
+              <p
+                className="text-[18px] font-bold leading-tight"
+                style={{ wordBreak: "break-word" }}
+              >
                 {employee?.name ?? "Loading…"}
               </p>
               <p
-                className="text-[12px] mt-0.5"
-                style={{ color: "rgba(255,255,255,0.75)" }}
+                className="text-[12px] mt-0.5 leading-tight"
+                style={{ color: "rgba(255,255,255,0.78)" }}
               >
                 {employee?.role ?? ""}
               </p>
               {employee?.employeeId && (
                 <div
-                  className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                  className="inline-block self-start mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold"
                   style={{
-                    background: "rgba(0,0,0,0.25)",
-                    color: "rgba(255,255,255,0.85)",
+                    background: "rgba(0,0,0,0.28)",
+                    color: "rgba(255,255,255,0.9)",
                   }}
                 >
                   {employee.employeeId}
                 </div>
               )}
             </div>
+
             <div
               style={{
                 width: 1,
@@ -499,44 +591,54 @@ export default function DashboardPage() {
                 background: "rgba(255,255,255,0.15)",
               }}
             />
-            <div style={{ minWidth: 110 }}>
+
+            {/* PUNCH IN */}
+            <div
+              className="flex flex-col justify-center shrink-0"
+              style={{ minWidth: 88 }}
+            >
               <p
                 className="text-[10px] font-bold tracking-widest"
-                style={{ color: "rgba(255,255,255,0.6)" }}
+                style={{ color: "rgba(255,255,255,0.65)" }}
               >
                 PUNCH IN
               </p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <Clock size={14} style={{ color: "#4ade80" }} />
-                <p className="text-[15px] font-bold">
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <Clock size={13} style={{ color: "#4ade80" }} />
+                <p className="text-[15px] font-bold whitespace-nowrap">
                   {formatTimeLong(attendance?.punchIn)}
                 </p>
               </div>
               <p
                 className="text-[10px] mt-0.5"
-                style={{ color: "rgba(255,255,255,0.55)" }}
+                style={{ color: "rgba(255,255,255,0.6)" }}
               >
                 {attendance?.punchIn ? "Today" : "Not punched in"}
               </p>
             </div>
-            <div style={{ minWidth: 130 }}>
+
+            {/* PUNCH OUT — right padding clears the absolute action button */}
+            <div
+              className="flex flex-col justify-center shrink-0"
+              style={{ minWidth: 100, paddingRight: 88 }}
+            >
               <p
                 className="text-[10px] font-bold tracking-widest"
-                style={{ color: "rgba(255,255,255,0.6)" }}
+                style={{ color: "rgba(255,255,255,0.65)" }}
               >
                 PUNCH OUT
               </p>
-              <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 mt-1.5">
                 <Clock
-                  size={14}
+                  size={13}
                   style={{ color: "rgba(255,255,255,0.45)" }}
                 />
                 <p
-                  className="text-[15px] font-bold"
+                  className="text-[15px] font-bold whitespace-nowrap"
                   style={{
                     color: attendance?.punchOut
                       ? "#fff"
-                      : "rgba(255,255,255,0.65)",
+                      : "rgba(255,255,255,0.7)",
                   }}
                 >
                   {attendance?.punchOut ?? "--:-- --"}
@@ -544,45 +646,11 @@ export default function DashboardPage() {
               </div>
               <p
                 className="text-[10px] mt-0.5"
-                style={{ color: "rgba(255,255,255,0.55)" }}
+                style={{ color: "rgba(255,255,255,0.6)" }}
               >
                 {attendance?.punchOut ? "Today" : "Not punched out"}
               </p>
             </div>
-          </div>
-          <div
-            className="flex items-center justify-between px-5 py-2.5"
-            style={{ background: "rgba(0,0,0,0.2)" }}
-          >
-            <div className="flex items-center gap-2 text-[11px] font-medium">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{
-                  background: attendance?.punchIn ? "#4ade80" : "#9ca3af",
-                }}
-              />
-              {attendance?.punchIn ? "Checked In" : "Checked Out"}
-            </div>
-            <button
-              type="button"
-              onClick={handlePunchToggle}
-              disabled={punchBusy || !attendance}
-              className="px-3 py-1 rounded-lg text-[11px] font-bold"
-              style={{
-                border: "1px solid rgba(255,255,255,0.5)",
-                background: "transparent",
-                color: "#fff",
-                cursor:
-                  punchBusy || !attendance ? "not-allowed" : "pointer",
-                opacity: punchBusy || !attendance ? 0.6 : 1,
-              }}
-            >
-              {punchBusy
-                ? "Processing…"
-                : attendance?.punchIn
-                  ? "Punch Out"
-                  : "Punch In"}
-            </button>
           </div>
         </div>
 
@@ -592,7 +660,7 @@ export default function DashboardPage() {
           style={{ border: "1px solid #e5e7eb" }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-bold text-gray-900">
+            <h3 className="text-[15px] font-bold text-gray-900">
               Leave Balance
             </h3>
             <a
@@ -603,7 +671,7 @@ export default function DashboardPage() {
               View all →
             </a>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {[
               {
                 label: "Total Leaves",
@@ -631,7 +699,7 @@ export default function DashboardPage() {
                 key={item.code}
                 className="flex flex-col items-center text-center"
               >
-                <Ring used={item.used} total={item.total} size={64} />
+                <Ring used={item.used} total={item.total} size={84} />
                 <p className="text-[11px] font-semibold text-gray-800 mt-2 leading-tight">
                   {item.label}
                 </p>
@@ -650,14 +718,6 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-          {!balances && (
-            <p
-              className="text-center text-[11px] mt-3"
-              style={{ color: "#9ca3af" }}
-            >
-              Loading…
-            </p>
-          )}
         </div>
 
         {/* Upcoming Holidays */}
@@ -666,7 +726,7 @@ export default function DashboardPage() {
           style={{ border: "1px solid #e5e7eb" }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-bold text-gray-900">
+            <h3 className="text-[15px] font-bold text-gray-900">
               Upcoming Holidays
             </h3>
             <a
@@ -748,12 +808,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 2 */}
+      {/* Row 2 — Attendance Overview | Leave Distribution | Quick Links */}
       <div
         className="grid gap-4 mb-4"
         style={{
           gridTemplateColumns:
-            "minmax(0,1.6fr) minmax(0,1.4fr) minmax(0,1fr)",
+            "minmax(0,1.7fr) minmax(0,1.4fr) minmax(0,1fr)",
         }}
       >
         {/* Attendance Overview */}
@@ -762,7 +822,7 @@ export default function DashboardPage() {
           style={{ border: "1px solid #e5e7eb" }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-bold text-gray-900">
+            <h3 className="text-[15px] font-bold text-gray-900">
               Employee Attendance Overview
             </h3>
             <button
@@ -774,72 +834,56 @@ export default function DashboardPage() {
                 border: "1px solid #fecdd3",
               }}
             >
-              This Week ▾
+              Today ▾
             </button>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 mb-4">
-            {(() => {
-              const totalMins = week?.totals.totalWorkingMinutes ?? 0;
-              const items = [
-                {
-                  label: "TOTAL",
-                  value: formatMinutesShort(totalMins),
-                  sub: "Working Hours",
-                  color: "#111827",
-                },
-                {
-                  label: "PRESENT",
-                  value: `${week?.totals.present ?? 0}d`,
-                  sub: "this week",
-                  color: "#3b82f6",
-                },
-                {
-                  label: "ABSENT",
-                  value: `${week?.totals.absent ?? 0}d`,
-                  sub: "this week",
-                  color: "#10b981",
-                },
-                {
-                  label: "ON LEAVE",
-                  value: `${week?.totals.onLeave ?? 0}d`,
-                  sub: "this week",
-                  color: "#f59e0b",
-                },
-                {
-                  label: "LATE",
-                  value: `${week?.totals.lateArrivals ?? 0}d`,
-                  sub: "arrivals",
-                  color: "#8b5cf6",
-                },
-              ];
-              return items.map((it) => (
-                <div
-                  key={it.label}
-                  className="rounded-lg p-2"
-                  style={{ background: "#f9fafb" }}
+          <div className="grid grid-cols-5 gap-2 mb-3">
+            <div className="rounded-lg p-2" style={{ background: "#f9fafb" }}>
+              <p
+                className="text-[9px] font-bold tracking-wider"
+                style={{ color: "#9ca3af" }}
+              >
+                TOTAL
+              </p>
+              <p
+                className="text-[16px] font-bold leading-tight mt-0.5"
+                style={{ color: "#111827" }}
+              >
+                {fmtHm(totalMins)}
+              </p>
+              <p className="text-[10px]" style={{ color: "#9ca3af" }}>
+                Working Hours Today
+              </p>
+              <p className="text-[10px]" style={{ color: "#9ca3af" }}>
+                Shift: 9:00 - 6:00
+              </p>
+            </div>
+            {[
+              { label: "PRESENT", value: presentMins, color: "#3b82f6" },
+              { label: "ABSENT", value: absentMins, color: "#10b981" },
+              { label: "ON LEAVE", value: onLeaveMins, color: "#f59e0b" },
+              { label: "LATE ARRIVALS", value: lateMins, color: "#8b5cf6" },
+            ].map((it) => (
+              <div
+                key={it.label}
+                className="rounded-lg p-2"
+                style={{ background: "#f9fafb" }}
+              >
+                <p
+                  className="text-[9px] font-bold tracking-wider"
+                  style={{ color: "#9ca3af" }}
                 >
-                  <p
-                    className="text-[9px] font-bold tracking-wider"
-                    style={{ color: "#9ca3af" }}
-                  >
-                    {it.label}
-                  </p>
-                  <p
-                    className="text-[16px] font-bold leading-tight mt-0.5"
-                    style={{ color: it.color }}
-                  >
-                    {it.value}
-                  </p>
-                  <p
-                    className="text-[10px]"
-                    style={{ color: "#9ca3af" }}
-                  >
-                    {it.sub}
-                  </p>
-                </div>
-              ));
-            })()}
+                  {it.label}
+                </p>
+                <p
+                  className="text-[16px] font-bold leading-tight mt-0.5"
+                  style={{ color: it.color }}
+                >
+                  {fmtHm(it.value)}
+                </p>
+              </div>
+            ))}
           </div>
 
           {week ? (
@@ -853,7 +897,7 @@ export default function DashboardPage() {
             </p>
           )}
 
-          <div className="flex items-center justify-center gap-5 mt-3">
+          <div className="flex items-center justify-center gap-5 mt-2">
             {[
               { label: "Present", color: "#3b82f6" },
               { label: "Absent", color: "#10b981" },
@@ -884,7 +928,7 @@ export default function DashboardPage() {
           style={{ border: "1px solid #e5e7eb" }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[14px] font-bold text-gray-900">
+            <h3 className="text-[15px] font-bold text-gray-900">
               Leave Distribution
             </h3>
             <button
@@ -904,7 +948,7 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-4">
             <Donut
-              size={150}
+              size={200}
               segments={
                 usedTotal > 0
                   ? usedByType
@@ -912,15 +956,12 @@ export default function DashboardPage() {
               }
               center={{
                 label: usedTotal > 0 ? String(usedTotal) : "0",
-                sub: usedTotal > 0 ? "Days used" : "No leaves used",
+                sub: "Total",
               }}
             />
             <div className="flex-1 min-w-0">
               {usedByType.length === 0 && (
-                <p
-                  className="text-[11px]"
-                  style={{ color: "#9ca3af" }}
-                >
+                <p className="text-[11px]" style={{ color: "#9ca3af" }}>
                   Loading balances…
                 </p>
               )}
@@ -943,9 +984,7 @@ export default function DashboardPage() {
                           background: s.color,
                         }}
                       />
-                      <span
-                        className="text-[12px] text-gray-700 truncate"
-                      >
+                      <span className="text-[12px] text-gray-700 truncate">
                         {s.label}
                       </span>
                     </div>
@@ -960,47 +999,50 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Links */}
+        {/* Quick Links — red box wraps the icon only; label sits below it */}
         <div
           className="rounded-2xl bg-white p-5"
           style={{ border: "1px solid #e5e7eb" }}
         >
-          <h3 className="text-[14px] font-bold text-gray-900 mb-3">
+          <h3 className="text-[15px] font-bold text-gray-900 mb-3">
             Quick Links
           </h3>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
             {[
-              {
-                icon: CalendarIcon,
-                label: "Apply Leave",
-                href: "/leave/new",
-              },
+              { icon: CalendarPlus, label: "Apply Leave", href: "/leave/new" },
               { icon: FileText, label: "My Requests", href: "/requests" },
-              { icon: Receipt, label: "My Payslips", href: "/payslips" },
-              {
-                icon: History,
-                label: "Punch History",
-                href: "/attendance",
-              },
+              { icon: Wallet, label: "My Payslips", href: "/payslips" },
+              { icon: History, label: "Punch History", href: "/attendance" },
               {
                 icon: Users,
                 label: "Company Directory",
                 href: "/directory",
               },
-              { icon: BookOpen, label: "L&D Portal", href: "/lnd" },
+              { icon: GraduationCap, label: "L&D Portal", href: "/lnd" },
             ].map(({ icon: Icon, label, href }) => (
               <a
                 key={label}
                 href={href}
-                className="flex flex-col items-center justify-center text-center rounded-xl p-3 no-underline"
-                style={{
-                  background: "#fff1f2",
-                  border: "1px solid #fecdd3",
-                  color: "#be185d",
-                }}
+                className="flex flex-col items-center text-center no-underline"
+                style={{ color: "#111827" }}
               >
-                <Icon size={18} />
-                <p className="text-[10px] font-semibold mt-1.5 leading-tight">
+                {/* Red square — icon only */}
+                <span
+                  className="flex items-center justify-center rounded-xl"
+                  style={{
+                    width: 56,
+                    height: 56,
+                    background: "#fff1f2",
+                    border: "1px solid #fecdd3",
+                  }}
+                >
+                  <Icon size={22} style={{ color: "#e91e8c" }} />
+                </span>
+                {/* Label below the box, dark text */}
+                <p
+                  className="text-[11px] font-semibold mt-2 leading-tight"
+                  style={{ color: "#111827" }}
+                >
                   {label}
                 </p>
               </a>
@@ -1009,7 +1051,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 3: Recent Leave Requests */}
+      {/* Row 3 — Recent Leave Requests (full-width table) */}
       <div
         className="rounded-2xl bg-white p-5"
         style={{ border: "1px solid #e5e7eb" }}

@@ -97,6 +97,7 @@ interface MeResponse {
   lastName: string;
   fullName: string;
   initials: string;
+  avatarUrl: string | null;
   workEmail: string | null;
   phone: string;
   role: string | null;
@@ -114,6 +115,7 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     role: me.role ?? "Employee",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
+    avatarUrl: me.avatarUrl ?? null,
   };
 }
 
@@ -436,6 +438,7 @@ export async function fetchCurrentManager(): Promise<UIEmployee> {
     role: me.role ?? "Manager",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
+    avatarUrl: me.avatarUrl ?? null,
   };
 }
 

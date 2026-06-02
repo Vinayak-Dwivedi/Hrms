@@ -55,6 +55,7 @@ meRouter.get("/", async (req, res, next) => {
       lastName: emp.lastName,
       fullName: `${emp.firstName} ${emp.lastName}`,
       initials,
+      avatarUrl: emp.profilePhotoUrl ?? null,
       workEmail: emp.workEmail,
       phone: emp.phone,
       role: designation?.name ?? null,

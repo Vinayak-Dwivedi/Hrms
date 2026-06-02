@@ -4,6 +4,7 @@ export interface Employee {
   role: string;
   initials: string;
   employeeId: string;
+  avatarUrl?: string | null;
 }
 
 export interface AttendanceRecord {
