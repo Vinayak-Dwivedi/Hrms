@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, FileUp, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, FileUp, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -118,7 +118,13 @@ export default function BulkUploadPage() {
             </div>
           )}
         </CardContent>
-        <CardFooter className="bg-muted/30 py-4 px-6 border-t flex justify-end">
+        <CardFooter className="bg-muted/30 py-4 px-6 border-t flex justify-between items-center">
+          <a href="/Book1.xlsx" download="Book1.xlsx">
+            <Button variant="outline" type="button">
+              <Download className="mr-2 h-4 w-4" />
+              Export Sample
+            </Button>
+          </a>
           <Button
             onClick={handleUpload}
             disabled={!file || isUploading}

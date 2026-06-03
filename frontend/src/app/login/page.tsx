@@ -17,10 +17,10 @@ export default function EmployeeLoginPage() {
     >
       {/* ── Left: illustration ─────────────────────────────────────────── */}
       <div
-        className="hidden md:flex items-center justify-center"
+        className="hidden md:flex items-center justify-start"
         style={{
           flex: 1,
-          padding: "48px 32px",
+          padding: "32 px",
         }}
       >
         {/*
