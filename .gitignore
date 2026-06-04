@@ -22,19 +22,3 @@ Thumbs.db
 # Never commit private keys
 *.pem
 *.key
-
-# dependencies
-/node_modules
-
-# env files (can opt-in for committing if needed)
-.env*
-.codex
-.claude/
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-

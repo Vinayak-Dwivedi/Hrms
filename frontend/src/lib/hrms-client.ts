@@ -3,11 +3,11 @@
 // pages can swap mock arrays for the API response with minimal changes.
 
 import type {
-  DayAttendance,
-  LeaveStatus,
   AttendanceRecord as UIAttendanceRecord,
+  DayAttendance,
   Employee as UIEmployee,
   LeaveRequest as UILeaveRequest,
+  LeaveStatus,
   LeaveType as UILeaveType,
 } from "./dashboard";
 
@@ -21,10 +21,8 @@ function buildUrl(path: string): string {
   //   /me/...      → /api/me/...
   //   /manager/... → /api/manager/...
   //   anything else  → /api/hrms/<path>  (generic CRUD)
-  if (path === "/me" || path.startsWith("/me/"))
-    return `${API_BASE}/api${path}`;
-  if (path === "/manager" || path.startsWith("/manager/"))
-    return `${API_BASE}/api${path}`;
+  if (path === "/me" || path.startsWith("/me/")) return `${API_BASE}/api${path}`;
+  if (path === "/manager" || path.startsWith("/manager/")) return `${API_BASE}/api${path}`;
   return `${API_BASE}/api/hrms${path.startsWith("/") ? path : `/${path}`}`;
 }
 
@@ -56,10 +54,7 @@ export interface LoggedInUser {
   role: string;
 }
 
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<LoggedInUser> {
+export async function signIn(email: string, password: string): Promise<LoggedInUser> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     credentials: "include",
@@ -67,9 +62,7 @@ export async function signIn(
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
-    const body = await res
-      .json()
-      .catch(() => ({ error: { message: res.statusText } }));
+    const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
     throw new Error(body?.error?.message ?? `Sign-in failed (${res.status})`);
   }
   const data = (await res.json()) as { user: LoggedInUser };
@@ -181,16 +174,12 @@ export async function fetchTodayAttendance(): Promise<UIAttendanceRecord> {
 }
 
 export async function punchIn(): Promise<UIAttendanceRecord> {
-  await jsonFetch<{ record: RawAttendance }>("/me/punch-in", {
-    method: "POST",
-  });
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-in", { method: "POST" });
   return fetchTodayAttendance();
 }
 
 export async function punchOut(): Promise<UIAttendanceRecord> {
-  await jsonFetch<{ record: RawAttendance }>("/me/punch-out", {
-    method: "POST",
-  });
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-out", { method: "POST" });
   return fetchTodayAttendance();
 }
 
@@ -295,9 +284,7 @@ export interface SubmitLeaveInput {
   reason: string;
 }
 
-export async function submitLeaveRequest(
-  input: SubmitLeaveInput,
-): Promise<void> {
+export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void> {
   await jsonFetch("/me/leave-requests", {
     method: "POST",
     body: JSON.stringify({

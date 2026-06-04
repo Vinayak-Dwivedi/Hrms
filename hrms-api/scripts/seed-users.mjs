@@ -118,7 +118,7 @@ try {
   `;
 
   console.log("");
-  console.log(`Prerequisites met: Users: ${created} created, ${updated} updated`);
+  console.log(`Users    : ${created} created, ${updated} updated`);
   console.log(`Linked   : ${linked.length} employees ↔ users`);
   console.log("");
   console.log("── Credentials ──────────────────────────────────────────────");
