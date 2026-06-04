@@ -459,6 +459,7 @@ managerRouter.get("/regularisation-approvals", async (req, res, next) => {
         status: regularisationRequests.status,
         approverRemarks: regularisationRequests.approverRemarks,
         decidedAt: regularisationRequests.decidedAt,
+        createdAt: regularisationRequests.createdAt,
       })
       .from(regularisationRequests)
       .innerJoin(employees, eq(regularisationRequests.employeeId, employees.id))

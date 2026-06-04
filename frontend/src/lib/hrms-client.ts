@@ -3,11 +3,11 @@
 // pages can swap mock arrays for the API response with minimal changes.
 
 import type {
-  AttendanceRecord as UIAttendanceRecord,
   DayAttendance,
+  LeaveStatus,
+  AttendanceRecord as UIAttendanceRecord,
   Employee as UIEmployee,
   LeaveRequest as UILeaveRequest,
-  LeaveStatus,
   LeaveType as UILeaveType,
 } from "./dashboard";
 
@@ -21,8 +21,10 @@ function buildUrl(path: string): string {
   //   /me/...      → /api/me/...
   //   /manager/... → /api/manager/...
   //   anything else  → /api/hrms/<path>  (generic CRUD)
-  if (path === "/me" || path.startsWith("/me/")) return `${API_BASE}/api${path}`;
-  if (path === "/manager" || path.startsWith("/manager/")) return `${API_BASE}/api${path}`;
+  if (path === "/me" || path.startsWith("/me/"))
+    return `${API_BASE}/api${path}`;
+  if (path === "/manager" || path.startsWith("/manager/"))
+    return `${API_BASE}/api${path}`;
   return `${API_BASE}/api/hrms${path.startsWith("/") ? path : `/${path}`}`;
 }
 
@@ -54,7 +56,10 @@ export interface LoggedInUser {
   role: string;
 }
 
-export async function signIn(email: string, password: string): Promise<LoggedInUser> {
+export async function signIn(
+  email: string,
+  password: string,
+): Promise<LoggedInUser> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     credentials: "include",
@@ -62,7 +67,9 @@ export async function signIn(email: string, password: string): Promise<LoggedInU
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    const body = await res
+      .json()
+      .catch(() => ({ error: { message: res.statusText } }));
     throw new Error(body?.error?.message ?? `Sign-in failed (${res.status})`);
   }
   const data = (await res.json()) as { user: LoggedInUser };
@@ -174,12 +181,16 @@ export async function fetchTodayAttendance(): Promise<UIAttendanceRecord> {
 }
 
 export async function punchIn(): Promise<UIAttendanceRecord> {
-  await jsonFetch<{ record: RawAttendance }>("/me/punch-in", { method: "POST" });
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-in", {
+    method: "POST",
+  });
   return fetchTodayAttendance();
 }
 
 export async function punchOut(): Promise<UIAttendanceRecord> {
-  await jsonFetch<{ record: RawAttendance }>("/me/punch-out", { method: "POST" });
+  await jsonFetch<{ record: RawAttendance }>("/me/punch-out", {
+    method: "POST",
+  });
   return fetchTodayAttendance();
 }
 
@@ -284,7 +295,9 @@ export interface SubmitLeaveInput {
   reason: string;
 }
 
-export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void> {
+export async function submitLeaveRequest(
+  input: SubmitLeaveInput,
+): Promise<void> {
   await jsonFetch("/me/leave-requests", {
     method: "POST",
     body: JSON.stringify({
@@ -633,6 +646,7 @@ export interface ApprovalRegRequest {
   status: "Pending" | "Approved" | "Rejected";
   approverRemarks: string | null;
   decidedAt: string | null;
+  createdAt: string;
 }
 
 export async function fetchRegularisationApprovals(
@@ -656,4 +670,139 @@ export async function rejectRegRequest(id: number, remarks?: string) {
     method: "POST",
     body: JSON.stringify({ remarks }),
   });
+}
+
+// ═══════════════════ Org Setup → Locations (HR) ═══════════════════
+// Backed by the generic CRUD endpoints at /api/hrms/locations.
+
+export interface Location {
+  id: number;
+  name: string;
+  code: string;
+  city: string;
+  state: string;
+  country: string;
+}
+
+export interface LocationInput {
+  name: string;
+  code: string;
+  city: string;
+  state: string;
+  country: string;
+}
+
+export async function fetchLocations(): Promise<Location[]> {
+  const res = await jsonFetch<{ data: Location[] }>("/locations?limit=500");
+  return res.data;
+}
+
+export async function createLocation(input: LocationInput): Promise<Location> {
+  const res = await jsonFetch<{ data: Location }>("/locations", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function updateLocation(
+  id: number,
+  input: LocationInput,
+): Promise<Location> {
+  const res = await jsonFetch<{ data: Location }>(`/locations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function deleteLocation(id: number): Promise<void> {
+  await jsonFetch(`/locations/${id}`, { method: "DELETE" });
+}
+
+// ═══════════════════ Org Setup → Departments (HR) ═══════════════════
+// Backed by the generic CRUD endpoints at /api/hrms/departments. The
+// department "lead" is the table's managerId (an employee id); lead name/role
+// are resolved client-side from the employees + designations endpoints.
+
+export interface DepartmentApi {
+  id: number;
+  name: string;
+  code: string | null;
+  managerId: number | null;
+}
+
+export interface DepartmentInput {
+  name: string;
+  code: string;
+  managerId: number | null;
+}
+
+export interface DeptLeadOption {
+  id: number;
+  name: string;
+  role: string | null;
+  empCode: string;
+}
+
+export async function fetchDepartments(): Promise<DepartmentApi[]> {
+  const res = await jsonFetch<{ data: DepartmentApi[] }>(
+    "/departments?limit=500",
+  );
+  return res.data;
+}
+
+interface RawEmployeeLite {
+  id: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  designationId: number | null;
+}
+
+// Employees resolved into department-lead options (name + designation + empId).
+export async function fetchDeptLeadOptions(): Promise<DeptLeadOption[]> {
+  const [empRes, desigRes] = await Promise.all([
+    jsonFetch<{ data: RawEmployeeLite[] }>("/employees?limit=500"),
+    jsonFetch<{ data: Array<{ id: number; name: string }> }>(
+      "/designations?limit=500",
+    ),
+  ]);
+  const desigById = new Map(desigRes.data.map((d) => [d.id, d.name]));
+  return empRes.data
+    .map((e) => ({
+      id: e.id,
+      name: `${e.firstName} ${e.lastName}`.trim(),
+      role:
+        e.designationId != null
+          ? (desigById.get(e.designationId) ?? null)
+          : null,
+      empCode: e.empId,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function createDepartment(
+  input: DepartmentInput,
+): Promise<DepartmentApi> {
+  const res = await jsonFetch<{ data: DepartmentApi }>("/departments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function updateDepartment(
+  id: number,
+  input: DepartmentInput,
+): Promise<DepartmentApi> {
+  const res = await jsonFetch<{ data: DepartmentApi }>(`/departments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function deleteDepartment(id: number): Promise<void> {
+  await jsonFetch(`/departments/${id}`, { method: "DELETE" });
 }

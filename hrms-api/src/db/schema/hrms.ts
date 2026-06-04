@@ -172,7 +172,11 @@ export const departments = pgTable(
   {
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 100 }).notNull().unique(),
-    // forward ref to employees.id — resolved lazily at runtime
+    // short code shown in Org Setup → Department (e.g. HR, IT). Nullable so
+    // pre-existing rows remain valid; unique when present.
+    code: varchar("code", { length: 20 }).unique(),
+    // forward ref to employees.id — resolved lazily at runtime; also serves as
+    // the "department lead" in the Org Setup UI.
     managerId: integer("manager_id").references(
       (): AnyPgColumn => employees.id,
       { onDelete: "set null" },
@@ -775,8 +779,32 @@ export const holidays = pgTable(
 );
 
 // ───────────────────────────────────────────────────────────────────────────
+// GROUP 9 — ORG SETUP: LOCATIONS
+// ───────────────────────────────────────────────────────────────────────────
+// Standalone org-location registry (distinct from branches) managed under
+// HR → Org Setup → Location. Holds name/code plus city/state/country.
+
+export const locations = pgTable("locations", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  city: varchar("city", { length: 120 }).notNull(),
+  state: varchar("state", { length: 120 }).notNull(),
+  country: varchar("country", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ───────────────────────────────────────────────────────────────────────────
 // INFERRED TYPES
 // ───────────────────────────────────────────────────────────────────────────
+export type Location = typeof locations.$inferSelect;
+export type NewLocation = typeof locations.$inferInsert;
 export type Branch = typeof branches.$inferSelect;
 export type NewBranch = typeof branches.$inferInsert;
 export type Department = typeof departments.$inferSelect;

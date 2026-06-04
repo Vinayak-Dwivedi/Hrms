@@ -54,7 +54,11 @@ export function EmployeeLoginForm() {
     try {
       const user = await signIn(parsed.data.email, parsed.data.password);
       const dest =
-        user.role === "manager" ? "/manager/dashboard" : "/dashboard";
+        user.role === "manager"
+          ? "/manager/dashboard"
+          : user.role === "hr"
+          ? "/hr/dashboard"
+          : "/dashboard";
       router.push(dest);
       router.refresh();
     } catch (e) {

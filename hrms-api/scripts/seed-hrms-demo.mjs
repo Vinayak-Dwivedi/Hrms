@@ -46,7 +46,7 @@ try {
 
   await sql`
     INSERT INTO branches (name, address, headcount)
-    VALUES ('iLeads Dehradun HQ', 'Dehradun, UK', 7)
+    VALUES ('iLeads Dehradun HQ', 'Dehradun, UK', 8)
     ON CONFLICT (name) DO NOTHING
   `;
   const [branch] = await sql`SELECT id FROM branches WHERE name = 'iLeads Dehradun HQ'`;
@@ -75,7 +75,7 @@ try {
 
   await sql`
     INSERT INTO employment_types (name, notice_period_days, active_employee_count)
-    VALUES ('Full-Time', 60, 7)
+    VALUES ('Full-Time', 60, 8)
     ON CONFLICT (name) DO NOTHING
   `;
   const [etype] = await sql`SELECT id FROM employment_types WHERE name = 'Full-Time'`;
@@ -224,6 +224,21 @@ try {
       designation: "Quality Analyst",
       grade: "L2",
       joiningDate: "2021-04-01",
+      role: "report",
+    },
+    {
+      empId: "ILD-4001",
+      firstName: "Neha",
+      lastName: "Kapoor",
+      personalEmail: "neha.kapoor@example.com",
+      workEmail: "neha@ileads.example",
+      phone: "9999900008",
+      dob: "1991-03-14",
+      gender: "Female",
+      maritalStatus: "Single",
+      designation: "Senior Associate",
+      grade: "L2",
+      joiningDate: "2020-11-20",
       role: "report",
     },
   ];

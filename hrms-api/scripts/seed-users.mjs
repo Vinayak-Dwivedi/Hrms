@@ -54,6 +54,7 @@ const seedUsers = [
   { name: "Ishaan Pant",   email: "ishaan@ileads.example", role: "user",    password: EMPLOYEE_PASSWORD },
   { name: "Vikram Negi",   email: "vikram@ileads.example", role: "user",    password: EMPLOYEE_PASSWORD },
   { name: "Priya Sharma",  email: "priya@ileads.example",  role: "manager", password: MANAGER_PASSWORD },
+  { name: "Neha Kapoor",   email: "neha@ileads.example",   role: "hr",      password: EMPLOYEE_PASSWORD },
 ];
 
 try {
@@ -117,16 +118,17 @@ try {
   `;
 
   console.log("");
-  console.log(`Users    : ${created} created, ${updated} updated`);
+  console.log(`Prerequisites met: Users: ${created} created, ${updated} updated`);
   console.log(`Linked   : ${linked.length} employees ↔ users`);
   console.log("");
   console.log("── Credentials ──────────────────────────────────────────────");
   console.log("  Login : POST /api/auth/login   { email, password }");
   console.log("");
   for (const u of seedUsers) {
-    const tag = u.role === "manager" ? "MANAGER " : "EMPLOYEE";
+    const tag = u.role === "manager" ? "MANAGER " : u.role === "hr" ? "HR      " : "EMPLOYEE";
     console.log(`  ${tag}  ${u.name.padEnd(13)} ${u.email.padEnd(28)} ${u.password}`);
   }
+
   console.log("─────────────────────────────────────────────────────────────");
 } catch (e) {
   console.error("FAIL:", e.message);

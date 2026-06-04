@@ -9,6 +9,7 @@ import {
   grades,
   leaveRequests,
   leaveTypes,
+  locations,
   notifications,
   regularisationRequests,
   resignations,
@@ -24,6 +25,7 @@ import { createCrudRouter } from "@/lib/crud-factory";
 export const hrmsRouter: Router = Router();
 
 hrmsRouter.use("/branches",                  createCrudRouter("branch", branches));
+hrmsRouter.use("/locations",                 createCrudRouter("location", locations));
 hrmsRouter.use("/departments",               createCrudRouter("department", departments));
 hrmsRouter.use("/grades",                    createCrudRouter("grade", grades));
 hrmsRouter.use("/employment-types",          createCrudRouter("employment type", employmentTypes));
