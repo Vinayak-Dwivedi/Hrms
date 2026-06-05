@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import TeamAttendanceReport from "@/components/manager/TeamAttendanceReport";
 import {
   fetchTeamAttendance,
@@ -25,39 +24,27 @@ export default function TeamAttendanceReportPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const team = await fetchTeamAttendance(ymd(monthStart), ymd(monthEnd));
-        if (cancelled) return;
-        setData(team);
-      } catch (e) {
-        if (!cancelled) setLoadError((e as Error).message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const reload = useCallback(async () => {
+    try {
+      const team = await fetchTeamAttendance(ymd(monthStart), ymd(monthEnd));
+      setData(team);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   return (
     <>
       {loadError && (
-        <div
-          className="mb-4"
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            padding: "10px 14px",
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        >
+        <div className="mb-4 bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] text-[13px] rounded-lg px-3.5 py-2.5">
           Failed to load team report: {loadError}
         </div>
       )}
@@ -65,6 +52,7 @@ export default function TeamAttendanceReportPage() {
         data={data}
         loading={loading}
         monthLabel={monthLabel}
+        onUploaded={reload}
       />
     </>
   );

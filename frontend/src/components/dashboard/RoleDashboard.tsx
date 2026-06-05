@@ -4,6 +4,7 @@ import {
   CalendarPlus,
   Calendar as CalendarIcon,
   CheckSquare,
+  ChevronDown,
   Clock,
   FileText,
   GraduationCap,
@@ -11,10 +12,39 @@ import {
   LayoutDashboard,
   RefreshCw,
   Users,
-  Wallet,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+
+// Slack glyph — old `lucide-react@1.x` doesn't ship the Slack icon, so we
+// inline a stripped-down version. The four-hash silhouette is recognizable
+// even in monochrome (we recolor via the parent's text color).
+function SlackIcon({
+  size = 24,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect x="2.5" y="9" width="3" height="6" rx="1.5" />
+      <rect x="9" y="2.5" width="6" height="3" rx="1.5" />
+      <rect x="18.5" y="9" width="3" height="6" rx="1.5" />
+      <rect x="9" y="18.5" width="6" height="3" rx="1.5" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+import { useEffect, useRef, useState } from "react";
 import type {
   AttendanceRecord,
   Employee,
@@ -24,6 +54,7 @@ import type {
 import type { Role } from "@/lib/roles";
 import {
   type ApprovalLeaveRequest,
+  type AttendanceWindow,
   fetchCurrentEmployee,
   fetchCurrentManager,
   fetchLeaveApprovals,
@@ -36,6 +67,7 @@ import {
   fetchWeekAttendance,
   type UpcomingHoliday,
   type WeekAttendance,
+  type WeekChartPoint,
   punchIn,
   punchOut,
 } from "@/lib/hrms-client";
@@ -194,14 +226,29 @@ function Donut({
   );
 }
 
-function WeekChart({ week }: { week: WeekAttendance }) {
+function WeekChart({ points }: { points: WeekChartPoint[] }) {
   const w = 600;
   const h = 150;
-  const padL = 30;
+  const padL = 32;
   const padR = 16;
   const padT = 14;
   const padB = 24;
-  const yMax = 1200;
+
+  // One absent/leave day is visualized as a 480-minute marker so the dotted-day
+  // signal sits on the same axis as the working-minutes line.
+  const present = points.map((p) => p.presentMins);
+  const absent = points.map((p) => p.absentCount * 480);
+  const onLeave = points.map((p) => p.leaveCount * 480);
+
+  // yMax adapts to the window: a 7-day view rarely exceeds 1200, but a 30-day
+  // bucket can stack 6 × ~540 working minutes, so we round up to the nearest 600.
+  const maxVal = Math.max(...present, ...absent, ...onLeave, 1200);
+  const yMax = Math.ceil(maxVal / 600) * 600;
+  const ySteps = 6;
+  const yLabels = Array.from(
+    { length: ySteps + 1 },
+    (_, i) => (yMax / ySteps) * i,
+  );
 
   function path(values: number[]) {
     if (!values.length) return "";
@@ -216,18 +263,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
       .join(" ");
   }
 
-  const present = week.days.map((d) =>
-    d.record?.status === "Present" ? (d.record.workingMinutes ?? 0) : 0,
-  );
-  const absent = week.days.map((d) =>
-    d.record?.status === "Absent" ? 480 : 0,
-  );
-  const onLeave = week.days.map((d) =>
-    d.record?.status === "Leave" ? 480 : 0,
-  );
-
-  const xStep = (w - padL - padR) / Math.max(1, week.days.length - 1);
-  const yLabels = [0, 200, 400, 600, 800, 1000, 1200];
+  const xStep = (w - padL - padR) / Math.max(1, points.length - 1);
 
   return (
     <svg
@@ -255,23 +291,23 @@ function WeekChart({ week }: { week: WeekAttendance }) {
               fill="#9ca3af"
               textAnchor="end"
             >
-              {g >= 1000 ? `${(g / 1000).toFixed(1)}k` : g}
+              {g >= 1000 ? `${(g / 1000).toFixed(1)}k` : Math.round(g)}
             </text>
           </g>
         );
       })}
-      {week.days.map((d, i) => {
+      {points.map((p, i) => {
         const x = padL + i * xStep;
         return (
           <text
-            key={d.date}
+            key={`${p.label}-${i}`}
             x={x}
             y={h - 8}
             fontSize={10}
             textAnchor="middle"
             fill="#9ca3af"
           >
-            {d.dayLabel}
+            {p.label}
           </text>
         );
       })}
@@ -285,7 +321,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatTimeLong(t: string | null | undefined): string {
-  if (!t) return "--:-- --";
+  if (!t) return "--:--";
   return t;
 }
 
@@ -326,7 +362,19 @@ function approvalsHref(): string {
 }
 
 // ─── role-specific Quick Links ──────────────────────────────────────────────
-type QuickLink = { icon: LucideIcon; label: string; href: string };
+// Icon can be either a lucide-react component or any locally-defined SVG
+// component that accepts `size` + `className` (e.g. the inline SlackIcon).
+type QuickLinkIcon = React.ComponentType<{
+  size?: number;
+  className?: string;
+}>;
+type QuickLink = {
+  icon: QuickLinkIcon;
+  label: string;
+  href: string;
+  // When true, the tile renders as an external link (target=_blank, rel set).
+  external?: boolean;
+};
 
 function quickLinksFor(role: Role): QuickLink[] {
   if (role === "manager") {
@@ -356,7 +404,12 @@ function quickLinksFor(role: Role): QuickLink[] {
   return [
     { icon: CalendarPlus, label: "Apply Leave", href: "/leave/new" },
     { icon: FileText, label: "My Requests", href: "/requests" },
-    { icon: Wallet, label: "My Payslips", href: "/payslips" },
+    {
+      icon: SlackIcon,
+      label: "Slack",
+      href: "https://slack.com/signin#/signin",
+      external: true,
+    },
     { icon: History, label: "Punch History", href: "/attendance" },
     { icon: Users, label: "Company Directory", href: "/directory" },
     { icon: GraduationCap, label: "L&D Portal", href: "/lnd" },
@@ -590,6 +643,15 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [punchBusy, setPunchBusy] = useState(false);
 
+  // Attendance Overview window: "7d" (Mon–Sun) or "30d" (rolling 30 days
+  // grouped into 5 buckets). Drives both the chart and the totals row.
+  const [attWindow, setAttWindow] = useState<AttendanceWindow>("7d");
+  const [winMenuOpen, setWinMenuOpen] = useState(false);
+  const winMenuRef = useRef<HTMLDivElement | null>(null);
+  // Skip the first run of the window-change effect — reload() already
+  // fetched the default 7d view on mount.
+  const skipFirstWindowFetch = useRef(true);
+
   async function reload() {
     try {
       const baseTasks: Array<Promise<unknown>> = [
@@ -597,7 +659,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         adapters.fetchAttendanceToday().then(setAttendance),
         adapters.fetchLeaveBalances().then(setBalances),
         fetchUpcomingHolidays(5).then(setHolidays),
-        fetchWeekAttendance().then(setWeek),
+        fetchWeekAttendance(undefined, attWindow).then(setWeek),
       ];
 
       if (role === "manager") {
@@ -626,6 +688,43 @@ export default function RoleDashboard({ role }: { role: Role }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  // Re-fetch the Attendance Overview when the window dropdown changes.
+  // The initial-mount value is already covered by reload() above.
+  useEffect(() => {
+    if (skipFirstWindowFetch.current) {
+      skipFirstWindowFetch.current = false;
+      return;
+    }
+    let cancelled = false;
+    fetchWeekAttendance(undefined, attWindow)
+      .then((w) => {
+        if (!cancelled) setWeek(w);
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError((e as Error).message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [attWindow]);
+
+  // Close the window-picker dropdown on outside-click / Escape.
+  useEffect(() => {
+    if (!winMenuOpen) return;
+    function onClick(e: MouseEvent) {
+      if (!winMenuRef.current?.contains(e.target as Node)) setWinMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setWinMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [winMenuOpen]);
+
   async function handlePunchToggle() {
     if (punchBusy || !attendance) return;
     setPunchBusy(true);
@@ -635,7 +734,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
       // manager are employees and own a punch record.
       const next = attendance.punchIn ? await punchOut() : await punchIn();
       setAttendance(next);
-      fetchWeekAttendance()
+      fetchWeekAttendance(undefined, attWindow)
         .then(setWeek)
         .catch(() => {});
     } catch (e) {
@@ -650,11 +749,16 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const balLeaves = totalLeaves - usedLeaves;
 
   const PALETTE = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
-  const usedByType = (balances ?? []).map((b, i) => ({
-    label: b.name,
-    value: b.used,
-    color: PALETTE[i % PALETTE.length] ?? "#9ca3af",
-  }));
+  // Leave Distribution: skip Compensatory Off entirely (it's almost always
+  // 0 and clutters the legend). The Leave Balance rings above still include
+  // every leave type — the filter is only for this chart.
+  const usedByType = (balances ?? [])
+    .filter((b) => !/^comp(ensatory)?\s*off$/i.test(b.name.trim()))
+    .map((b, i) => ({
+      label: b.name,
+      value: b.used,
+      color: PALETTE[i % PALETTE.length] ?? "#9ca3af",
+    }));
   const usedTotal = usedByType.reduce((s, x) => s + x.value, 0);
 
   const initials = identity?.initials ?? "··";
@@ -691,98 +795,259 @@ export default function RoleDashboard({ role }: { role: Role }) {
             "minmax(0,2.2fr) minmax(0,1.7fr) minmax(0,1.1fr)",
         }}
       >
-        {/* Punch hero card */}
-        <div className="relative rounded-2xl overflow-hidden text-white bg-gradient-to-br from-[#9b1747] to-[#6b0f30]">
-          <button
-            type="button"
-            onClick={handlePunchToggle}
-            disabled={punchBusy || !attendance}
-            className={[
-              "absolute top-3 right-3 z-10 px-3 py-1 rounded-lg text-[11px] font-bold",
-              "border border-white/45 bg-black/20 text-white",
-              punchBusy || !attendance
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer",
-            ].join(" ")}
-          >
-            {punchBusy
-              ? "…"
-              : attendance?.punchIn
-                ? "Punch Out"
-                : "Punch In"}
-          </button>
+        {/* OLD USER CARD COMMENTED OUT AS REQUESTED */}
+        {false && (
+          <div className="relative rounded-2xl overflow-hidden text-white bg-gradient-to-br from-[#9b1747] via-[#7a1239] to-[#5e0c2a] shadow-[0_10px_30px_-12px_rgba(123,18,57,0.35)]">
+            {/* Soft top highlight — gives the card subtle depth */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+            />
 
-          <div className="flex items-stretch px-5 py-4 gap-4">
-            {/* Avatar + Checked In pill */}
-            <div className="flex flex-col items-center shrink-0 gap-2">
-              <Avatar
-                initials={initials}
-                size={84}
-                src={identity?.avatarUrl}
-              />
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/30 text-white/90">
+            {/* Faint radial glow behind the avatar — adds a premium feel */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-white/[0.06] blur-2xl"
+            />
+
+            {/* Action button (glass) */}
+            <button
+              type="button"
+              onClick={handlePunchToggle}
+              disabled={punchBusy || !attendance}
+              className={[
+                "absolute top-4 right-4 z-10",
+                "px-3.5 py-1.5 rounded-lg text-[11px] font-bold tracking-wide",
+                "bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/25",
+                "text-white transition-colors",
+                punchBusy || !attendance
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer",
+              ].join(" ")}
+            >
+              {punchBusy
+                ? "…"
+                : attendance?.punchIn
+                  ? "Punch Out"
+                  : "Punch In"}
+            </button>
+
+            <div className="relative flex items-center px-6 py-7 gap-5">
+              {/* Avatar with status dot in the corner */}
+              <div className="relative shrink-0">
+                <Avatar
+                  initials={initials}
+                  size={72}
+                  src={identity?.avatarUrl}
+                />
                 <span
                   className={[
-                    "rounded-full w-1.5 h-1.5",
-                    attendance?.punchIn ? "bg-[#4ade80]" : "bg-gray-400",
+                    "absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full",
+                    "ring-[3px] ring-[#7a1239]",
+                    attendance?.punchIn ? "bg-emerald-400" : "bg-gray-400",
                   ].join(" ")}
+                  title={attendance?.punchIn ? "Checked In" : "Checked Out"}
                 />
-                {attendance?.punchIn ? "Checked In" : "Checked Out"}
-              </span>
+              </div>
+
+              {/* Identity */}
+              <div className="flex flex-col flex-1 min-w-0">
+                <p className="text-[20px] font-bold leading-tight tracking-tight truncate">
+                  {identity?.name ?? "Loading…"}
+                </p>
+                <p className="text-[12.5px] mt-1 leading-tight text-white/70 truncate">
+                  {identity?.role ?? ""}
+                </p>
+                {identity?.employeeId && (
+                  <div className="inline-flex self-start mt-2 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-white/10 backdrop-blur-sm border border-white/15 text-white/90 tracking-wide">
+                    {identity?.employeeId}
+                  </div>
+                )}
+              </div>
+
+              <div className="w-px self-stretch bg-white/15 mx-1" />
+
+              {/* PUNCH IN */}
+              <div className="flex flex-col shrink-0 min-w-[96px]">
+                <p className="text-[10px] font-bold tracking-[0.18em] text-white/55">
+                  PUNCH IN
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Clock
+                    size={14}
+                    className={
+                      attendance?.punchIn ? "text-emerald-400" : "text-white/40"
+                    }
+                  />
+                  <p className="text-[16px] font-bold whitespace-nowrap tracking-tight">
+                    {formatTimeLong(attendance?.punchIn)}
+                  </p>
+                </div>
+                <p className="text-[10.5px] mt-1 text-white/55">
+                  {attendance?.punchIn ? "Today" : "Not punched in"}
+                </p>
+              </div>
+
+              {/* PUNCH OUT — right padding clears the absolute action button */}
+              <div className="flex flex-col shrink-0 min-w-[108px] pr-[88px]">
+                <p className="text-[10px] font-bold tracking-[0.18em] text-white/55">
+                  PUNCH OUT
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Clock size={14} className="text-white/40" />
+                  <p
+                    className={[
+                      "text-[16px] font-bold whitespace-nowrap tracking-tight",
+                      attendance?.punchOut ? "text-white" : "text-white/65",
+                    ].join(" ")}
+                  >
+                    {attendance?.punchOut ?? "--:--"}
+                  </p>
+                </div>
+                <p className="text-[10.5px] mt-1 text-white/55">
+                  {attendance?.punchOut ? "Today" : "Not punched out"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* NEW Punch hero card — premium, vertically centered, perfect padding */}
+        <div className="relative rounded-2xl overflow-hidden text-white bg-gradient-to-br from-[#9b1747] via-[#7a1239] to-[#5e0c2a] shadow-[0_10px_30px_-12px_rgba(123,18,57,0.35)]">
+          {/* Soft top highlight */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          />
+
+          {/* Faint radial glow behind the avatar */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-white/[0.08] blur-2xl"
+          />
+
+          <div className="relative flex items-center px-6 py-6 gap-6 w-full h-full">
+            {/* Avatar — status is now shown as a pill in the identity column,
+                so no dot here. */}
+            <div className="relative shrink-0">
+              <Avatar
+                initials={initials}
+                size={88}
+                src={identity?.avatarUrl}
+              />
             </div>
 
-            {/* Identity */}
-            <div className="flex flex-col justify-center flex-1 min-w-0">
-              <p className="text-[18px] font-bold leading-tight break-words">
+            {/* Identity stack — Name → Designation → ID chip → Status pill
+                (with the temporary Punch In/Out button inline beside it). */}
+            <div className="flex flex-col flex-1 min-w-[140px] pr-2 gap-1.5">
+              <p className="text-[19px] font-bold leading-tight tracking-tight break-words">
                 {identity?.name ?? "Loading…"}
               </p>
-              <p className="text-[12px] mt-0.5 leading-tight text-white/75">
+              <p className="text-[12.5px] leading-tight text-white/75 break-words">
                 {identity?.role ?? ""}
               </p>
               {identity?.employeeId && (
-                <div className="inline-block self-start mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/30 text-white/90">
-                  {identity.employeeId}
+                <div className="inline-flex self-start px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 backdrop-blur-sm border border-white/15 text-white/95 tracking-wide shadow-sm">
+                  {identity?.employeeId}
                 </div>
               )}
+              {/* Status pill + temporary punch button — button disappears once
+                  the matching action is done. Hidden entirely after both
+                  punches are recorded. */}
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-white/10 backdrop-blur-sm border border-white/15 text-white/90 tracking-wide">
+                  <span
+                    className={[
+                      "w-1.5 h-1.5 rounded-full",
+                      attendance?.punchIn ? "bg-emerald-400" : "bg-gray-400",
+                    ].join(" ")}
+                  />
+                  {attendance?.punchIn ? "Checked In" : "Checked Out"}
+                </span>
+                {attendance && !attendance.punchIn && (
+                  <button
+                    type="button"
+                    onClick={handlePunchToggle}
+                    disabled={punchBusy}
+                    className={[
+                      "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold tracking-wide",
+                      "bg-emerald-500 hover:bg-emerald-600 text-white transition-colors",
+                      punchBusy
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
+                    ].join(" ")}
+                  >
+                    {punchBusy ? "…" : "Punch In"}
+                  </button>
+                )}
+                {attendance && attendance.punchIn && !attendance.punchOut && (
+                  <button
+                    type="button"
+                    onClick={handlePunchToggle}
+                    disabled={punchBusy}
+                    className={[
+                      "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold tracking-wide",
+                      "bg-rose-500 hover:bg-rose-600 text-white transition-colors",
+                      punchBusy
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
+                    ].join(" ")}
+                  >
+                    {punchBusy ? "…" : "Punch Out"}
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="w-px self-stretch bg-white/15" />
-
-            {/* PUNCH IN */}
-            <div className="flex flex-col justify-center shrink-0 min-w-[88px]">
-              <p className="text-[10px] font-bold tracking-widest text-white/60">
-                PUNCH IN
-              </p>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Clock size={13} className="text-[#4ade80]" />
-                <p className="text-[15px] font-bold whitespace-nowrap">
-                  {formatTimeLong(attendance?.punchIn)}
+            {/* Right side — premium divider + PUNCH IN / PUNCH OUT stacked.
+                The divider self-stretches to the height of the times column, so
+                it spans top of PUNCH IN label to bottom of the last caption. */}
+            <div className="flex items-stretch gap-5 shrink-0 self-center">
+              <div
+                aria-hidden
+                className="w-px self-stretch bg-gradient-to-b from-transparent via-white/40 to-transparent"
+              />
+              <div className="flex flex-col gap-3 justify-center">
+              <div className="flex flex-col pr-6">
+                <p className="text-[11px] font-bold tracking-[0.18em] text-white/60">
+                  PUNCH IN
+                </p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Clock
+                    size={18}
+                    className={
+                      attendance?.punchIn ? "text-emerald-400" : "text-white/40"
+                    }
+                  />
+                  <p className="text-[22px] font-bold whitespace-nowrap tracking-tight leading-none">
+                    {formatTimeLong(attendance?.punchIn)}
+                  </p>
+                </div>
+                <p className="text-[11px] mt-1.5 text-white/55">
+                  {attendance?.punchIn ? "Today" : "Not punched in"}
                 </p>
               </div>
-              <p className="text-[10px] mt-0.5 text-white/60">
-                {attendance?.punchIn ? "Today" : "Not punched in"}
-              </p>
-            </div>
 
-            {/* PUNCH OUT — right padding clears the absolute button */}
-            <div className="flex flex-col justify-center shrink-0 min-w-[100px] pr-[88px]">
-              <p className="text-[10px] font-bold tracking-widest text-white/60">
-                PUNCH OUT
-              </p>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <Clock size={13} className="text-white/45" />
-                <p
-                  className={[
-                    "text-[15px] font-bold whitespace-nowrap",
-                    attendance?.punchOut ? "text-white" : "text-white/70",
-                  ].join(" ")}
-                >
-                  {attendance?.punchOut ?? "--:-- --"}
+              <div className="flex flex-col">
+                <p className="text-[11px] font-bold tracking-[0.18em] text-white/60">
+                  PUNCH OUT
+                </p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Clock size={18} className="text-white/40" />
+                  <p
+                    className={[
+                      "text-[22px] font-bold whitespace-nowrap tracking-tight leading-none",
+                      attendance?.punchOut ? "text-white" : "text-white/65",
+                    ].join(" ")}
+                  >
+                    {attendance?.punchOut ?? "--:--"}
+                  </p>
+                </div>
+                <p className="text-[11px] mt-1.5 text-white/55">
+                  {attendance?.punchOut ? "Today" : "Not punched out"}
                 </p>
               </div>
-              <p className="text-[10px] mt-0.5 text-white/60">
-                {attendance?.punchOut ? "Today" : "Not punched out"}
-              </p>
+              </div>
             </div>
           </div>
         </div>
@@ -800,44 +1065,34 @@ export default function RoleDashboard({ role }: { role: Role }) {
               View all →
             </a>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {[
               {
-                label: "Total Leaves",
-                used: totalLeaves,
-                total: totalLeaves,
-                days: totalLeaves,
-                code: "TOT",
-              },
-              {
+                key: "used",
                 label: "Used Leaves",
                 used: usedLeaves,
                 total: totalLeaves,
                 days: usedLeaves,
-                code: "USD",
               },
               {
+                key: "balance",
                 label: "Balance Leaves",
                 used: balLeaves,
                 total: totalLeaves,
                 days: balLeaves,
-                code: "BAL",
               },
             ].map((item) => (
               <div
-                key={item.code}
+                key={item.key}
                 className="flex flex-col items-center text-center"
               >
-                <Ring used={item.used} total={item.total} size={84} />
+                <Ring used={item.used} total={item.total} size={96} />
                 <p className="text-[11px] font-semibold text-gray-800 mt-2 leading-tight">
                   {item.label}
                 </p>
                 <p className="text-[10px] mt-0.5 text-gray-400">
                   {item.days} days
                 </p>
-                <span className="mt-1.5 px-1.5 py-0.5 text-[9px] font-bold rounded bg-gray-100 text-gray-500">
-                  {item.code}
-                </span>
               </div>
             ))}
           </div>
@@ -916,14 +1171,58 @@ export default function RoleDashboard({ role }: { role: Role }) {
         <div className="rounded-2xl bg-white p-5 border border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[15px] font-bold text-gray-900">
-              Employee Attendance Overview
+              Attendance Overview
             </h3>
-            <button
-              type="button"
-              className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-[#fff1f2] text-[#be185d] border border-[#fecdd3]"
-            >
-              Today ▾
-            </button>
+            <div className="relative" ref={winMenuRef}>
+              <button
+                type="button"
+                onClick={() => setWinMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={winMenuOpen}
+                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-[#fff1f2] text-[#be185d] border border-[#fecdd3] cursor-pointer"
+              >
+                {attWindow === "7d" ? "Week" : "30 days"}
+                <ChevronDown
+                  size={12}
+                  className={[
+                    "transition-transform duration-150",
+                    winMenuOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
+              {winMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-1 z-20 w-32 rounded-lg bg-white border border-gray-200 shadow-lg overflow-hidden"
+                >
+                  {([
+                    { value: "7d" as AttendanceWindow, label: "Week" },
+                    { value: "30d" as AttendanceWindow, label: "30 days" },
+                  ]).map((opt) => {
+                    const active = attWindow === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setAttWindow(opt.value);
+                          setWinMenuOpen(false);
+                        }}
+                        className={[
+                          "w-full text-left px-3 py-1.5 text-[12px] cursor-pointer",
+                          active
+                            ? "bg-[#fff1f2] text-[#be185d] font-semibold"
+                            : "text-gray-700 hover:bg-gray-50",
+                        ].join(" ")}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-5 gap-2 mb-3">
@@ -934,9 +1233,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
               <p className="text-[16px] font-bold leading-tight mt-0.5 text-gray-900">
                 {fmtHm(totalMins)}
               </p>
-              <p className="text-[10px] text-gray-400">Working Hours Today</p>
-              <p className="text-[10px] text-gray-400">Shift: 9:00 - 6:00</p>
-            </div>
+                </div>
             {[
               { label: "PRESENT", value: presentMins, text: "text-[#3b82f6]" },
               { label: "ABSENT", value: absentMins, text: "text-[#10b981]" },
@@ -957,10 +1254,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
           </div>
 
           {week ? (
-            <WeekChart week={week} />
+            <WeekChart points={week.chartPoints} />
           ) : (
             <p className="text-center text-[11px] py-8 text-gray-400">
-              Loading weekly attendance…
+              Loading attendance overview…
             </p>
           )}
 
@@ -987,17 +1284,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <h3 className="text-[15px] font-bold text-gray-900">
               Leave Distribution
             </h3>
-            <button
-              type="button"
-              onClick={reload}
-              className="rounded-full p-1 bg-white border border-gray-200 cursor-pointer"
-              aria-label="Refresh"
-            >
-              <RefreshCw size={12} className="text-gray-500" />
-            </button>
+          
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-center gap-3">
             <Donut
               size={200}
               segments={
@@ -1036,8 +1326,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
                       </span>
                     </div>
                     <span className="text-[11px] text-gray-500 font-medium tabular-nums shrink-0 ml-2">
-                      {s.value}{" "}
-                      <span className="text-gray-400">({pct}%)</span>
+                      {s.value}
+                     
                     </span>
                   </div>
                 );
@@ -1052,10 +1342,13 @@ export default function RoleDashboard({ role }: { role: Role }) {
             Quick Links
           </h3>
           <div className="grid grid-cols-2 gap-x-3 gap-y-4">
-            {quickLinks.map(({ icon: Icon, label, href }) => (
+            {quickLinks.map(({ icon: Icon, label, href, external }) => (
               <a
                 key={label}
                 href={href}
+                {...(external
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
                 className="flex flex-col items-center text-center no-underline text-gray-900"
               >
                 <span className="flex items-center justify-center rounded-xl w-14 h-14 bg-[#fff1f2] border border-[#fecdd3]">

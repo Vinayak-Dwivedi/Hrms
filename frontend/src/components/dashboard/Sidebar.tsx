@@ -153,41 +153,8 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Logout */}
-      <div
-        className="px-2 py-3 border-t"
-        style={{ borderColor: "rgba(255,255,255,0.08)" }}
-      >
-        <button
-          type="button"
-          onClick={handleLogout}
-          disabled={signingOut}
-          title="Sign out"
-          className="flex items-center w-full rounded-lg text-sm font-medium transition-colors"
-          style={{
-            gap: collapsed ? undefined : "12px",
-            padding: collapsed ? "10px 8px" : "10px 12px",
-            justifyContent: collapsed ? "center" : undefined,
-            color: "#fca5a5",
-            background: "transparent",
-            border: "none",
-            cursor: signingOut ? "wait" : "pointer",
-            opacity: signingOut ? 0.6 : 1,
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.background =
-              "rgba(220,38,38,0.12)";
-            (e.currentTarget as HTMLElement).style.color = "#fecaca";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = "";
-            (e.currentTarget as HTMLElement).style.color = "#fca5a5";
-          }}
-        >
-          <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>{signingOut ? "Signing out…" : "Log out"}</span>}
-        </button>
-      </div>
+   
+    
 
       {/* Footer */}
       {!collapsed && (

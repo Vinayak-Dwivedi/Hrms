@@ -115,12 +115,7 @@ function ContestModal({ req, onClose }: ContestModalProps) {
           >
             Cancel
           </button>
-          <button
-            onClick={onClose}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#e91e8c", fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer" }}
-          >
-            Submit Contest
-          </button>
+         
         </div>
       </div>
     </div>
@@ -227,14 +222,7 @@ export default function LeaveTable({ requests, onCancel, busyId }: Props) {
                         <XCircle size={14} /> {busyId === req.id ? "Cancelling…" : "Cancel"}
                       </button>
                     )}
-                    {req.status === "Approved" && (
-                      <button
-                        onClick={() => setContesting(req)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "1.5px solid #93c5fd", background: "#fff", color: "#1d4ed8", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                      >
-                        <AlertCircle size={14} /> Contest Leave
-                      </button>
-                    )}
+                    
                     {(req.status === "Cancelled" || req.status === "Rejected") && (
                       <span style={{ fontSize: 13, color: "#9ca3af" }}>No action</span>
                     )}

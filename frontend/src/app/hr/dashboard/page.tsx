@@ -303,7 +303,7 @@ function WeekChart({ week }: { week: WeekAttendance }) {
 // ─── format helpers ─────────────────────────────────────────────────────────
 
 function formatTimeLong(t: string | null | undefined): string {
-  if (!t) return "--:-- --";
+  if (!t) return "--:--";
   return t;
 }
 
@@ -576,7 +576,7 @@ export default function HRDashboardPage() {
                       : "rgba(255,255,255,0.7)",
                   }}
                 >
-                  {attendance?.punchOut ?? "--:-- --"}
+                  {attendance?.punchOut ?? "--:--"}
                 </p>
               </div>
               <p

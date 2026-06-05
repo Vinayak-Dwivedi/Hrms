@@ -132,15 +132,15 @@ interface RawAttendance {
   location: string | null;
 }
 
+// Format a "HH:MM:SS" string (from postgres time column) as 24-hour HH:MM
+// (military time). Single source of truth for punch-time display across the
+// dashboard, attendance calendar, attendance table, and manager report.
 function formatTimeOfDay(t: string | null): string | null {
   if (!t) return null;
   const [hStr, mStr] = t.split(":");
-  let h = Number(hStr);
+  const h = Number(hStr);
   const m = Number(mStr);
-  const period = h >= 12 ? "PM" : "AM";
-  if (h === 0) h = 12;
-  else if (h > 12) h -= 12;
-  return `${h}:${String(m).padStart(2, "0")} ${period}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function formatMinutes(min: number | null | undefined): string {
@@ -414,17 +414,32 @@ export interface WeekAttendanceDay {
   record: RawAttendance | null;
 }
 
+export type AttendanceWindow = "7d" | "30d";
+
+export interface WeekChartPoint {
+  label: string;          // "Mon" / "Tue" for 7d, "May 8" / "May 14" for 30d
+  presentMins: number;    // sum of working minutes within the bucket
+  absentCount: number;    // count of Absent days within the bucket
+  leaveCount: number;     // count of Leave days within the bucket
+}
+
 export interface WeekAttendance {
   weekStart: string;
   weekEnd: string;
+  window: AttendanceWindow;
   days: WeekAttendanceDay[];
+  chartPoints: WeekChartPoint[];
   totals: WeekAttendanceTotals;
 }
 
 export async function fetchWeekAttendance(
   anchorDate?: string,
+  window: AttendanceWindow = "7d",
 ): Promise<WeekAttendance> {
-  const qs = anchorDate ? `?date=${anchorDate}` : "";
+  const params = new URLSearchParams();
+  if (anchorDate) params.set("date", anchorDate);
+  if (window === "30d") params.set("window", "30");
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return jsonFetch<WeekAttendance>(`/me/attendance/week${qs}`);
 }
 
@@ -526,6 +541,30 @@ export interface TeamMember {
   lastName: string;
   designation: string | null;
   grade: string | null;
+  dob: string;
+  joiningDate: string;
+  profilePhotoUrl: string | null;
+}
+
+export interface TeamAttrition {
+  from: string;
+  to: string;
+  count: number;
+  teamSize: number;
+  percentage: number;
+}
+
+export async function fetchTeamAttrition(
+  from?: string,
+  to?: string,
+): Promise<TeamAttrition> {
+  const q = new URLSearchParams();
+  if (from) q.set("from", from);
+  if (to) q.set("to", to);
+  const qs = q.toString();
+  return jsonFetch<TeamAttrition>(
+    `/manager/team/attrition${qs ? `?${qs}` : ""}`,
+  );
 }
 
 export async function fetchTeam(): Promise<TeamMember[]> {

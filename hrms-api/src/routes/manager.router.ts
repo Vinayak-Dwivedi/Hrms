@@ -13,6 +13,7 @@ import {
   leaveRequests,
   leaveTypes,
   regularisationRequests,
+  resignations,
 } from "@/db/schema/hrms";
 import {
   loadCurrentManager,
@@ -244,6 +245,9 @@ managerRouter.get("/team", async (req, res, next) => {
         lastName: employees.lastName,
         designation: designations.name,
         grade: grades.code,
+        dob: employees.dob,
+        joiningDate: employees.joiningDate,
+        profilePhotoUrl: employees.profilePhotoUrl,
       })
       .from(employees)
       .leftJoin(designations, eq(employees.designationId, designations.id))
@@ -251,6 +255,57 @@ managerRouter.get("/team", async (req, res, next) => {
       .where(eq(employees.reportingManagerId, mgr.id))
       .orderBy(asc(employees.firstName));
     res.json({ team });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── GET /api/manager/team/attrition ────────────────────────────────────────
+// Returns the number of approved resignations from the manager's team whose
+// last_working_date falls within the given window (defaults to current month).
+// Plus the team size, so the UI can compute a percentage.
+managerRouter.get("/team/attrition", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const from = typeof req.query.from === "string"
+      ? req.query.from
+      : `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}-${String(monthStart.getDate()).padStart(2, "0")}`;
+    const to = typeof req.query.to === "string"
+      ? req.query.to
+      : `${monthEnd.getFullYear()}-${String(monthEnd.getMonth() + 1).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
+
+    const teamRows = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.reportingManagerId, mgr.id));
+    const teamSize = teamRows.length;
+    const teamIds = teamRows.map((r) => r.id);
+
+    if (teamIds.length === 0) {
+      res.json({ from, to, count: 0, teamSize: 0, percentage: 0 });
+      return;
+    }
+
+    const exited = await db
+      .select({ id: resignations.id })
+      .from(resignations)
+      .where(
+        and(
+          eq(resignations.status, "Approved"),
+          gte(resignations.lastWorkingDate, from),
+          lte(resignations.lastWorkingDate, to),
+          inArray(resignations.employeeId, teamIds),
+        ),
+      );
+
+    const count = exited.length;
+    const percentage =
+      teamSize > 0 ? Math.round((count / teamSize) * 1000) / 10 : 0;
+    res.json({ from, to, count, teamSize, percentage });
   } catch (e) {
     next(e);
   }

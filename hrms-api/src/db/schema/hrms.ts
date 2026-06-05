@@ -788,6 +788,7 @@ export const locations = pgTable("locations", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 150 }).notNull(),
   code: varchar("code", { length: 20 }).notNull().unique(),
+  address: text("address"),
   city: varchar("city", { length: 120 }).notNull(),
   state: varchar("state", { length: 120 }).notNull(),
   country: varchar("country", { length: 120 }).notNull(),

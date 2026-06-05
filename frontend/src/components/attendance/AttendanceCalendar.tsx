@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -416,10 +417,10 @@ interface RegularisationModalProps {
 }
 
 function fmtTimePretty(t: string) {
+  // 24-hour military time (HH:MM) — matches the central formatTimeOfDay
+  // used elsewhere in the app for punch-times.
   const [h, m] = t.slice(0, 5).split(":").map(Number);
-  const period = h >= 12 ? "PM" : "AM";
-  const hh = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hh}:${String(m).padStart(2, "0")} ${period}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function fmtDatePretty(ymd: string) {

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
 import {
   fetchCurrentEmployee,
@@ -59,7 +59,11 @@ function buildNav(role: Role): NavSection[] {
             icon: LayoutDashboard,
             label: "Team Dashboard",
             href: "/manager/team-dashboard",
-            also: ["/manager/team-attendance-report"],
+          },
+          {
+            icon: Clock,
+            label: "Team Attendance",
+            href: "/manager/team-attendance-report",
           },
           {
             icon: CheckSquare,
@@ -294,6 +298,40 @@ export default function AppShell({
     router.push("/login");
   }
 
+  // ── User menu (header dropdown + logout confirmation) ───────────────────
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the dropdown on outside-click or Escape. Confirm modal handles its
+  // own dismissal via the backdrop / Cancel button.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClick(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  async function confirmLogout() {
+    setLoggingOut(true);
+    try {
+      await handleLogout();
+    } finally {
+      setLoggingOut(false);
+      setConfirmOpen(false);
+    }
+  }
+
   const initials = identity?.initials ?? "··";
   const crumb = breadcrumbFor(pathname);
 
@@ -397,31 +435,14 @@ export default function AppShell({
           ))}
         </nav>
 
-        {/* Footer */}
-        <div
-          className={[
-            "border-t border-gray-100",
-            collapsed ? "p-[10px]" : "p-3",
-          ].join(" ")}
-        >
-          <button
-            type="button"
-            onClick={handleLogout}
-            title={collapsed ? "Log out" : undefined}
-            className={[
-              "flex items-center rounded-xl text-[13px] font-semibold w-full gap-3 bg-[#fee2e2] text-[#dc2626] cursor-pointer border-0",
-              collapsed ? "py-2.5 justify-center" : "px-3 py-2.5",
-            ].join(" ")}
-          >
-            <LogOut size={16} />
-            {!collapsed && "Log out"}
-          </button>
-          {!collapsed && (
-            <p className="text-[10px] mt-3 text-center text-gray-400">
+        {/* Footer — logout is now in the header user dropdown only. */}
+        {!collapsed && (
+          <div className="border-t border-gray-100 p-3">
+            <p className="text-[10px] text-center text-gray-400">
               iLeads HRMS {APP_VERSION} · {APP_LOCATION}
             </p>
-          )}
-        </div>
+          </div>
+        )}
       </aside>
 
       {/* Main column */}
@@ -441,18 +462,109 @@ export default function AppShell({
               <Bell size={17} className="text-gray-500" />
               <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-[#ec4899]" />
             </button>
-            <div className="flex items-center gap-2">
-              <HeaderAvatar initials={initials} src={identity?.avatarUrl} />
-              <span className="text-sm font-semibold text-gray-700">
-                {identity?.name ?? "—"}
-              </span>
-              <ChevronDown size={14} className="text-gray-400" />
+            <div className="relative" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-gray-100 cursor-pointer"
+              >
+                <HeaderAvatar
+                  initials={initials}
+                  src={identity?.avatarUrl}
+                />
+                <span className="text-sm font-semibold text-gray-700">
+                  {identity?.name ?? "—"}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={[
+                    "text-gray-400 transition-transform duration-150",
+                    menuOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
+
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-2 z-40 w-56 rounded-xl bg-white border border-gray-200 shadow-lg overflow-hidden"
+                >
+                  <div className="px-3 py-2.5 border-b border-gray-100">
+                    <p className="text-[12px] font-semibold text-gray-900 truncate">
+                      {identity?.name ?? "—"}
+                    </p>
+                    <p className="text-[11px] text-gray-400 truncate">
+                      {identity?.role ?? rootLabelFor(role)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setConfirmOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium text-[#dc2626] hover:bg-[#fef2f2] text-left cursor-pointer"
+                  >
+                    <LogOut size={14} />
+                    Log out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>
 
         <main className="px-6 pb-6">{children}</main>
       </div>
+
+      {/* ── Logout confirmation modal ─────────────────────────────────── */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !loggingOut) {
+              setConfirmOpen(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-[340px] rounded-2xl bg-white shadow-2xl overflow-hidden">
+            {/* Header — avatar + title + subtitle */}
+            <div className="px-5 pt-6 pb-4 flex flex-col items-center text-center">
+              {/* Larger avatar variant just for this modal */}
+            
+              <h3 className="text-[17px] font-bold text-gray-900">
+                Log out ?
+              </h3>
+              <p className="text-[12px] text-gray-500 mt-1 max-w-[260px] leading-relaxed">
+                You'll need to sign in again to access your account.
+              </p>
+            </div>
+
+            {/* Action row — Cancel (red) | Yes, log out (green) */}
+            <div className="px-4 pb-4 flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={loggingOut}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmLogout}
+                disabled={loggingOut}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loggingOut ? "Logging out…" : "Yes, log out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

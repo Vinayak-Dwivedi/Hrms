@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780301702000,
+      "tag": "20260601081502_hrms-init-clean",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780390744000,
+      "tag": "20260602085904_clean_millenium_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780394400000,
+      "tag": "20260602100000_holidays",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780531200000,
+      "tag": "20260604000000_locations",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780534800000,
+      "tag": "20260604010000_department_code",
+      "breakpoints": true
+    }
+  ]
+}
