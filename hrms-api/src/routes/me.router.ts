@@ -22,8 +22,11 @@ import {
   ymd,
 } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
+import { meOnboardingRouter } from "@/routes/me-onboarding.router";
 
 export const meRouter: Router = Router();
+
+meRouter.use("/onboarding", meOnboardingRouter);
 
 // ── GET /api/me ─────────────────────────────────────────────────────────────
 meRouter.get("/", async (req, res, next) => {

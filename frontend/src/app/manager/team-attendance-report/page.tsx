@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import TeamAttendanceReport from "@/components/manager/TeamAttendanceReport";
+import { employeeErrorBannerClass } from "@/features/employees/employee-theme";
 import {
   fetchTeamAttendance,
   type TeamAttendanceResponse,
@@ -44,7 +45,7 @@ export default function TeamAttendanceReportPage() {
   return (
     <>
       {loadError && (
-        <div className="mb-4 bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] text-[13px] rounded-lg px-3.5 py-2.5">
+        <div className={employeeErrorBannerClass}>
           Failed to load team report: {loadError}
         </div>
       )}

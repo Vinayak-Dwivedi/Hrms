@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import TeamDashboard from "@/components/manager/TeamDashboard";
+import { employeeErrorBannerClass } from "@/features/employees/employee-theme";
 import {
   type ApprovalLeaveRequest,
   type ApprovalRegRequest,
@@ -20,6 +21,45 @@ function ymd(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function exportTeamAttendanceCsv(data: TeamAttendanceResponse) {
+  const header = [
+    "Employee ID",
+    "Name",
+    "Date",
+    "Status",
+    "Punch In",
+    "Punch Out",
+    "Working Minutes",
+    "Late Minutes",
+  ];
+  const nameById = new Map(
+    data.team.map((m) => [m.id, `${m.firstName} ${m.lastName}`.trim()]),
+  );
+  const empIdById = new Map(data.team.map((m) => [m.id, m.empId]));
+  const rows = data.records.map((r) => [
+    empIdById.get(r.employeeId) ?? String(r.employeeId),
+    nameById.get(r.employeeId) ?? "",
+    r.date,
+    r.status,
+    r.punchIn ?? "",
+    r.punchOut ?? "",
+    r.workingMinutes ?? "",
+    r.lateByMinutes,
+  ]);
+  const csv = [header, ...rows]
+    .map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `team-attendance-${data.from}-to-${data.to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function TeamDashboardPage() {
@@ -73,10 +113,18 @@ export default function TeamDashboardPage() {
     reload();
   }, [reload]);
 
+  function handleExport() {
+    if (!teamAttendance?.records.length) {
+      toast.error("No attendance data to export for this period.");
+      return;
+    }
+    exportTeamAttendanceCsv(teamAttendance);
+  }
+
   return (
     <>
       {loadError && (
-        <div className="mb-4 bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] text-[13px] rounded-lg px-3.5 py-2.5">
+        <div className={employeeErrorBannerClass}>
           Failed to load team data: {loadError}
         </div>
       )}
@@ -89,7 +137,7 @@ export default function TeamDashboardPage() {
         attrition={attrition}
         loading={loading}
         windowEnd={today}
-        onExport={() => toast.info("Export — coming soon")}
+        onExport={handleExport}
       />
     </>
   );

@@ -4,18 +4,26 @@ import {
   BarChart3,
   BookOpen,
   Briefcase,
+  Building2,
   Calendar as CalendarIcon,
   CheckSquare,
+  ChevronDown,
   Clock,
   FileText,
   LayoutDashboard,
-  Menu,
+  LogOut,
+  MapPin,
   Receipt,
+  Settings,
+  Shield,
+  ShieldPlus,
+  UserPlus,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AppLogo } from "@/components/app/AppLogo";
 import AppHeader from "@/components/app/AppHeader";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
 import {
@@ -35,7 +43,45 @@ type NavEntry = {
   badgeKey?: "pendingApprovals";
 };
 
-type NavSection = { title: string; entries: NavEntry[] };
+type NavSection = {
+  title: string;
+  entries: NavEntry[];
+  collapsible?: boolean;
+  sectionKey?: string;
+  collapsedIcon?: LucideIcon;
+};
+
+const USER_MGMT_HREFS = [
+  "/employees",
+  "/departments",
+  "/add-employee",
+  "/add-permission",
+  "/user-roles",
+];
+
+const USER_MGMT_SECTION: NavSection = {
+  title: "USER MANAGEMENT",
+  sectionKey: "user-management",
+  collapsible: true,
+  collapsedIcon: Users,
+  entries: [
+    { icon: Users, label: "Employees", href: "/employees" },
+    { icon: Building2, label: "Department", href: "/departments" },
+    { icon: UserPlus, label: "Add Employee", href: "/add-employee" },
+    { icon: ShieldPlus, label: "Add Permission", href: "/add-permission" },
+    { icon: Shield, label: "User Roles", href: "/user-roles" },
+  ],
+};
+
+const SETTINGS_HREFS = ["/locations"];
+
+const SETTINGS_SECTION: NavSection = {
+  title: "SETTINGS",
+  sectionKey: "settings",
+  collapsible: true,
+  collapsedIcon: Settings,
+  entries: [{ icon: MapPin, label: "Location", href: "/locations" }],
+};
 
 // Single source of truth for what each role sees. Sections render in order.
 function buildNav(role: Role): NavSection[] {
@@ -70,6 +116,8 @@ function buildNav(role: Role): NavSection[] {
           },
         ],
       },
+      USER_MGMT_SECTION,
+      SETTINGS_SECTION,
     ];
   }
 
@@ -78,29 +126,31 @@ function buildNav(role: Role): NavSection[] {
       {
         title: "PERSONAL",
         entries: [
-          { icon: Briefcase, label: "Dashboard", href: "/admin/dashboard" },
-          { icon: Clock, label: "My Attendance", href: "/admin/attendance" },
-          { icon: CalendarIcon, label: "Leave", href: "/admin/leave" },
+          { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
+          { icon: Clock, label: "My Attendance", href: "/attendance" },
+          { icon: CalendarIcon, label: "Leave", href: "/leave" },
         ],
       },
       {
         title: "ADMINISTRATION",
         entries: [
-          { icon: Users, label: "Employees", href: "/admin/employees" },
+          { icon: Users, label: "Employees", href: "/employees" },
           {
             icon: CheckSquare,
             label: "Approvals",
-            href: "/admin/approvals",
+            href: "/manager/approvals",
             badgeKey: "pendingApprovals",
           },
           {
             icon: LayoutDashboard,
             label: "Org Dashboard",
-            href: "/admin/org",
+            href: "/dashboard",
           },
-          { icon: BarChart3, label: "Reports", href: "/admin/reports" },
+          { icon: BarChart3, label: "Reports", href: "/dashboard" },
         ],
       },
+      USER_MGMT_SECTION,
+      SETTINGS_SECTION,
     ];
   }
 
@@ -123,6 +173,8 @@ function buildNav(role: Role): NavSection[] {
         { icon: FileText, label: "Company Policies", href: "/policies" },
       ],
     },
+    USER_MGMT_SECTION,
+    SETTINGS_SECTION,
   ];
 }
 
@@ -135,21 +187,132 @@ function isNavActive(entry: NavEntry, pathname: string): boolean {
   return false;
 }
 
-// Breadcrumb labels, breadcrumb resolver, and rootLabelFor moved into
-// AppHeader. portalSubtitleFor stays here because the sidebar uses it.
+function isUserMgmtPath(pathname: string): boolean {
+  return USER_MGMT_HREFS.some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
+
+function isSettingsPath(pathname: string): boolean {
+  return SETTINGS_HREFS.some(
+    (href) => pathname === href || pathname.startsWith(`${href}/`),
+  );
+}
+
+function defaultSectionOpen(sectionKey: string, pathname: string): boolean {
+  if (sectionKey === "user-management") return isUserMgmtPath(pathname);
+  if (sectionKey === "settings") return isSettingsPath(pathname);
+  return false;
+}
+
+function activeCollapsibleSection(pathname: string): string | null {
+  if (isUserMgmtPath(pathname)) return "user-management";
+  if (isSettingsPath(pathname)) return "settings";
+  return null;
+}
+
+const COLLAPSIBLE_SECTION_KEYS = ["user-management", "settings"] as const;
+
+function isSectionPathActive(section: NavSection, pathname: string): boolean {
+  return section.entries.some((entry) => isNavActive(entry, pathname));
+}
+
+// ─── breadcrumb table ──────────────────────────────────────────────────────
+const BREADCRUMB_LABELS: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/attendance": "Attendance",
+  "/leave": "Leave",
+  "/leave/new": "Apply Leave",
+  "/requests": "My Requests",
+  "/payslips": "My Payslips",
+  "/directory": "Directory",
+  "/lnd": "L&D Portal",
+  "/policies": "Company Policies",
+  "/holidays": "Holidays",
+  "/manager/dashboard": "HRMS Dashboard",
+  "/manager/attendance": "My Attendance",
+  "/manager/leave": "Leave",
+  "/manager/team-dashboard": "Team Dashboard",
+  "/manager/team-attendance-report": "Team Attendance",
+  "/manager/approvals": "Approvals",
+  "/admin/dashboard": "Dashboard",
+  "/admin/attendance": "My Attendance",
+  "/admin/leave": "Leave",
+  "/admin/employees": "Employees",
+  "/admin/approvals": "Approvals",
+  "/admin/org": "Org Dashboard",
+  "/admin/reports": "Reports",
+  "/add-employee": "Add Employee",
+  "/add-permission": "Add Permission",
+  "/user-roles": "User Roles",
+  "/departments": "Department",
+  "/locations": "Location",
+  "/employees": "Employees",
+  "/employees/bulk-upload": "Bulk Upload",
+};
+
+function breadcrumbFor(pathname: string): string {
+  const fromTable = BREADCRUMB_LABELS[pathname];
+  if (fromTable) return fromTable;
+  if (/^\/employees\/\d+\/edit$/.test(pathname)) return "Edit Employee";
+  if (/^\/employees\/\d+$/.test(pathname)) return "View Employee";
+  const derived = pathname
+    .split("/")
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(" / ");
+  return derived || "Dashboard";
+}
+
+function rootLabelFor(role: Role): string {
+  if (role === "manager") return "Manager";
+  if (role === "admin") return "Admin";
+  return "Employee";
+}
 
 function portalSubtitleFor(role: Role): string {
-  if (role === "manager") return "MANAGER PORTAL";
-  if (role === "admin") return "ADMIN PORTAL";
-  return "EMPLOYEE PORTAL";
+  if (role === "manager") return "";
+  if (role === "admin") return "";
+  return "";
 }
 
 // ─── collapse persistence ───────────────────────────────────────────────────
 const COLLAPSE_KEY = "hrms.sidebar.collapsed";
+const SECTION_OPEN_KEY = "hrms.sidebar.sections.open";
 
 function loadCollapsed(): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(COLLAPSE_KEY) === "1";
+}
+
+function loadSectionOpen(sectionKey: string, pathname: string): boolean {
+  if (typeof window === "undefined") {
+    return defaultSectionOpen(sectionKey, pathname);
+  }
+  try {
+    const raw = window.localStorage.getItem(SECTION_OPEN_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, boolean>;
+      if (typeof parsed[sectionKey] === "boolean") {
+        return parsed[sectionKey];
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return defaultSectionOpen(sectionKey, pathname);
+}
+
+function saveSectionOpen(sectionKey: string, open: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(SECTION_OPEN_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    parsed[sectionKey] = open;
+    window.localStorage.setItem(SECTION_OPEN_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── the shell ──────────────────────────────────────────────────────────────
@@ -165,10 +328,50 @@ export default function AppShell({
   const [identity, setIdentity] = useState<Employee | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setCollapsed(loadCollapsed());
   }, []);
+
+  // Open the section for the current route; close the other collapsible section.
+  // Manual toggles on the same page are kept until the route changes.
+  useEffect(() => {
+    const active = activeCollapsibleSection(pathname);
+    setOpenSections((prev) => {
+      if (!active) {
+        if (Object.keys(prev).length > 0) return prev;
+        const initial = {
+          "user-management": loadSectionOpen("user-management", pathname),
+          settings: loadSectionOpen("settings", pathname),
+        };
+        return initial;
+      }
+
+      const next: Record<string, boolean> = {
+        "user-management": active === "user-management",
+        settings: active === "settings",
+      };
+
+      const unchanged =
+        prev["user-management"] === next["user-management"] &&
+        prev.settings === next.settings;
+      if (unchanged) return prev;
+
+      for (const key of COLLAPSIBLE_SECTION_KEYS) {
+        saveSectionOpen(key, next[key] ?? false);
+      }
+      return next;
+    });
+  }, [pathname]);
+
+  function toggleSection(sectionKey: string) {
+    setOpenSections((prev) => {
+      const next = { ...prev, [sectionKey]: !prev[sectionKey] };
+      saveSectionOpen(sectionKey, Boolean(next[sectionKey]));
+      return next;
+    });
+  }
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -237,22 +440,20 @@ export default function AppShell({
         >
           {!collapsed && (
             <div>
-              <p className="text-[19px] font-bold leading-none text-[#dc143c]">
-                iLeads
-              </p>
+              <AppLogo />
               <p className="text-[10px] tracking-[1.5px] mt-1 text-gray-400">
                 {portalSubtitleFor(role)}
               </p>
             </div>
           )}
-          <button
+          {/* <button
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fff1f2] border border-[#fecdd3] text-[#be185d] cursor-pointer"
           >
             <Menu size={15} />
-          </button>
+          </button> */}
         </div>
 
         {/* Nav (sectioned) */}
@@ -262,55 +463,106 @@ export default function AppShell({
             collapsed ? "p-[10px]" : "px-3 py-3",
           ].join(" ")}
         >
-          {sections.map((section) => (
-            <div key={section.title} className="flex flex-col gap-1">
-              {!collapsed && (
-                <p className="text-[10px] font-bold tracking-widest text-gray-400 px-2 mb-1">
-                  {section.title}
-                </p>
-              )}
-              {section.entries.map(({ icon: Icon, label, href, badgeKey, also }) => {
-                const active = isNavActive(
-                  { icon: Icon, label, href, also },
-                  pathname,
-                );
-                const badge = badgeFor(badgeKey);
-                return (
-                  <a
-                    key={label}
-                    href={href}
-                    title={collapsed ? label : undefined}
+          {sections.map((section) => {
+            const sectionKey = section.sectionKey ?? section.title;
+            const isCollapsible = section.collapsible && section.sectionKey;
+            const isOpen = isCollapsible
+              ? (openSections[section.sectionKey!] ?? false)
+              : true;
+            const sectionActive = isSectionPathActive(section, pathname);
+            const CollapsedIcon = section.collapsedIcon ?? Users;
+
+            return (
+              <div key={section.title} className="flex flex-col gap-1">
+                {isCollapsible && !collapsed ? (
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => toggleSection(section.sectionKey!)}
                     className={[
-                      "flex items-center rounded-xl text-[13px] font-medium no-underline gap-3",
-                      collapsed ? "py-2.5 justify-center" : "px-3 py-2.5",
-                      active
-                        ? "text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
-                        : "text-gray-600 bg-transparent",
+                      "flex items-center w-full rounded-lg text-[10px] font-bold tracking-widest gap-2 px-2 py-1.5 mb-0.5 border-0 cursor-pointer transition-colors",
+                      sectionActive
+                        ? "text-[#be185d] bg-[#fff1f2]"
+                        : "text-gray-400 bg-transparent hover:text-gray-600 hover:bg-gray-50",
                     ].join(" ")}
                   >
-                    <Icon size={16} />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1">{label}</span>
-                        {badge !== null && badge > 0 && (
-                          <span
-                            className={[
-                              "inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[20px] h-5 px-1.5",
-                              active
-                                ? "bg-white/25 text-white"
-                                : "bg-[#fed7aa] text-[#9a3412]",
-                            ].join(" ")}
-                          >
-                            {badge}
-                          </span>
+                    <span className="flex-1 text-left">{section.title}</span>
+                    <ChevronDown
+                      className={[
+                        "shrink-0 transition-transform duration-200",
+                        isOpen ? "rotate-0" : "-rotate-90",
+                      ].join(" ")}
+                      size={14}
+                    />
+                  </button>
+                ) : isCollapsible && collapsed ? (
+                  <button
+                    type="button"
+                    title={section.title}
+                    aria-expanded={isOpen}
+                    onClick={() => toggleSection(section.sectionKey!)}
+                    className={[
+                      "flex items-center justify-center rounded-xl py-2.5 w-full border-0 cursor-pointer transition-colors",
+                      sectionActive
+                        ? "text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
+                        : "text-gray-600 bg-transparent hover:bg-gray-50",
+                    ].join(" ")}
+                  >
+                    <CollapsedIcon size={16} />
+                  </button>
+                ) : (
+                  !collapsed && (
+                    <p className="text-[10px] font-bold tracking-widest text-gray-400 px-2 mb-1">
+                      {section.title}
+                    </p>
+                  )
+                )}
+
+                {(!isCollapsible || isOpen) &&
+                  section.entries.map(({ icon: Icon, label, href, badgeKey, also }) => {
+                    const active = isNavActive(
+                      { icon: Icon, label, href, also },
+                      pathname,
+                    );
+                    const badge = badgeFor(badgeKey);
+                    return (
+                      <a
+                        key={label}
+                        href={href}
+                        title={collapsed ? label : undefined}
+                        className={[
+                          "flex items-center rounded-xl text-[13px] font-medium no-underline gap-3",
+                          collapsed ? "py-2.5 justify-center" : "px-3 py-2.5",
+                          !collapsed && isCollapsible ? "ml-2" : "",
+                          active
+                            ? "text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
+                            : "text-gray-600 bg-transparent",
+                        ].join(" ")}
+                      >
+                        <Icon size={16} />
+                        {!collapsed && (
+                          <>
+                            <span className="flex-1">{label}</span>
+                            {badge !== null && badge > 0 && (
+                              <span
+                                className={[
+                                  "inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[20px] h-5 px-1.5",
+                                  active
+                                    ? "bg-white/25 text-white"
+                                    : "bg-[#fed7aa] text-[#9a3412]",
+                                ].join(" ")}
+                              >
+                                {badge}
+                              </span>
+                            )}
+                          </>
                         )}
-                      </>
-                    )}
-                  </a>
-                );
-              })}
-            </div>
-          ))}
+                      </a>
+                    );
+                  })}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Footer — logout is now in the header user dropdown only. */}

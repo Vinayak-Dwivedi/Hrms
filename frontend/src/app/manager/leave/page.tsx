@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import LeaveTable from "@/components/leave/LeaveTable";
+import {
+  employeeErrorBannerClass,
+  employeeLoadingClass,
+} from "@/features/employees/employee-theme";
 import { type LeaveRequest } from "@/lib/dashboard";
 import {
   cancelLeaveRequest,
@@ -49,32 +53,18 @@ export default function ManagerLeavePage() {
   return (
     <>
       {loadError && (
-        <div
-          className="mb-4"
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            padding: "10px 14px",
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        >
+        <div className={employeeErrorBannerClass}>
           Failed to load leave requests: {loadError}
         </div>
       )}
       {loading ? (
-        <div
-          className="rounded-2xl bg-white p-8 text-center"
-          style={{ border: "1px solid #e5e7eb", color: "#6b7280" }}
-        >
-          Loading leave requests…
-        </div>
+        <div className={employeeLoadingClass}>Loading leave requests…</div>
       ) : (
         <LeaveTable
-          requests={requests}
-          onCancel={handleCancel}
+          attendanceHref="/manager/attendance"
           busyId={busyId}
+          onCancel={handleCancel}
+          requests={requests}
         />
       )}
     </>

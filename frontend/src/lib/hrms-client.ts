@@ -11,10 +11,11 @@ import type {
   LeaveType as UILeaveType,
 } from "./dashboard";
 
-// Base URL of the hrms-api Express service.
-//   - Dev (laptop): set NEXT_PUBLIC_API_URL=http://localhost:4000
-//   - Prod (EC2):   leave empty; nginx proxies same-origin requests to :4000.
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Base URL of the hrms-api Express service (browser-visible).
+//   - Dev / prod (recommended): leave empty — same-origin /api (Next rewrite or nginx).
+//   - Direct API URL (cross-origin): only if you accept cookie/CORS constraints.
+/** Empty in dev/prod when API is same-origin (Next rewrite or nginx). */
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 function buildUrl(path: string): string {
   // Route by prefix to the matching hrms-api router mount point.
@@ -54,12 +55,15 @@ export interface LoggedInUser {
   role: string;
 }
 
-export async function signIn(email: string, password: string): Promise<LoggedInUser> {
+export async function signIn(
+  loginId: string,
+  password: string,
+): Promise<LoggedInUser> {
   const res = await fetch(`${API_BASE}/api/auth/login`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ loginId, password }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: { message: res.statusText } }));

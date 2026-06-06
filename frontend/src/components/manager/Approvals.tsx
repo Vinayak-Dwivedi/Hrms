@@ -16,6 +16,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  employeeCardClass,
+  employeeFilterLabelClass,
+  employeeLoadingClass,
+  employeeSelectClass,
+} from "@/features/employees/employee-theme";
+import {
   type ApprovalLeaveRequest,
   type ApprovalRegRequest,
   approveLeaveRequest,
@@ -26,21 +32,21 @@ import {
   rejectLeaveRequest,
   rejectRegRequest,
 } from "@/lib/hrms-client";
+import { cn } from "@/lib/utils";
 
 const AVATAR_PALETTE = [
-  "#7c3aed",
-  "#0f766e",
-  "#4338ca",
-  "#0369a1",
-  "#be185d",
-  "#15803d",
-  "#b91c1c",
-  "#92400e",
-  "#1d4ed8",
-  "#0d9488",
-  "#6d28d9",
-  "#b45309",
+  "#8b5cf6",
+  "#10b981",
+  "#3b82f6",
+  "#ec4899",
+  "#f59e0b",
+  "#14b8a6",
+  "#a855f7",
+  "#f97316",
 ];
+
+const statCardTitleClass =
+  "m-0 text-[10px] font-semibold text-gray-500 uppercase tracking-wider leading-tight";
 
 function initials(first: string, last: string) {
   return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
@@ -1242,6 +1248,7 @@ export default function Approvals() {
       setLeaveLoading(false);
     }
   }
+
   async function refreshRegs() {
     setRegLoading(true);
     try {
@@ -1272,6 +1279,7 @@ export default function Approvals() {
       setLeaveBusyId(null);
     }
   }
+
   async function rejectLeave(id: number, remarks: string) {
     setLeaveBusyId(id);
     try {
@@ -1285,6 +1293,7 @@ export default function Approvals() {
       setLeaveBusyId(null);
     }
   }
+
   async function forwardLeave(id: number) {
     setLeaveBusyId(id);
     try {
@@ -1311,6 +1320,7 @@ export default function Approvals() {
       setRegBusyId(null);
     }
   }
+
   async function rejectReg(id: number, remarks: string) {
     setRegBusyId(id);
     try {

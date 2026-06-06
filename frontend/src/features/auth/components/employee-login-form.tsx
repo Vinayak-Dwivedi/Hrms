@@ -7,7 +7,7 @@ import { z } from "zod";
 import { signIn } from "@/lib/hrms-client";
 
 const schema = z.object({
-  email: z.string().min(1, "Login ID is required.").email("Enter a valid email."),
+  loginId: z.string().trim().min(1, "Login ID is required."),
   password: z.string().min(1, "Password is required."),
 });
 
@@ -34,7 +34,7 @@ const inputBaseStyle: React.CSSProperties = {
 
 export function EmployeeLoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export function EmployeeLoginForm() {
     e.preventDefault();
     setError(null);
 
-    const parsed = schema.safeParse({ email, password });
+    const parsed = schema.safeParse({ loginId, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Invalid credentials.");
       return;
@@ -52,7 +52,7 @@ export function EmployeeLoginForm() {
 
     setSubmitting(true);
     try {
-      const user = await signIn(parsed.data.email, parsed.data.password);
+      const user = await signIn(parsed.data.loginId, parsed.data.password);
       const dest =
         user.role === "manager"
           ? "/manager/dashboard"
@@ -73,7 +73,7 @@ export function EmployeeLoginForm() {
       {/* Login ID */}
       <div className="mb-5">
         <label
-          htmlFor="login-email"
+          htmlFor="login-id"
           className="block text-[13px] font-semibold mb-1.5"
           style={{ color: "#1f2937" }}
         >
@@ -87,13 +87,13 @@ export function EmployeeLoginForm() {
             <User size={16} />
           </span>
           <input
-            id="login-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your login ID"
+            id="login-id"
+            name="loginId"
+            type="text"
+            autoComplete="username"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            placeholder="Email or Employee ID"
             style={inputBaseStyle}
           />
         </div>

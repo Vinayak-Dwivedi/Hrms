@@ -1,12 +1,10 @@
-import Image from "next/image";
-import { EmployeeLoginForm } from "@/features/auth/components/employee-login-form";
+import { EmployeeLoginForm } from "@/features/auth/components/employee-login-form";import { AppLogo } from "@/components/app/AppLogo";
 
 // The left-panel illustration is loaded from /public/login-illustration.png.
 // Drop your asset there with the matching filename — the layout/sizing
 // matches the mockup. PNG / JPG / WebP all work; if you change the
 // extension, update the src below to match.
 const ILLUSTRATION_SRC = "/login-illustration.png";
-const LOGO_SRC = "/ileads.png";
 const LOGIN_BACKGROUND_SRC = "/login-banner.png"
 
 export default function EmployeeLoginPage() {
@@ -49,14 +47,7 @@ export default function EmployeeLoginPage() {
           className="absolute top-0 right-0"
           style={{ padding: "28px 40px" }}
         >
-          <Image
-            src={LOGO_SRC}
-            alt="iLeads"
-            width={120}
-            height={48}
-            style={{ objectFit: "contain" }}
-            priority
-          />
+          <AppLogo priority width={120} />
         </div>
 
         {/* Centered form */}
@@ -72,7 +63,7 @@ export default function EmployeeLoginPage() {
               className="text-[13px]"
               style={{ color: "#6b7280", marginBottom: 28 }}
             >
-              Enter your credentials to access your account
+              Sign in with your work email or employee ID
             </p>
             <EmployeeLoginForm />
           </div>

@@ -70,7 +70,6 @@ export default function Sidebar({
               className="text-[8px] font-medium tracking-[0.15em] mt-0.5"
               style={{ color: "#6b7280" }}
             >
-              EMPLOYEE PORTAL
             </span>
           </div>
         )}

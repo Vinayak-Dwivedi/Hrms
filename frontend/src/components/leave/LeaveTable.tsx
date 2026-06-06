@@ -1,34 +1,60 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { XCircle, AlertCircle } from "lucide-react";
+import { AlertCircle, Clock, XCircle } from "lucide-react";
+import {
+  employeeBtnOutlineSmClass,
+  employeeBtnSmClass,
+  employeeCardClass,
+  employeeFilterLabelClass,
+  employeeIconMd,
+  employeeIconXs,
+  employeeInputClass,
+  employeeSelectClass,
+} from "@/features/employees/employee-theme";
 import type { LeaveRequest, LeaveStatus } from "@/lib/dashboard";
 
 interface Props {
   requests: LeaveRequest[];
   onCancel?: (id: string) => void | Promise<void>;
   busyId?: string | null;
+  attendanceHref?: string;
 }
 
-const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Pending:   { bg: "#fef9c3", color: "#a16207" },
-  Approved:  { bg: "#dcfce7", color: "#15803d" },
-  Cancelled: { bg: "#f3f4f6", color: "#6b7280" },
-  Rejected:  { bg: "#fee2e2", color: "#b91c1c" },
+const STATUS_CLASS: Record<LeaveStatus, string> = {
+  Pending: "bg-yellow-100 text-yellow-700",
+  Approved: "bg-green-100 text-green-700",
+  Rejected: "bg-red-100 text-red-700",
+  Cancelled: "bg-gray-100 text-gray-600",
 };
 
+const cancelIconBtnClass =
+  "inline-flex items-center justify-center text-[#FF014F] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
   return (
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) +
+    d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }) +
     " " +
-    d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+    d.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
   );
 }
 
@@ -36,11 +62,10 @@ function leavePeriod(start: string, end: string) {
   if (start === end) return fmtDate(start);
   const s = new Date(start);
   const e = new Date(end);
-  // Same month/year: show "18–20 Feb 2026"
   if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
     const month = s.toLocaleDateString("en-GB", { month: "short" });
-    const year  = s.getFullYear();
-    return `${String(s.getDate()).padStart(2,"0")}–${String(e.getDate()).padStart(2,"0")} ${month} ${year}`;
+    const year = s.getFullYear();
+    return `${String(s.getDate()).padStart(2, "0")}–${String(e.getDate()).padStart(2, "0")} ${month} ${year}`;
   }
   return `${fmtDate(start)} – ${fmtDate(end)}`;
 }
@@ -50,23 +75,15 @@ function durationLabel(req: LeaveRequest) {
   return String(req.duration);
 }
 
-const TRUNCATE_AT = 50;
-
 function StatusCell({ req }: { req: LeaveRequest }) {
-  const style = STATUS_STYLE[req.status];
   return (
-    <span style={{
-      display: "inline-block",
-      background: style.bg, color: style.color,
-      fontWeight: 700, fontSize: 12,
-      borderRadius: 6, padding: "2px 10px",
-    }}>
+    <span
+      className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${STATUS_CLASS[req.status]}`}
+    >
       {req.status}
     </span>
   );
 }
-
-// ── Contest Leave Modal ───────────────────────────────────────────────────────
 
 interface ContestModalProps {
   req: LeaveRequest;
@@ -78,40 +95,38 @@ function ContestModal({ req, onClose }: ContestModalProps) {
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
       onClick={onClose}
     >
       <div
-        style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440, padding: "28px 28px 24px", boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md p-7"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 6 }}>Contest Leave</h2>
-        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
-          This will request conversion of your <strong>{req.leaveType}</strong> ({leavePeriod(req.startDate, req.endDate)}) to <strong>Earned Leave</strong>.
+        <h2 className="text-lg font-semibold text-gray-800 m-0 mb-1.5">
+          Contest Leave
+        </h2>
+        <p className="text-sm text-gray-500 mb-5 m-0">
+          This will request conversion of your <strong>{req.leaveType}</strong> (
+          {leavePeriod(req.startDate, req.endDate)}) to{" "}
+          <strong>Earned Leave</strong>.
         </p>
 
-        <label style={{ display: "block", marginBottom: 20 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Reason for contesting
-          </span>
+        <label className="block mb-5">
+          <span className={employeeFilterLabelClass}>Reason for contesting</span>
           <textarea
-            value={note}
+            className={`${employeeInputClass} resize-y`}
             onChange={(e) => setNote(e.target.value)}
-            rows={3}
             placeholder="Explain why this should be converted to Earned Leave..."
-            style={{
-              width: "100%", padding: "9px 12px", borderRadius: 8,
-              border: "1px solid #d1d5db", fontSize: 14, color: "#111827",
-              background: "#fff", outline: "none", resize: "vertical",
-              boxSizing: "border-box", fontFamily: "inherit",
-            }}
+            rows={3}
+            value={note}
           />
         </label>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+        <div className="flex justify-end gap-2">
           <button
+            className={employeeBtnOutlineSmClass}
             onClick={onClose}
-            style={{ padding: "9px 20px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", fontSize: 14, fontWeight: 500, color: "#374151", cursor: "pointer" }}
+            type="button"
           >
             Cancel
           </button>
@@ -122,147 +137,228 @@ function ContestModal({ req, onClose }: ContestModalProps) {
   );
 }
 
-// ── Main Table ────────────────────────────────────────────────────────────────
-
-export default function LeaveTable({ requests, onCancel, busyId }: Props) {
-  const [pageSize, setPageSize]         = useState(10);
-  const [page, setPage]                 = useState(1);
+export default function LeaveTable({
+  requests,
+  onCancel,
+  busyId,
+  attendanceHref,
+}: Props) {
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<LeaveStatus | "All">("All");
-  const [contesting, setContesting]     = useState<LeaveRequest | null>(null);
+  const [contesting, setContesting] = useState<LeaveRequest | null>(null);
 
   const filtered = requests.filter((r) =>
-    statusFilter === "All" ? true : r.status === statusFilter
+    statusFilter === "All" ? true : r.status === statusFilter,
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage   = Math.min(page, totalPages);
-  const start      = (safePage - 1) * pageSize;
-  const pageRows   = filtered.slice(start, start + pageSize);
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const pageRows = filtered.slice(start, start + pageSize);
 
-  const colStyle: React.CSSProperties = {
-    padding: "12px 14px", fontSize: 13, color: "#374151",
-    borderBottom: "1px solid #f3f4f6", verticalAlign: "top",
-  };
-  const headStyle: React.CSSProperties = {
-    padding: "12px 14px", fontSize: 12, fontWeight: 700,
-    color: "#fff", background: "#4b5563", textAlign: "left", whiteSpace: "nowrap",
-  };
+  const rangeStart = filtered.length === 0 ? 0 : start + 1;
+  const rangeEnd = Math.min(start + pageSize, filtered.length);
 
   return (
     <>
-      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb", overflow: "hidden" }}>
-
-        {/* Title bar */}
-        <div style={{ background: "linear-gradient(135deg, #8B1A52 0%, #C5195F 100%)", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#fff", margin: 0 }}>Leave Requests</h1>
-          <a href="/attendance" style={{ padding: "8px 16px", borderRadius: 8, background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
-            Open Attendance
-          </a>
-        </div>
-
-        {/* Controls bar */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #f3f4f6", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-            Show
+      <div className={`${employeeCardClass} p-5 mb-6`}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className={employeeFilterLabelClass} htmlFor="leave-status">
+              Status
+            </label>
             <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-              style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "4px 8px", fontSize: 13, color: "#374151", background: "#fff" }}
-            >
-              {[5, 10, 25, 50].map((n) => <option key={n}>{n}</option>)}
-            </select>
-            entries
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-            Status:
-            <select
+              className={employeeSelectClass}
+              id="leave-status"
+              onChange={(e) => {
+                setStatusFilter(e.target.value as LeaveStatus | "All");
+                setPage(1);
+              }}
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as LeaveStatus | "All"); setPage(1); }}
-              style={{ border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#374151", background: "#fff", minWidth: 130 }}
             >
-              {(["All", "Pending", "Approved", "Rejected", "Cancelled"] as const).map((s) => (
-                <option key={s}>{s}</option>
+              {(["All", "Pending", "Approved", "Rejected", "Cancelled"] as const).map(
+                (s) => (
+                  <option key={s} value={s}>
+                    {s === "All" ? "All Status" : s}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
+
+          <div>
+            <label className={employeeFilterLabelClass} htmlFor="leave-page-size">
+              Show entries
+            </label>
+            <select
+              className={employeeSelectClass}
+              id="leave-page-size"
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              value={pageSize}
+            >
+              {[5, 10, 25, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Scrollable table */}
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-            <thead>
-              <tr>
-                {["Applied On", "Leave Type", "Leave Period", "Duration", "Reason", "Status", "Approved On", "Action"].map((h) => (
-                  <th key={h} style={headStyle}>{h}</th>
+        {attendanceHref && (
+          <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
+            <Link className={employeeBtnOutlineSmClass} href={attendanceHref}>
+              <Clock className={employeeIconXs} />
+              Open Attendance
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div className={`${employeeCardClass} overflow-hidden`}>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="text-nowrap">
+                {[
+                  "Applied On",
+                  "Leave Type",
+                  "Leave Period",
+                  "Duration",
+                  "Reason",
+                  "Status",
+                  "Approved On",
+                  "Action",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ ...colStyle, textAlign: "center", color: "#9ca3af", padding: "32px" }}>No records found</td>
-                </tr>
-              ) : pageRows.map((req, i) => (
-                <tr key={req.id} style={{ background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
-                  <td style={colStyle}>{fmtDate(req.appliedOn)}</td>
-                  <td style={{ ...colStyle, fontWeight: 600 }}>{req.leaveTypeCode}</td>
-                  <td style={{ ...colStyle, whiteSpace: "nowrap" }}>{leavePeriod(req.startDate, req.endDate)}</td>
-                  <td style={colStyle}>{durationLabel(req)}</td>
-                  <td style={colStyle}>{req.reason}</td>
-                  <td style={colStyle}><StatusCell req={req} /></td>
-                  <td style={{ ...colStyle, whiteSpace: "nowrap" }}>{fmtDateTime(req.approvedOn)}</td>
-                  <td style={colStyle}>
-                    {req.status === "Pending" && (
-                      <button
-                        type="button"
-                        onClick={() => onCancel?.(req.id)}
-                        disabled={!onCancel || busyId === req.id}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "1.5px solid #fca5a5", background: "#fff", color: "#dc2626", fontSize: 12, fontWeight: 600, cursor: busyId === req.id ? "wait" : "pointer", whiteSpace: "nowrap", opacity: busyId === req.id ? 0.5 : 1 }}
-                      >
-                        <XCircle size={14} /> {busyId === req.id ? "Cancelling…" : "Cancel"}
-                      </button>
-                    )}
-                    
-                    {(req.status === "Cancelled" || req.status === "Rejected") && (
-                      <span style={{ fontSize: 13, color: "#9ca3af" }}>No action</span>
-                    )}
+                  <td
+                    colSpan={8}
+                    className="px-6 py-8 text-center text-sm text-gray-400"
+                  >
+                    No records found
                   </td>
                 </tr>
-              ))}
+              ) : (
+                pageRows.map((req) => (
+                  <tr
+                    key={req.id}
+                    className="hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  >
+                    <td className="px-6 py-4">{fmtDate(req.appliedOn)}</td>
+                    <td className="px-6 py-4 font-medium">{req.leaveTypeCode}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {leavePeriod(req.startDate, req.endDate)}
+                    </td>
+                    <td className="px-6 py-4">{durationLabel(req)}</td>
+                    <td className="px-6 py-4">{req.reason}</td>
+                    <td className="px-6 py-4">
+                      <StatusCell req={req} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {fmtDateTime(req.approvedOn)}
+                    </td>
+                    <td className="px-6 py-4">
+                      {req.status === "Pending" && (
+                        <button
+                          aria-label={
+                            busyId === req.id
+                              ? "Cancelling leave request"
+                              : "Cancel leave request"
+                          }
+                          className={cancelIconBtnClass}
+                          disabled={!onCancel || busyId === req.id}
+                          onClick={() => onCancel?.(req.id)}
+                          title={busyId === req.id ? "Cancelling…" : "Cancel"}
+                          type="button"
+                        >
+                          <XCircle className={employeeIconMd} />
+                        </button>
+                      )}
+                      {req.status === "Approved" && (
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors"
+                          onClick={() => setContesting(req)}
+                          type="button"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Contest Leave
+                        </button>
+                      )}
+                      {(req.status === "Cancelled" || req.status === "Rejected") && (
+                        <span className="text-sm text-gray-400">No action</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* Footer */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderTop: "1px solid #f3f4f6", flexWrap: "wrap", gap: 10 }}>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>
-            {filtered.length === 0
-              ? "Showing 0 entries"
-              : `Showing ${start + 1} to ${Math.min(start + pageSize, filtered.length)} of ${filtered.length} entries`}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <PagBtn disabled={safePage === 1} onClick={() => setPage((p) => p - 1)}>Previous</PagBtn>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-              <PagBtn key={n} active={n === safePage} onClick={() => setPage(n)}>{n}</PagBtn>
-            ))}
-            <PagBtn disabled={safePage === totalPages} onClick={() => setPage((p) => p + 1)}>Next</PagBtn>
+        {filtered.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
+            <p className="text-sm text-gray-500 m-0">
+              Showing <span className="font-medium">{rangeStart}</span> to{" "}
+              <span className="font-medium">{rangeEnd}</span> of{" "}
+              <span className="font-medium">{filtered.length}</span> results
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                type="button"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(0, 5)
+                .map((p) => (
+                  <button
+                    key={p}
+                    className={[
+                      "px-4 py-2 text-sm rounded-lg transition-colors border",
+                      p === safePage
+                        ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                        : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
+                    ].join(" ")}
+                    onClick={() => setPage(p)}
+                    type="button"
+                  >
+                    {p}
+                  </button>
+                ))}
+              <button
+                className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                type="button"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {contesting && <ContestModal req={contesting} onClose={() => setContesting(null)} />}
+      {contesting && (
+        <ContestModal req={contesting} onClose={() => setContesting(null)} />
+      )}
     </>
-  );
-}
-
-function PagBtn({ children, onClick, active, disabled }: { children: React.ReactNode; onClick: () => void; active?: boolean; disabled?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{ padding: "5px 11px", borderRadius: 6, fontSize: 13, fontWeight: 500, border: "1px solid #e5e7eb", background: active ? "#e91e8c" : "#fff", color: active ? "#fff" : disabled ? "#d1d5db" : "#374151", cursor: disabled ? "default" : "pointer" }}
-    >
-      {children}
-    </button>
   );
 }

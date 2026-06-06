@@ -53,6 +53,11 @@ import type {
 } from "@/lib/dashboard";
 import type { Role } from "@/lib/roles";
 import {
+  employeeBtnSmClass,
+  employeeCardClass,
+  employeeErrorBannerClass,
+} from "@/features/employees/employee-theme";
+import {
   type ApprovalLeaveRequest,
   type AttendanceWindow,
   fetchCurrentEmployee,
@@ -71,6 +76,53 @@ import {
   punchIn,
   punchOut,
 } from "@/lib/hrms-client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+
+const SHIFT_MINUTES = 540;
+
+const dashboardCardClass = `${employeeCardClass} p-5`;
+const gradientCardClass = cn(
+  employeeCardClass,
+  "p-5 flex flex-col h-full w-full min-w-0 bg-gradient-to-br from-white via-slate-50/90 to-pink-50/50",
+);
+const topRowCardClass = cn(gradientCardClass, "min-h-[280px]");
+const dashboardGridClass =
+  "grid w-full min-w-0 gap-4 grid-cols-1 md:grid-cols-3 items-stretch";
+const linkAccentClass =
+  "text-xs font-medium no-underline text-[#FF014F] hover:text-[#eb0249] transition-colors";
+
+const CHART_COLORS = [
+  { stroke: "#10b981", dot: "bg-emerald-500" },
+  { stroke: "#3b82f6", dot: "bg-blue-500" },
+  { stroke: "#f59e0b", dot: "bg-amber-500" },
+  { stroke: "#ef4444", dot: "bg-red-500" },
+  { stroke: "#8b5cf6", dot: "bg-violet-500" },
+] as const;
+
+const AVATAR_SIZE_CLASS: Record<number, string> = {
+  64: "w-16 h-16 text-xl tracking-wide",
+  72: "w-[72px] h-[72px] text-2xl tracking-wide",
+  84: "w-[84px] h-[84px] text-[27px] tracking-wide",
+};
+
+const RING_WRAP_CLASS: Record<number, string> = {
+  72: "w-[72px] h-[72px]",
+  84: "w-[84px] h-[84px]",
+  100: "w-[100px] h-[100px]",
+};
+
+const DONUT_WRAP_CLASS: Record<number, string> = {
+  160: "w-[160px] h-[160px]",
+  180: "w-[180px] h-[180px]",
+  200: "w-[200px] h-[200px]",
+  220: "w-[220px] h-[220px]",
+};
 
 // Role type lives in @/lib/roles — shared with AppShell.
 // Each role contributes:
@@ -93,26 +145,19 @@ function Avatar({
   const showImg = src && !failed;
   return (
     <div
-      className={[
-        "rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 border-2 border-white/30",
+      className={cn(
+        "rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 border-2 border-pink-100 shadow-sm",
         showImg
           ? "bg-white"
-          : "bg-gradient-to-br from-white/25 to-white/10",
-      ].join(" ")}
-      style={{
-        width: size,
-        height: size,
-        fontSize: Math.max(14, Math.round(size * 0.32)),
-        letterSpacing: 0.5,
-      }}
+          : "bg-gradient-to-br from-[#FF014F] to-[#eb0249]",
+        AVATAR_SIZE_CLASS[size] ?? "w-16 h-16 text-xl tracking-wide",
+      )}
     >
       {showImg ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt={initials}
-          width={size}
-          height={size}
           onError={() => setFailed(true)}
           className="w-full h-full object-cover block"
         />
@@ -137,18 +182,27 @@ function Ring({
   const c = 2 * Math.PI * r;
   const pct = total > 0 ? used / total : 0;
   const dash = pct * c;
+  const centerFontSize = Math.round(size * 0.17);
+
   return (
     <div
-      className="relative shrink-0"
-      style={{ width: size, height: size }}
+      className={cn("relative shrink-0", RING_WRAP_CLASS[size])}
+      style={
+        RING_WRAP_CLASS[size] ? undefined : { width: size, height: size }
+      }
     >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="block"
+      >
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#f3f4f6"
+          className="stroke-gray-100"
           strokeWidth={stroke}
         />
         <circle
@@ -156,15 +210,20 @@ function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#dc143c"
+          className="stroke-[#FF014F]"
           strokeWidth={stroke}
           strokeDasharray={`${dash} ${c}`}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-[12px] font-bold text-gray-900 tracking-tight">
-        {used}/{total}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span
+          className="font-bold text-gray-900 leading-none tabular-nums text-center"
+          style={{ fontSize: centerFontSize }}
+        >
+          {used}/{total}
+        </span>
       </div>
     </div>
   );
@@ -186,14 +245,19 @@ function Donut({
   let offset = 0;
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    <div
+      className={cn(
+        "relative shrink-0",
+        DONUT_WRAP_CLASS[size] ?? "w-[200px] h-[200px]",
+      )}
+    >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           fill="none"
-          stroke="#f3f4f6"
+          className="stroke-gray-100"
           strokeWidth={stroke}
         />
         {total > 0 &&
@@ -219,8 +283,18 @@ function Donut({
           })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className="text-[24px] font-bold text-gray-900">{center.label}</p>
-        <p className="text-[12px] text-gray-400 mt-0.5">{center.sub}</p>
+        <p
+          className="font-bold text-gray-900 leading-none"
+          style={{ fontSize: Math.round(size * 0.12) }}
+        >
+          {center.label}
+        </p>
+        <p
+          className="text-gray-400 mt-1"
+          style={{ fontSize: Math.round(size * 0.055) }}
+        >
+          {center.sub}
+        </p>
       </div>
     </div>
   );
@@ -250,7 +324,7 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
     (_, i) => (yMax / ySteps) * i,
   );
 
-  function path(values: number[]) {
+  function path(values: number[], yMax: number) {
     if (!values.length) return "";
     const xStep = (w - padL - padR) / Math.max(1, values.length - 1);
     return values
@@ -270,12 +344,12 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
       width="100%"
       height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="block"
+      className="block w-full min-w-0"
     >
-      {yLabels.map((g) => {
+      {yLabels.map((g, i) => {
         const y = padT + (h - padT - padB) * (1 - g / yMax);
         return (
-          <g key={g}>
+          <g key={`y-${i}-${g}`}>
             <line
               x1={padL}
               x2={w - padR}
@@ -311,9 +385,9 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
           </text>
         );
       })}
-      <path d={path(present)} stroke="#3b82f6" strokeWidth={2.5} fill="none" />
-      <path d={path(absent)} stroke="#10b981" strokeWidth={2.5} fill="none" />
-      <path d={path(onLeave)} stroke="#f59e0b" strokeWidth={2.5} fill="none" />
+      <path d={path(present, yMax)} stroke="#3b82f6" strokeWidth={2.5} fill="none" />
+      <path d={path(absent, yMax)} stroke="#10b981" strokeWidth={2.5} fill="none" />
+      <path d={path(onLeave, yMax)} stroke="#f59e0b" strokeWidth={2.5} fill="none" />
     </svg>
   );
 }
@@ -330,6 +404,47 @@ function fmtHm(mins: number): string {
   const h = Math.floor(safe / 60);
   const m = safe % 60;
   return `${h}h ${m}m`;
+}
+
+function formatDayCount(days: number) {
+  const display = Number.isInteger(days) ? String(days) : days.toFixed(1);
+  const unit = days <= 1 ? "Day" : "Days";
+  return `${display} ${unit}`;
+}
+
+function todayYmd(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function shiftWeekAnchor(ymd: string, deltaDays: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekRange(start: string, end: string): string {
+  const s = new Date(`${start}T00:00:00Z`);
+  const e = new Date(`${end}T00:00:00Z`);
+  const sameMonth = start.slice(0, 7) === end.slice(0, 7);
+  if (sameMonth) {
+    const monthYear = e.toLocaleDateString("en-GB", {
+      month: "short",
+      year: "numeric",
+    });
+    return `${s.getUTCDate()} – ${e.getUTCDate()} ${monthYear}`;
+  }
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
+function isCurrentWeek(weekStart: string, weekEnd: string): boolean {
+  const today = todayYmd();
+  return today >= weekStart && today <= weekEnd;
 }
 
 function formatDateMonthDay(iso: string): {
@@ -480,20 +595,17 @@ function RoleBottomTable({
       : 0;
 
   return (
-    <div className="rounded-2xl bg-white p-5 border border-gray-200">
+    <div className={cn(dashboardCardClass, "w-full min-w-0")}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-[15px] font-bold text-gray-900">{title}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 m-0">{title}</h3>
           {pendingCount > 0 && (
-            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-[#ffedd5] text-[#9a3412]">
+            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
               {pendingCount} pending
             </span>
           )}
         </div>
-        <a
-          href={viewHref}
-          className="text-[12px] font-medium no-underline text-[#dc143c]"
-        >
+        <a href={viewHref} className={linkAccentClass}>
           {viewLabel}
         </a>
       </div>
@@ -636,6 +748,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const [balances, setBalances] = useState<LeaveType[] | null>(null);
   const [holidays, setHolidays] = useState<UpcomingHoliday[] | null>(null);
   const [week, setWeek] = useState<WeekAttendance | null>(null);
+  const [weekAnchor, setWeekAnchor] = useState<string | null>(null);
+  const [weekLoading, setWeekLoading] = useState(false);
+  const weekAnchorRef = useRef<string | null>(null);
+  weekAnchorRef.current = weekAnchor;
   const [ownLeaves, setOwnLeaves] = useState<LeaveRequest[] | null>(null);
   const [teamLeaves, setTeamLeaves] = useState<
     ApprovalLeaveRequest[] | null
@@ -678,6 +794,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
   useEffect(() => {
     let cancelled = false;
+    setWeekAnchor(null);
+    weekAnchorRef.current = null;
     (async () => {
       await reload();
       if (cancelled) return;
@@ -764,11 +882,46 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const initials = identity?.initials ?? "··";
 
   const totalMins = week?.totals.totalWorkingMinutes ?? 0;
-  const presentMins = totalMins;
-  const absentMins = (week?.totals.absent ?? 0) * 540;
-  const onLeaveMins = (week?.totals.onLeave ?? 0) * 540;
+  const presentMins =
+    week?.days.reduce(
+      (s, d) =>
+        d.record?.status === "Present"
+          ? s + (d.record.workingMinutes ?? 0)
+          : s,
+      0,
+    ) ?? 0;
+  const absentDays = week?.totals.absent ?? 0;
+  const onLeaveDays = week?.totals.onLeave ?? 0;
   const lateMins =
     week?.days.reduce((s, d) => s + (d.record?.lateByMinutes ?? 0), 0) ?? 0;
+
+  const weekStatPlaceholder = weekLoading ? "—" : null;
+  const attendanceStatCards = [
+    {
+      label: "PRESENT",
+      display: weekStatPlaceholder ?? fmtHm(presentMins),
+      text: "text-[#3b82f6]",
+    },
+    {
+      label: "ABSENT",
+      display: weekStatPlaceholder ?? formatDayCount(absentDays),
+      text: "text-[#10b981]",
+    },
+    {
+      label: "ON LEAVE",
+      display: weekStatPlaceholder ?? formatDayCount(onLeaveDays),
+      text: "text-[#f59e0b]",
+    },
+    {
+      label: "LATE",
+      display: weekStatPlaceholder ?? fmtHm(lateMins),
+      text: "text-[#8b5cf6]",
+    },
+  ];
+
+  const onCurrentWeek =
+    week != null && isCurrentWeek(week.weekStart, week.weekEnd);
+  const weekNavAnchor = weekAnchor ?? todayYmd();
 
   const bottomData: BottomData =
     role === "manager"
@@ -779,11 +932,19 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
   const quickLinks = quickLinksFor(role);
 
+  const dashboardTitle =
+    role === "manager"
+      ? "Manager Dashboard"
+      : role === "admin"
+        ? "Admin Dashboard"
+        : "My Dashboard";
+
   return (
-    <>
+    <div className="w-full min-w-0 space-y-6">
+      
       {loadError && (
-        <div className="mb-4 bg-[#fef2f2] border border-[#fecaca] text-[#991b1b] text-[13px] rounded-lg px-3.5 py-2.5">
-          Failed to load HRMS data: {loadError}
+        <div className={employeeErrorBannerClass}>
+          Failed to load iLeads HRMS data: {loadError}
         </div>
       )}
 
@@ -1053,15 +1214,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
 
         {/* Leave Balance */}
-        <div className="rounded-2xl bg-white p-5 border border-gray-200">
+        <div className={topRowCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[15px] font-bold text-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 m-0">
               Leave Balance
             </h3>
-            <a
-              href={leaveHref(role)}
-              className="text-[12px] font-medium no-underline text-[#dc143c]"
-            >
+            <a href={leaveHref(role)} className={linkAccentClass}>
               View all →
             </a>
           </div>
@@ -1090,8 +1248,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 <p className="text-[11px] font-semibold text-gray-800 mt-2 leading-tight">
                   {item.label}
                 </p>
-                <p className="text-[10px] mt-0.5 text-gray-400">
-                  {item.days} days
+                <p className="text-[13px] mt-0.5 text-gray-400">
+                  {formatDayCount(item.days)}
                 </p>
               </div>
             ))}
@@ -1099,19 +1257,16 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
 
         {/* Upcoming Holidays */}
-        <div className="rounded-2xl bg-white p-5 border border-gray-200">
+        <div className={topRowCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[15px] font-bold text-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 m-0">
               Upcoming Holidays
             </h3>
-            <a
-              href="/holidays"
-              className="text-[12px] font-medium no-underline text-[#dc143c]"
-            >
+            <a href="/holidays" className={linkAccentClass}>
               All →
             </a>
           </div>
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-2.5 flex-1">
             {holidays === null && (
               <p className="text-[11px] text-gray-400">Loading…</p>
             )}
@@ -1120,7 +1275,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 No upcoming holidays.
               </p>
             )}
-            {holidays?.slice(0, 2).map((h) => {
+            {holidays?.slice(0, 3).map((h) => {
               const { month, day, year } = formatDateMonthDay(h.date);
               const typeChip =
                 h.type === "National"
@@ -1131,10 +1286,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
               return (
                 <div
                   key={h.id}
-                  className="flex items-center gap-3 p-2.5 rounded-xl bg-gray-50 border border-gray-100"
+                  className="flex items-center gap-3 p-2.5 rounded-lg bg-white/80 border border-gray-100"
                 >
                   <div className="flex flex-col items-center justify-center rounded-lg text-center shrink-0 w-11 h-11 bg-white border border-gray-200">
-                    <p className="text-[9px] font-bold text-[#dc143c]">
+                    <p className="text-[9px] font-bold text-[#FF014F]">
                       {month}
                     </p>
                     <p className="text-[15px] font-bold text-gray-900 leading-none">
@@ -1160,13 +1315,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
       </div>
 
       {/* Row 2 — Attendance Overview | Leave Distribution | Quick Links */}
-      <div
-        className="grid gap-4 mb-4"
-        style={{
-          gridTemplateColumns:
-            "minmax(0,1.7fr) minmax(0,1.4fr) minmax(0,1fr)",
-        }}
-      >
+      <div className={dashboardGridClass}>
         {/* Attendance Overview */}
         <div className="rounded-2xl bg-white p-5 border border-gray-200">
           <div className="flex items-center justify-between mb-3">
@@ -1225,29 +1374,24 @@ export default function RoleDashboard({ role }: { role: Role }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-2 mb-3">
-            <div className="rounded-lg p-2 bg-gray-50">
-              <p className="text-[9px] font-bold tracking-wider text-gray-400">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 mb-3 w-full">
+            <div className="col-span-2 sm:col-span-3 xl:col-span-1 rounded-lg p-2.5 bg-white/80 border border-gray-100 min-w-0">
+              <p className="text-[9px] font-bold tracking-wider text-gray-400 m-0">
                 TOTAL
               </p>
-              <p className="text-[16px] font-bold leading-tight mt-0.5 text-gray-900">
-                {fmtHm(totalMins)}
+              <p className="text-sm font-bold leading-tight mt-0.5 text-gray-900 m-0">
+                {weekStatPlaceholder ?? fmtHm(totalMins)}
               </p>
                 </div>
-            {[
-              { label: "PRESENT", value: presentMins, text: "text-[#3b82f6]" },
-              { label: "ABSENT", value: absentMins, text: "text-[#10b981]" },
-              { label: "ON LEAVE", value: onLeaveMins, text: "text-[#f59e0b]" },
-              { label: "LATE ARRIVALS", value: lateMins, text: "text-[#8b5cf6]" },
-            ].map((it) => (
+            {attendanceStatCards.map((it) => (
               <div key={it.label} className="rounded-lg p-2 bg-gray-50">
                 <p className="text-[9px] font-bold tracking-wider text-gray-400">
                   {it.label}
                 </p>
                 <p
-                  className={`text-[16px] font-bold leading-tight mt-0.5 ${it.text}`}
+                  className={`text-sm font-bold leading-tight mt-0.5 m-0 ${it.text}`}
                 >
-                  {fmtHm(it.value)}
+                  {it.display}
                 </p>
               </div>
             ))}
@@ -1279,9 +1423,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
 
         {/* Leave Distribution */}
-        <div className="rounded-2xl bg-white px-4 py-3 border border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[15px] font-bold text-gray-900">
+        <div className={gradientCardClass}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900 m-0">
               Leave Distribution
             </h3>
           
@@ -1289,10 +1433,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
           <div className="flex flex-col items-center gap-3">
             <Donut
-              size={200}
+              size={220}
               segments={
                 usedTotal > 0
-                  ? usedByType
+                  ? usedByType.map((s) => ({ value: s.value, color: s.color }))
                   : [{ value: 1, color: "#e5e7eb" }]
               }
               center={{
@@ -1300,9 +1444,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 sub: "Total",
               }}
             />
-            <div className="flex-1 min-w-0">
+            <div className="w-full sm:flex-1 min-w-0 flex flex-col justify-center gap-2">
               {usedByType.length === 0 && (
-                <p className="text-[11px] text-gray-400">
+                <p className="text-xs text-gray-400 text-center m-0">
                   Loading balances…
                 </p>
               )}
@@ -1327,7 +1471,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
                     </div>
                     <span className="text-[11px] text-gray-500 font-medium tabular-nums shrink-0 ml-2">
                       {s.value}
-                     
+                      <span className="text-gray-400 font-normal ml-1">
+                        ({pct}%)
+                      </span>
                     </span>
                   </div>
                 );
@@ -1337,8 +1483,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
 
         {/* Quick Links — role-driven */}
-        <div className="rounded-2xl bg-white p-5 border border-gray-200">
-          <h3 className="text-[15px] font-bold text-gray-900 mb-3">
+        <div className={gradientCardClass}>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 m-0">
             Quick Links
           </h3>
           <div className="grid grid-cols-2 gap-x-3 gap-y-4">
@@ -1351,10 +1497,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   : {})}
                 className="flex flex-col items-center text-center no-underline text-gray-900"
               >
-                <span className="flex items-center justify-center rounded-xl w-14 h-14 bg-[#fff1f2] border border-[#fecdd3]">
-                  <Icon size={22} className="text-[#e91e8c]" />
+                <span className="flex items-center justify-center rounded-lg w-12 h-12 bg-pink-50 border border-pink-200">
+                  <Icon size={20} className="text-[#FF014F]" />
                 </span>
-                <p className="text-[11px] font-semibold mt-2 leading-tight text-gray-900">
+                <p className="text-[11px] font-semibold mt-2 leading-tight text-gray-900 m-0">
                   {label}
                 </p>
               </a>
@@ -1365,6 +1511,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
       {/* Row 3 — bottom table (own / team / admin) */}
       <RoleBottomTable data={bottomData} role={role} />
-    </>
+    </div>
   );
 }

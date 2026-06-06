@@ -26,25 +26,61 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  LOGIN_CREDENTIAL_HINT,
+  useFormValidationReveal,
+} from "./form-validation-context";
 
 type BaseFieldProps = {
   field: AnyFieldApi;
   label: React.ReactNode;
   description?: React.ReactNode;
+  controlClassName?: string;
+  loginCredential?: boolean;
 };
 
 function useFieldErrors(field: AnyFieldApi) {
+  const revealErrors = useFormValidationReveal();
   const meta = useStore(field.store, (state) => state.meta);
 
   const errors = React.useMemo(() => {
-    if (!meta.isTouched && !meta.isBlurred) return [];
+    if (!revealErrors && !meta.isTouched && !meta.isBlurred) return [];
     return meta.errors
       .filter((error): error is { message: string } | string => Boolean(error))
       .map((error) => (typeof error === "string" ? { message: error } : error));
-  }, [meta.errors, meta.isBlurred, meta.isTouched]);
+  }, [meta.errors, meta.isBlurred, meta.isTouched, revealErrors]);
 
   return errors;
+}
+
+const fieldErrorClassName = "text-[10px] leading-tight";
+
+function FormFieldLabel({
+  htmlFor,
+  label,
+  loginCredential = false,
+}: {
+  htmlFor: string;
+  label: React.ReactNode;
+  loginCredential?: boolean;
+}) {
+  if (!loginCredential) {
+    return <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>;
+  }
+
+  return (
+    <FieldLabel
+      className="inline-flex flex-wrap items-baseline gap-x-1"
+      htmlFor={htmlFor}
+    >
+      <span>{label}</span>
+      <span className="text-[10px] font-normal leading-tight normal-case tracking-normal text-destructive">
+        ({LOGIN_CREDENTIAL_HINT})
+      </span>
+    </FieldLabel>
+  );
 }
 
 type TextFieldProps = BaseFieldProps &
@@ -57,7 +93,10 @@ export function TextField({
   field,
   label,
   description,
+  controlClassName,
+  loginCredential = false,
   type = "text",
+  required,
   ...inputProps
 }: TextFieldProps) {
   const errors = useFieldErrors(field);
@@ -68,19 +107,25 @@ export function TextField({
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+      <FormFieldLabel
+        htmlFor={field.name}
+        label={label}
+        loginCredential={loginCredential}
+      />
       <Input
         {...inputProps}
         aria-invalid={invalid || undefined}
+        className={cn(controlClassName)}
         id={field.name}
         name={field.name}
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.value)}
+        required={required}
         type={type}
         value={value ?? ""}
       />
       {description ? <FieldDescription>{description}</FieldDescription> : null}
-      <FieldError errors={errors} />
+      <FieldError className={fieldErrorClassName} errors={errors} />
     </Field>
   );
 }
@@ -116,7 +161,7 @@ export function TextareaField({
         value={value ?? ""}
       />
       {description ? <FieldDescription>{description}</FieldDescription> : null}
-      <FieldError errors={errors} />
+      <FieldError className={fieldErrorClassName} errors={errors} />
     </Field>
   );
 }
@@ -141,32 +186,45 @@ export function SelectField({
   emptyOptionLabel,
   field,
   label,
+  loginCredential = false,
   options,
   placeholder,
+  controlClassName,
 }: SelectFieldProps) {
   const errors = useFieldErrors(field);
   const value = useStore(field.store, (state) => state.value) as
     | string
     | undefined;
   const invalid = errors.length > 0;
+  const hasValue = value !== undefined && value !== "";
   const selectValue =
-    emptyOptionLabel && (value === undefined || value === "")
+    emptyOptionLabel && !hasValue
       ? SELECT_EMPTY_SENTINEL
-      : (value ?? "");
+      : hasValue
+        ? value
+        : undefined;
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+      <FormFieldLabel
+        htmlFor={field.name}
+        label={label}
+        loginCredential={loginCredential}
+      />
       <Select
         disabled={disabled}
-        onValueChange={(next) =>
-          field.handleChange(next === SELECT_EMPTY_SENTINEL ? "" : next)
-        }
+        onOpenChange={(open) => {
+          if (!open) field.handleBlur();
+        }}
+        onValueChange={(next) => {
+          field.handleChange(next === SELECT_EMPTY_SENTINEL ? "" : next);
+          field.handleBlur();
+        }}
         value={selectValue}
       >
         <SelectTrigger
           aria-invalid={invalid || undefined}
-          className="w-full"
+          className={cn("w-full", controlClassName)}
           id={field.name}
         >
           <SelectValue placeholder={placeholder ?? "Select an option"} />
@@ -187,7 +245,7 @@ export function SelectField({
         </SelectContent>
       </Select>
       {description ? <FieldDescription>{description}</FieldDescription> : null}
-      <FieldError errors={errors} />
+      <FieldError className={fieldErrorClassName} errors={errors} />
     </Field>
   );
 }
@@ -215,7 +273,9 @@ export function DateField({
   disabled,
   field,
   label,
+  loginCredential = false,
   placeholder = "Pick a date",
+  controlClassName,
 }: DateFieldProps) {
   const errors = useFieldErrors(field);
   const value = useStore(field.store, (state) => state.value) as
@@ -227,12 +287,16 @@ export function DateField({
 
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
+      <FormFieldLabel
+        htmlFor={field.name}
+        label={label}
+        loginCredential={loginCredential}
+      />
       <Popover onOpenChange={setOpen} open={open}>
         <PopoverTrigger asChild>
           <Button
             aria-invalid={invalid || undefined}
-            className="w-full justify-start bg-white font-normal"
+            className={cn("w-full justify-start bg-white font-normal", controlClassName)}
             id={field.name}
             onBlur={field.handleBlur}
             type="button"
@@ -255,7 +319,7 @@ export function DateField({
         </PopoverContent>
       </Popover>
       {description ? <FieldDescription>{description}</FieldDescription> : null}
-      <FieldError errors={errors} />
+      <FieldError className={fieldErrorClassName} errors={errors} />
     </Field>
   );
 }

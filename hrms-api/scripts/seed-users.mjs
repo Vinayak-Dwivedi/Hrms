@@ -43,6 +43,13 @@ if (!url) {
 const EMPLOYEE_PASSWORD = process.env.SEED_EMPLOYEE_PASSWORD ?? "Employee@12345!";
 const MANAGER_PASSWORD = process.env.SEED_MANAGER_PASSWORD ?? "Manager@12345!";
 
+const USER_TYPE_IDS = { admin: 1, hr: 2, manager: 3, employee: 4 };
+function userTypeIdForRole(role) {
+  if (role === "admin") return USER_TYPE_IDS.admin;
+  if (role === "manager") return USER_TYPE_IDS.manager;
+  return USER_TYPE_IDS.employee;
+}
+
 const sql = postgres(url, { max: 1, connect_timeout: 10 });
 
 // Emails match employees.work_email so the FK link is automatic.
@@ -80,7 +87,12 @@ try {
     if (existing) {
       await sql`
         UPDATE users
-        SET name = ${u.name}, role = ${u.role}, email_verified = true, updated_at = ${now}
+        SET
+          name = ${u.name},
+          role = ${u.role},
+          user_type_id = ${userTypeIdForRole(u.role)},
+          email_verified = true,
+          updated_at = ${now}
         WHERE id = ${existing.id}
       `;
       const [acc] = await sql`SELECT id FROM accounts WHERE user_id = ${existing.id} AND provider_id = 'credential'`;
@@ -96,8 +108,8 @@ try {
     } else {
       const userId = randomUUID();
       await sql`
-        INSERT INTO users (id, name, email, email_verified, role, created_at, updated_at)
-        VALUES (${userId}, ${u.name}, ${email}, true, ${u.role}, ${now}, ${now})
+        INSERT INTO users (id, name, email, email_verified, role, user_type_id, created_at, updated_at)
+        VALUES (${userId}, ${u.name}, ${email}, true, ${u.role}, ${userTypeIdForRole(u.role)}, ${now}, ${now})
       `;
       await sql`
         INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at)
