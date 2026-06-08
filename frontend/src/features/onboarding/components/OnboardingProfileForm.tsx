@@ -210,7 +210,13 @@ export default function OnboardingProfileForm({
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
-        const key = issueToFieldKey(issue.path);
+        // Zod 4 types issue.path as PropertyKey[] (includes symbols). Form
+        // field keys are always strings/numbers in practice — filter symbols
+        // out for the issueToFieldKey helper.
+        const path = issue.path.filter(
+          (p): p is string | number => typeof p !== "symbol",
+        );
+        const key = issueToFieldKey(path);
         if (!fieldErrors[key]) fieldErrors[key] = issue.message;
       }
       setErrors(fieldErrors);

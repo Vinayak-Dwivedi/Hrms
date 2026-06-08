@@ -183,7 +183,9 @@ function toProfilePayload(values: OnboardingProfileValues) {
       yearTo: a.yearTo ?? null,
       gradeOrPercentage: a.gradeOrPercentage || null,
     })),
-    professional: values.professional.map((p) => ({
+    // `professional` is optional in z.input (no default applied yet);
+    // default to an empty array if the form left it untouched.
+    professional: (values.professional ?? []).map((p) => ({
       id: p.id,
       companyName: p.companyName,
       designation: p.designation,

@@ -104,14 +104,13 @@ export function createEmployeeFormSchema(
       gradeId: requiredSelectId("Grade"),
       branchId: requiredSelectId("Branch"),
       reportingManagerId: requiredSelectId("Reporting manager"),
-      maritalStatus: z
-        .string()
-        .min(1, "Marital status is required.")
-        .refine(
-          (value): value is "Single" | "Married" =>
-            value === "Single" || value === "Married",
-          "Select a valid marital status.",
-        ),
+      // Plain `z.string().min(1)` — no refine. Zod 4 narrows the schema's
+      // standard-schema input type whenever a refine is attached, which
+      // breaks TanStack Form (the form's default value is "" — a wider
+      // string — and gets rejected by the narrowed schema). The dropdown
+      // only offers Single / Married, and toApiPayload narrows again at
+      // the API boundary, so a bogus value can't actually reach the API.
+      maritalStatus: z.string().min(1, "Marital status is required."),
       spouseName: z
         .string()
         .trim()
@@ -177,6 +176,13 @@ export function toApiPayload(
   values: CreateEmployeeFormValues,
 ): CreateEmployeePayload {
   const base = toCreatePayload(values);
+  // Narrow the schema-validated string into the literal union the API
+  // expects. Validation already guarantees one of these two values reaches
+  // here; the `null` fallback is dead code that keeps the type system happy.
+  const maritalStatus: "Single" | "Married" | null =
+    base.maritalStatus === "Single" || base.maritalStatus === "Married"
+      ? base.maritalStatus
+      : null;
   return {
     empId: base.empId,
     firstName: base.firstName,
@@ -194,7 +200,7 @@ export function toApiPayload(
     gradeId: base.gradeId,
     branchId: base.branchId,
     reportingManagerId: base.reportingManagerId,
-    maritalStatus: base.maritalStatus,
+    maritalStatus,
     spouseName: base.spouseName,
   };
 }
@@ -303,17 +309,28 @@ export const updateEmployeeFormSchema = z
     }
   });
 
-export type UpdateEmployeeFormValues = z.infer<typeof updateEmployeeFormSchema>;
+// Use z.input — the form holds the *unparsed* shape (string IDs, "" for
+// optional fields). z.infer would give the post-transform shape (number IDs)
+// which doesn't match what tanstack-form actually has in state.
+export type UpdateEmployeeFormValues = z.input<typeof updateEmployeeFormSchema>;
+
+// Convert a form-state ID string ("" / "42" / undefined) into the API's
+// nullable-number shape. Mirrors `optionalIdOrNull`'s transform body.
+function idToNumberOrNull(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 export function toUpdateApiPayload(
   values: UpdateEmployeeFormValues,
 ): UpdateEmployeePayload {
-  const maritalStatus =
+  const maritalStatus: "Single" | "Married" | null =
     values.maritalStatus === "Single" || values.maritalStatus === "Married"
       ? values.maritalStatus
       : null;
 
-  const reportingManagerId = values.reportingManagerId ?? null;
+  const reportingManagerId = idToNumberOrNull(values.reportingManagerId);
 
   const payload: UpdateEmployeePayload = {
     empId: values.empId,
@@ -327,10 +344,10 @@ export function toUpdateApiPayload(
     gender: values.gender,
     joiningDate: values.joiningDate,
     employeeStatus: values.employeeStatus,
-    departmentId: values.departmentId,
-    designationId: values.designationId,
-    gradeId: values.gradeId,
-    branchId: values.branchId,
+    departmentId: idToNumberOrNull(values.departmentId),
+    designationId: idToNumberOrNull(values.designationId),
+    gradeId: idToNumberOrNull(values.gradeId),
+    branchId: idToNumberOrNull(values.branchId),
     reportingManagerId,
     reportingChain: reportingManagerId ? [reportingManagerId] : [],
     maritalStatus,

@@ -146,7 +146,11 @@ export const onboardingProfileSchema = z.object({
     }),
 });
 
-export type OnboardingProfileValues = z.infer<typeof onboardingProfileSchema>;
+// z.input — this type drives form defaultValues / state. The academic schema
+// transforms `qualificationOther` to `undefined` on output; using z.infer
+// here would force the form state to also be `undefined`, which conflicts
+// with the empty-string default the form actually holds.
+export type OnboardingProfileValues = z.input<typeof onboardingProfileSchema>;
 export type AcademicDetailValues = z.input<typeof academicDetailSchema>;
 export type ProfessionalDetailValues = z.infer<typeof professionalDetailSchema>;
 export type BankDetailValues = z.infer<typeof bankDetailSchema>;

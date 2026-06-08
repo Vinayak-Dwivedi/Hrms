@@ -116,7 +116,10 @@ export default function EditEmployeeForm({
       }
 
       try {
-        await updateEmployee(employee.id, toUpdateApiPayload(parsed.data));
+        // toUpdateApiPayload accepts the raw form input (string IDs etc.)
+        // and does its own coercion to the API's typed payload. parsed.data
+        // is only used above for validation/error surfacing.
+        await updateEmployee(employee.id, toUpdateApiPayload(value));
         toast.success("Employee updated successfully.");
         if (onSuccess) {
           onSuccess();
