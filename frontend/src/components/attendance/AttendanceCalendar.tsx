@@ -572,15 +572,20 @@ interface ModalProps {
   entry: DayAttendance;
   onClose: () => void;
   onApplyReg: () => void;
+  onApplyLeave?: () => void;
   isToday?: boolean;
 }
 
-function DayModal({ entry, onClose, onApplyReg, isToday }: ModalProps) {
+function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalProps) {
   const badge = STATUS_BADGE[entry.status];
   const isLeave  = entry.status === "Leave" || entry.status === "LeavePending";
   const isAbsent = entry.status === "Absent";
   const isPending = entry.status === "LeavePending";
   const canRegularise = isToday || isAbsent;
+  // Apply-Leave is offered for today as long as a leave isn't already
+  // approved/pending for this day. Same-day leave is a legitimate need
+  // (sudden illness, emergency) — the calendar shouldn't gate it.
+  const canApplyLeave = isToday && !isLeave;
 
   const cards = [
     { label: "Punch In",    value: entry.punchIn ?? "—" },
@@ -667,6 +672,14 @@ function DayModal({ entry, onClose, onApplyReg, isToday }: ModalProps) {
           <button onClick={onClose} style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", fontSize: 14, fontWeight: 500, color: "#374151", cursor: "pointer" }}>
             Close
           </button>
+          {canApplyLeave && onApplyLeave && (
+            <button
+              onClick={onApplyLeave}
+              style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #be185d", background: "#fff", fontSize: 14, fontWeight: 700, color: "#be185d", cursor: "pointer" }}
+            >
+              Apply Leave
+            </button>
+          )}
           {canRegularise && (
             <button
               onClick={onApplyReg}
@@ -858,6 +871,12 @@ export default function AttendanceCalendar({
           isToday={selected.date === today}
           onClose={() => setSelected(null)}
           onApplyReg={() => { setRegDate(selected.date); setSelected(null); }}
+          onApplyLeave={() => {
+            // Reuse the same leave-form flow as future-day clicks.
+            setUpcomingYmd(selected.date);
+            setShowLeaveForm(true);
+            setSelected(null);
+          }}
         />
       )}
 

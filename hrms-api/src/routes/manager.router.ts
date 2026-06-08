@@ -528,19 +528,73 @@ managerRouter.get("/regularisation-approvals", async (req, res, next) => {
   }
 });
 
+// "HH:MM:SS" → total minutes between two times on the same day.
+function minutesBetween(startTime: string, endTime: string): number {
+  const [sh = 0, sm = 0] = startTime.split(":").map(Number);
+  const [eh = 0, em = 0] = endTime.split(":").map(Number);
+  return Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+}
+
 managerRouter.post("/regularisation-approvals/:id/approve", async (req, res, next) => {
   try {
     const mgr = await loadCurrentManager(req.user!.id);
     const idNum = parseLeaveId(req.params.id);
-    const [row] = await db
-      .update(regularisationRequests)
-      .set({ status: "Approved", approverId: mgr.id, decidedAt: new Date() })
-      .where(eq(regularisationRequests.id, idNum))
-      .returning();
-    if (!row) {
-      throw new ApiError(404, "NOT_FOUND", "Request not found.");
-    }
-    res.json({ request: row });
+
+    // Wrap the status flip + attendance backfill in a single transaction so a
+    // failure on either side doesn't leave the request marked Approved while
+    // the calendar still shows Absent for the day.
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(regularisationRequests)
+        .set({ status: "Approved", approverId: mgr.id, decidedAt: new Date() })
+        .where(eq(regularisationRequests.id, idNum))
+        .returning();
+      if (!row) {
+        throw new ApiError(404, "NOT_FOUND", "Request not found.");
+      }
+
+      // Backfill attendance for the regularised date. UPSERT, because the
+      // row likely already exists with status='Absent' from the auto-mark.
+      // Late/early markers reset to 0 — the approved punches are the new
+      // authoritative timing for the day.
+      const workingMinutes = minutesBetween(
+        row.requestedPunchIn,
+        row.requestedPunchOut,
+      );
+      await tx
+        .insert(attendanceRecords)
+        .values({
+          employeeId: row.employeeId,
+          date: row.date,
+          punchIn: row.requestedPunchIn,
+          punchOut: row.requestedPunchOut,
+          workingMinutes,
+          lateByMinutes: 0,
+          earlyExitMinutes: 0,
+          status: "Present",
+          location: null,
+          isRegularised: true,
+          regularisationId: row.id,
+        })
+        .onConflictDoUpdate({
+          target: [attendanceRecords.employeeId, attendanceRecords.date],
+          set: {
+            punchIn: row.requestedPunchIn,
+            punchOut: row.requestedPunchOut,
+            workingMinutes,
+            lateByMinutes: 0,
+            earlyExitMinutes: 0,
+            status: "Present",
+            isRegularised: true,
+            regularisationId: row.id,
+            updatedAt: new Date(),
+          },
+        });
+
+      return row;
+    });
+
+    res.json({ request: result });
   } catch (e) {
     next(e);
   }

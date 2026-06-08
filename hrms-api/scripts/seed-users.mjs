@@ -40,8 +40,10 @@ if (!url) {
   process.exit(1);
 }
 
-const EMPLOYEE_PASSWORD = process.env.SEED_EMPLOYEE_PASSWORD ?? "Employee@12345!";
-const MANAGER_PASSWORD = process.env.SEED_MANAGER_PASSWORD ?? "Manager@12345!";
+// Simple per-role demo passwords. Override with env vars in any non-demo env.
+const EMPLOYEE_PASSWORD = process.env.SEED_EMPLOYEE_PASSWORD ?? "employee";
+const MANAGER_PASSWORD = process.env.SEED_MANAGER_PASSWORD ?? "manager";
+const HR_PASSWORD = process.env.SEED_HR_PASSWORD ?? "hr";
 
 const USER_TYPE_IDS = { admin: 1, hr: 2, manager: 3, employee: 4 };
 function userTypeIdForRole(role) {
@@ -54,24 +56,33 @@ const sql = postgres(url, { max: 1, connect_timeout: 10 });
 
 // Emails match employees.work_email so the FK link is automatic.
 const seedUsers = [
-  { name: "Rahul Mehta",   email: "rahul@ileads.example",  role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Aarav Singh",   email: "aarav@ileads.example",  role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Kavya Bhatt",   email: "kavya@ileads.example",  role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Rohan Thapa",   email: "rohan@ileads.example",  role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Ishaan Pant",   email: "ishaan@ileads.example", role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Vikram Negi",   email: "vikram@ileads.example", role: "user",    password: EMPLOYEE_PASSWORD },
-  { name: "Priya Sharma",  email: "priya@ileads.example",  role: "manager", password: MANAGER_PASSWORD },
-  { name: "Neha Kapoor",   email: "neha@ileads.example",   role: "hr",      password: EMPLOYEE_PASSWORD },
+  { name: "Rahul Mehta",   email: "rahul@ileads.com",  role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Aarav Singh",   email: "aarav@ileads.com",  role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Kavya Bhatt",   email: "kavya@ileads.com",  role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Rohan Thapa",   email: "rohan@ileads.com",  role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Ishaan Pant",   email: "ishaan@ileads.com", role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Vikram Negi",   email: "vikram@ileads.com", role: "user",    password: EMPLOYEE_PASSWORD },
+  { name: "Priya Sharma",  email: "priya@ileads.com",  role: "manager", password: MANAGER_PASSWORD },
+  { name: "Neha Kapoor",   email: "neha@ileads.com",   role: "hr",      password: HR_PASSWORD },
 ];
 
 try {
   // Wipe legacy demo users from the old domain so they don't linger as orphans.
+  // The ileads.example block is what this domain switch is cleaning up.
   const legacyEmails = [
     "rohit.mehta@ileads.example",
     "rohan.thapa@ileads.example",
     "kavya.bhatt@ileads.example",
     "aarav.singh@ileads.example",
     "priya.sharma@ileads.example",
+    "rahul@ileads.example",
+    "aarav@ileads.example",
+    "kavya@ileads.example",
+    "rohan@ileads.example",
+    "ishaan@ileads.example",
+    "vikram@ileads.example",
+    "priya@ileads.example",
+    "neha@ileads.example",
   ];
   await sql`DELETE FROM accounts WHERE user_id IN (SELECT id FROM users WHERE email = ANY(${legacyEmails}))`;
   await sql`DELETE FROM users WHERE email = ANY(${legacyEmails})`;
