@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaS Starter",
-  description: "Multi-tenant SaaS application starter",
+  title: "Ileads HRMS",
+  description: "Ileads HRMS",
 };
 
 export default function RootLayout({

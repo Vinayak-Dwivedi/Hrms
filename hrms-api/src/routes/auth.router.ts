@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "@/env";
 import { db } from "@/db/runtime";
 import { accounts, users } from "@/db/schema";
+import { employees } from "@/db/schema/hrms";
 import {
   clearAuthCookies,
   setAccessCookie,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/jwt";
 import { verifyPassword } from "@/lib/password";
 import { isJtiRevoked, revokeJti } from "@/lib/redis";
+import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { requireAuth } from "@/middleware/auth";
 import { ApiError } from "@/middleware/error";
 
@@ -23,10 +25,18 @@ export const authRouter: Router = Router();
 
 const loginSchema = z
   .object({
-    email: z.string().email(),
+    loginId: z.string().trim().min(1).max(256).optional(),
+    email: z.string().trim().min(1).max(256).optional(),
     password: z.string().min(1).max(256),
   })
-  .strict();
+  .strict()
+  .refine((body) => !!(body.loginId ?? body.email), {
+    message: "Login ID is required.",
+  })
+  .transform((body) => ({
+    loginId: (body.loginId ?? body.email)!,
+    password: body.password,
+  }));
 
 function shapeUser(u: { id: string; email: string; name: string; role: string }) {
   return { id: u.id, email: u.email, name: u.name, role: u.role };
@@ -48,7 +58,19 @@ function ttlFromExp(exp: number | undefined): number {
   return Math.max(0, exp - Math.floor(Date.now() / 1000));
 }
 
-async function lookupUserWithCredential(email: string) {
+function isEmailLoginId(loginId: string): boolean {
+  return loginId.includes("@");
+}
+
+type CredentialRow = {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+  password: string | null;
+};
+
+async function lookupUserByEmail(email: string): Promise<CredentialRow | null> {
   const [row] = await db
     .select({
       userId: users.id,
@@ -58,26 +80,87 @@ async function lookupUserWithCredential(email: string) {
       password: accounts.password,
     })
     .from(users)
-    .innerJoin(
-      accounts,
-      eq(accounts.userId, users.id),
-    )
+    .innerJoin(accounts, eq(accounts.userId, users.id))
     .where(eq(users.email, email.toLowerCase()))
     .limit(1);
-  if (!row) return null;
-  if (row.password === null) return null;
+  if (!row || row.password === null) return null;
   return row;
+}
+
+async function lookupUserByEmpId(empId: string): Promise<CredentialRow | null> {
+  const normalized = empId.trim().toLowerCase();
+  const [row] = await db
+    .select({
+      userId: users.id,
+      email: users.email,
+      name: users.name,
+      role: users.role,
+      password: accounts.password,
+    })
+    .from(employees)
+    .innerJoin(users, eq(users.id, employees.userId))
+    .innerJoin(accounts, eq(accounts.userId, users.id))
+    .where(sql`lower(${employees.empId}) = ${normalized}`)
+    .limit(1);
+  if (!row || row.password === null) return null;
+  return row;
+}
+
+async function lookupUserWithCredential(loginId: string) {
+  if (isEmailLoginId(loginId)) {
+    return lookupUserByEmail(loginId);
+  }
+  return lookupUserByEmpId(loginId);
 }
 
 // ── POST /api/auth/login ─────────────────────────────────────────────────────
 authRouter.post("/login", async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const row = await lookupUserWithCredential(body.email);
+    const row = await lookupUserWithCredential(body.loginId);
     // Constant message to avoid user enumeration.
-    if (!row) throw new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+    if (!row) {
+      writeAuditLogAsync(
+        {
+          action: "LOGIN_FAILURE",
+          entityType: "auth",
+          entityId: body.loginId.toLowerCase(),
+        },
+        req.auditContext,
+      );
+      throw new ApiError(
+        401,
+        "INVALID_CREDENTIALS",
+        "Login ID or password is incorrect.",
+      );
+    }
     const ok = await verifyPassword(body.password, row.password!);
-    if (!ok) throw new ApiError(401, "INVALID_CREDENTIALS", "Email or password is incorrect.");
+    if (!ok) {
+      writeAuditLogAsync(
+        {
+          actorUserId: row.userId,
+          action: "LOGIN_FAILURE",
+          entityType: "auth",
+          entityId: row.userId,
+        },
+        req.auditContext,
+      );
+      throw new ApiError(
+        401,
+        "INVALID_CREDENTIALS",
+        "Login ID or password is incorrect.",
+      );
+    }
+
+    writeAuditLogAsync(
+      {
+        actorUserId: row.userId,
+        action: "LOGIN_SUCCESS",
+        entityType: "auth",
+        entityId: row.userId,
+      },
+      req.auditContext,
+    );
 
     const access = signAccessToken({ sub: row.userId, email: row.email, role: row.role });
     const { token: refresh } = signRefreshToken({ sub: row.userId });

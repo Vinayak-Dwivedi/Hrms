@@ -8,15 +8,18 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
   primaryKey,
   serial,
+  smallint,
   text,
   time,
   timestamp,
   uniqueIndex,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 import { users } from "./auth";
@@ -102,8 +105,49 @@ export const documentTypeEnum = pgEnum("document_type_enum", [
   "Aadhaar Card",
   "PAN Card",
   "Educational Certificates",
+  "Academic Certificates",
   "Profile Photo",
   "Pay Slip",
+  "Salary Slip",
+  "Resume",
+  "Experience Letter",
+  "Relieving Letter",
+  "Passport",
+]);
+export const onboardingStatusEnum = pgEnum("onboarding_status_enum", [
+  "PENDING",
+  "INVITATION_SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "EXPIRED",
+]);
+export const tokenIssueReasonEnum = pgEnum("token_issue_reason_enum", [
+  "CREATE",
+  "RESEND",
+  "REGENERATE",
+  "INVALIDATE",
+]);
+export const auditEntityTypeEnum = pgEnum("audit_entity_type_enum", [
+  "employee",
+  "document",
+  "invitation",
+  "auth",
+]);
+export const auditActionEnum = pgEnum("audit_action_enum", [
+  "EMPLOYEE_CREATED",
+  "INVITATION_SENT",
+  "INVITATION_RESENT",
+  "INVITATION_REGENERATED",
+  "INVITATION_INVALIDATED",
+  "LOGIN_SUCCESS",
+  "LOGIN_FAILURE",
+  "PROFILE_UPDATED",
+  "DOCUMENT_UPLOADED",
+  "DOCUMENT_DELETED",
+  "DOCUMENT_VERIFIED",
+  "DOCUMENT_REJECTED",
+  "ONBOARDING_SUBMITTED",
+  "ONBOARDING_COMPLETED",
 ]);
 export const documentStatusEnum = pgEnum("document_status_enum", [
   "Pending",
@@ -270,6 +314,7 @@ export const employees = pgTable(
     userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
     empId: varchar("emp_id", { length: 20 }).notNull().unique(),
     firstName: varchar("first_name", { length: 100 }).notNull(),
+    middleName: varchar("middle_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }).notNull(),
     personalEmail: citext("personal_email").notNull().unique(),
     workEmail: citext("work_email").unique(),
@@ -334,6 +379,30 @@ export const employees = pgTable(
       .default("Active"),
 
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+
+    onboardingToken: varchar("onboarding_token", { length: 128 }),
+    onboardingTokenExpiry: timestamp("onboarding_token_expiry", {
+      withTimezone: true,
+    }),
+    onboardingTokenUsed: boolean("onboarding_token_used").notNull().default(false),
+    onboardingCompletedAt: timestamp("onboarding_completed_at", {
+      withTimezone: true,
+    }),
+    onboardingStatus: onboardingStatusEnum("onboarding_status")
+      .notNull()
+      .default("PENDING"),
+    onboardingSubmittedAt: timestamp("onboarding_submitted_at", {
+      withTimezone: true,
+    }),
+    onboardingReviewedBy: integer("onboarding_reviewed_by").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    onboardingReviewedAt: timestamp("onboarding_reviewed_at", {
+      withTimezone: true,
+    }),
+    onboardingReviewNotes: text("onboarding_review_notes"),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -350,6 +419,7 @@ export const employees = pgTable(
     index("idx_emp_emp_type").on(table.employmentTypeId),
     index("idx_emp_manager").on(table.reportingManagerId),
     index("idx_emp_status").on(table.employeeStatus),
+    index("idx_emp_onboarding_token").on(table.onboardingToken),
     index("idx_emp_join_date").on(table.joiningDate),
     index("idx_emp_reporting_chain").using("gin", table.reportingChain),
     check("emp_phone_chk", sql`${table.phone} ~ '^\\+?[0-9]{7,15}$'`),
@@ -416,22 +486,92 @@ export const bankAccounts = pgTable(
   ],
 );
 
+export const employeeAcademicDetails = pgTable("employee_academic_details", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  qualification: varchar("qualification", { length: 100 }).notNull(),
+  institution: varchar("institution", { length: 200 }).notNull(),
+  boardUniversity: varchar("board_university", { length: 200 }),
+  fieldOfStudy: varchar("field_of_study", { length: 100 }),
+  yearFrom: smallint("year_from"),
+  yearTo: smallint("year_to"),
+  gradeOrPercentage: varchar("grade_or_percentage", { length: 20 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const employeeProfessionalDetails = pgTable(
+  "employee_professional_details",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    companyName: varchar("company_name", { length: 200 }).notNull(),
+    designation: varchar("designation", { length: 100 }).notNull(),
+    fromDate: date("from_date").notNull(),
+    toDate: date("to_date"),
+    isCurrent: boolean("is_current").notNull().default(false),
+    responsibilities: text("responsibilities"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+);
+
+export const employeeIdentityDetails = pgTable("employee_identity_details", {
+  employeeId: integer("employee_id")
+    .primaryKey()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  panNumber: varchar("pan_number", { length: 15 }),
+  aadhaarNumber: varchar("aadhaar_number", { length: 12 }),
+  passportNumber: varchar("passport_number", { length: 20 }),
+  passportExpiry: date("passport_expiry"),
+  uanNumber: varchar("uan_number", { length: 20 }),
+  esicNumber: varchar("esic_number", { length: 20 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const employeeDocuments = pgTable(
   "employee_documents",
   {
+    id: uuid("id").primaryKey().defaultRandom(),
     employeeId: integer("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
     documentType: documentTypeEnum("document_type").notNull(),
-    documentUrls: varchar("document_urls", { length: 500 })
-      .array()
-      .notNull()
-      .default(sql`'{}'::varchar[]`),
+    originalFilename: varchar("original_filename", { length: 255 }).notNull(),
+    storedFilename: varchar("stored_filename", { length: 255 }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    storagePath: varchar("storage_path", { length: 500 }).notNull(),
     status: documentStatusEnum("status").notNull().default("Uploaded"),
     verifiedBy: integer("verified_by").references(() => employees.id, {
       onDelete: "set null",
     }),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    rejectedBy: integer("rejected_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    rejectionReason: text("rejection_reason"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -441,18 +581,110 @@ export const employeeDocuments = pgTable(
       .notNull(),
   },
   (table) => [
-    primaryKey({
-      name: "employee_documents_pkey",
-      columns: [table.employeeId, table.documentType],
-    }),
+    index("idx_employee_documents_employee_id").on(table.employeeId),
+    index("idx_employee_documents_type").on(
+      table.employeeId,
+      table.documentType,
+    ),
+    check(
+      "employee_documents_size_bytes_chk",
+      sql`${table.sizeBytes} >= 0`,
+    ),
     check(
       "doc_verified_at_requires_by_chk",
       sql`${table.verifiedAt} IS NULL OR ${table.verifiedBy} IS NOT NULL`,
     ),
-    check(
-      "doc_urls_not_empty_chk",
-      sql`${table.status} = 'Pending' OR array_length(${table.documentUrls}, 1) > 0`,
+  ],
+);
+
+export const employeeBankDetails = pgTable(
+  "employee_bank_details",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    accountNumber: varchar("account_number", { length: 25 }).notNull(),
+    accountName: varchar("account_name", { length: 100 }).notNull(),
+    bankName: varchar("bank_name", { length: 100 }).notNull(),
+    branchName: varchar("branch_name", { length: 100 }).notNull(),
+    ifscCode: varchar("ifsc_code", { length: 11 }).notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    passbookDocumentId: uuid("passbook_document_id").references(
+      () => employeeDocuments.id,
+      { onDelete: "set null" },
     ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("employee_bank_details_employee_account_uq").on(
+      table.employeeId,
+      table.accountNumber,
+    ),
+    uniqueIndex("uq_one_primary_bank_detail")
+      .on(table.employeeId)
+      .where(sql`${table.isPrimary} = TRUE`),
+    check(
+      "bank_detail_ifsc_chk",
+      sql`${table.ifscCode} ~ '^[A-Z]{4}0[A-Z0-9]{6}$'`,
+    ),
+  ],
+);
+
+export const employeeOnboardingTokens = pgTable(
+  "employee_onboarding_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 128 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+    issuedBy: text("issued_by"),
+    issueReason: tokenIssueReasonEnum("issue_reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_onboarding_tokens_employee").on(table.employeeId),
+    index("idx_onboarding_tokens_hash").on(table.tokenHash),
+  ],
+);
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    actorUserId: text("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    actorEmployeeId: integer("actor_employee_id").references(
+      () => employees.id,
+      { onDelete: "set null" },
+    ),
+    action: auditActionEnum("action").notNull(),
+    entityType: auditEntityTypeEnum("entity_type").notNull(),
+    entityId: varchar("entity_id", { length: 100 }).notNull(),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_audit_entity").on(table.entityType, table.entityId),
+    index("idx_audit_actor").on(table.actorUserId, table.createdAt),
+    index("idx_audit_action").on(table.action, table.createdAt),
   ],
 );
 
@@ -791,6 +1023,7 @@ export const locations = pgTable("locations", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 150 }).notNull(),
   code: varchar("code", { length: 20 }).notNull().unique(),
+  address: text("address"),
   city: varchar("city", { length: 120 }).notNull(),
   state: varchar("state", { length: 120 }).notNull(),
   country: varchar("country", { length: 120 }).notNull(),
@@ -802,6 +1035,63 @@ export const locations = pgTable("locations", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// GROUP 10 — RBAC
+// ───────────────────────────────────────────────────────────────────────────
+
+export const permissions = pgTable(
+  "permissions",
+  {
+    id: serial("id").primaryKey(),
+    code: varchar("code", { length: 50 }).notNull().unique(),
+    name: varchar("name", { length: 100 }).notNull(),
+    module: varchar("module", { length: 50 }).notNull(),
+    description: varchar("description", { length: 255 }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("idx_permissions_module").on(table.module)],
+);
+
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: varchar("description", { length: 255 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const rolePermissions = pgTable(
+  "role_permissions",
+  {
+    roleId: integer("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    permissionId: integer("permission_id")
+      .notNull()
+      .references(() => permissions.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({
+      name: "role_permissions_pkey",
+      columns: [table.roleId, table.permissionId],
+    }),
+  ],
+);
 
 // ───────────────────────────────────────────────────────────────────────────
 // INFERRED TYPES
@@ -822,6 +1112,18 @@ export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type NewBankAccount = typeof bankAccounts.$inferInsert;
+export type EmployeeAcademicDetail = typeof employeeAcademicDetails.$inferSelect;
+export type NewEmployeeAcademicDetail =
+  typeof employeeAcademicDetails.$inferInsert;
+export type EmployeeProfessionalDetail =
+  typeof employeeProfessionalDetails.$inferSelect;
+export type NewEmployeeProfessionalDetail =
+  typeof employeeProfessionalDetails.$inferInsert;
+export type EmployeeIdentityDetail = typeof employeeIdentityDetails.$inferSelect;
+export type NewEmployeeIdentityDetail =
+  typeof employeeIdentityDetails.$inferInsert;
+export type EmployeeBankDetail = typeof employeeBankDetails.$inferSelect;
+export type NewEmployeeBankDetail = typeof employeeBankDetails.$inferInsert;
 export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
 export type NewEmployeeDocument = typeof employeeDocuments.$inferInsert;
 export type Resignation = typeof resignations.$inferSelect;
@@ -844,3 +1146,9 @@ export type Broadcast = typeof broadcasts.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type NewHoliday = typeof holidays.$inferInsert;
 export type NewBroadcast = typeof broadcasts.$inferInsert;
+export type Permission = typeof permissions.$inferSelect;
+export type NewPermission = typeof permissions.$inferInsert;
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type NewRolePermission = typeof rolePermissions.$inferInsert;

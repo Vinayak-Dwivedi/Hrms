@@ -1,71 +1,143 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import TeamDashboard from "@/components/manager/TeamDashboard";
-import { type Employee } from "@/lib/dashboard";
+import { employeeErrorBannerClass } from "@/features/employees/employee-theme";
 import {
-  fetchCurrentManager,
+  type ApprovalLeaveRequest,
+  type ApprovalRegRequest,
   fetchLeaveApprovals,
   fetchRegularisationApprovals,
+  fetchTeam,
   fetchTeamAttendance,
+  fetchTeamAttrition,
   type TeamAttendanceResponse,
+  type TeamAttrition,
+  type TeamMember,
 } from "@/lib/hrms-client";
 
+function ymd(d: Date) {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function exportTeamAttendanceCsv(data: TeamAttendanceResponse) {
+  const header = [
+    "Employee ID",
+    "Name",
+    "Date",
+    "Status",
+    "Punch In",
+    "Punch Out",
+    "Working Minutes",
+    "Late Minutes",
+  ];
+  const nameById = new Map(
+    data.team.map((m) => [m.id, `${m.firstName} ${m.lastName}`.trim()]),
+  );
+  const empIdById = new Map(data.team.map((m) => [m.id, m.empId]));
+  const rows = data.records.map((r) => [
+    empIdById.get(r.employeeId) ?? String(r.employeeId),
+    nameById.get(r.employeeId) ?? "",
+    r.date,
+    r.status,
+    r.punchIn ?? "",
+    r.punchOut ?? "",
+    r.workingMinutes ?? "",
+    r.lateByMinutes,
+  ]);
+  const csv = [header, ...rows]
+    .map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `team-attendance-${data.from}-to-${data.to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function TeamDashboardPage() {
-  const [manager, setManager] = useState<Employee | null>(null);
-  const [teamData, setTeamData] = useState<TeamAttendanceResponse | null>(null);
-  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [team, setTeam] = useState<TeamMember[] | null>(null);
+  const [teamAttendance, setTeamAttendance] =
+    useState<TeamAttendanceResponse | null>(null);
+  const [pendingLeaves, setPendingLeaves] = useState<
+    ApprovalLeaveRequest[] | null
+  >(null);
+  const [pendingRegs, setPendingRegs] = useState<
+    ApprovalRegRequest[] | null
+  >(null);
+  const [monthLeaves, setMonthLeaves] = useState<
+    ApprovalLeaveRequest[] | null
+  >(null);
+  const [attrition, setAttrition] = useState<TeamAttrition | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [mgr, team, leaveApprovals, regApprovals] = await Promise.all([
-          fetchCurrentManager(),
-          fetchTeamAttendance(),
-          fetchLeaveApprovals("pending"),
-          fetchRegularisationApprovals("pending"),
-        ]);
-        if (cancelled) return;
-        setManager(mgr);
-        setTeamData(team);
-        setPendingApprovals(leaveApprovals.length + regApprovals.length);
-      } catch (e) {
-        if (!cancelled) setLoadError((e as Error).message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // Last 7 days (today inclusive) — anchors the attendance grid + trend.
+  const today = new Date();
+  const sevenAgo = new Date(today);
+  sevenAgo.setDate(today.getDate() - 6);
+
+  const reload = useCallback(async () => {
+    try {
+      const [tm, att, pl, pr, all, attr] = await Promise.all([
+        fetchTeam(),
+        fetchTeamAttendance(ymd(sevenAgo), ymd(today)),
+        fetchLeaveApprovals("pending"),
+        fetchRegularisationApprovals("pending"),
+        fetchLeaveApprovals("all"),
+        fetchTeamAttrition(),
+      ]);
+      setTeam(tm);
+      setTeamAttendance(att);
+      setPendingLeaves(pl);
+      setPendingRegs(pr);
+      setMonthLeaves(all);
+      setAttrition(attr);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  function handleExport() {
+    if (!teamAttendance?.records.length) {
+      toast.error("No attendance data to export for this period.");
+      return;
+    }
+    exportTeamAttendanceCsv(teamAttendance);
+  }
 
   return (
     <>
       {loadError && (
-        <div
-          className="mb-4"
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            padding: "10px 14px",
-            borderRadius: 8,
-            fontSize: 13,
-          }}
-        >
+        <div className={employeeErrorBannerClass}>
           Failed to load team data: {loadError}
         </div>
       )}
       <TeamDashboard
-        data={teamData}
+        team={team}
+        attendance={teamAttendance}
+        pendingLeaves={pendingLeaves}
+        pendingRegs={pendingRegs}
+        monthLeaves={monthLeaves}
+        attrition={attrition}
         loading={loading}
-        pendingApprovals={pendingApprovals}
-        managerName={manager?.name ?? "Loading…"}
-        managerRole={manager?.role ?? ""}
+        windowEnd={today}
+        onExport={handleExport}
       />
     </>
   );

@@ -1,0 +1,11 @@
+import { REQUIRED_SUBMIT_DOCUMENT_TYPES } from "@/modules/onboarding/constants";
+
+export const HR_REQUIRED_VERIFIED_DOCUMENTS = REQUIRED_SUBMIT_DOCUMENT_TYPES;
+
+export const ONBOARDING_PIPELINE_STATUSES = [
+  "PENDING",
+  "INVITATION_SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "EXPIRED",
+] as const;

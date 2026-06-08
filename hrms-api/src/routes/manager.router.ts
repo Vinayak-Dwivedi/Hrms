@@ -13,6 +13,7 @@ import {
   leaveRequests,
   leaveTypes,
   regularisationRequests,
+  resignations,
 } from "@/db/schema/hrms";
 import {
   loadCurrentManager,
@@ -76,6 +77,8 @@ managerRouter.get("/me", async (req, res, next) => {
       fullName: `${mgr.firstName} ${mgr.lastName}`,
       initials: `${mgr.firstName[0] ?? ""}${mgr.lastName[0] ?? ""}`.toUpperCase(),
       avatarUrl: mgr.profilePhotoUrl ?? null,
+      email: req.user!.email,
+      personalEmail: mgr.personalEmail,
       workEmail: mgr.workEmail,
       phone: mgr.phone,
       role: designation?.name ?? null,
@@ -244,6 +247,9 @@ managerRouter.get("/team", async (req, res, next) => {
         lastName: employees.lastName,
         designation: designations.name,
         grade: grades.code,
+        dob: employees.dob,
+        joiningDate: employees.joiningDate,
+        profilePhotoUrl: employees.profilePhotoUrl,
       })
       .from(employees)
       .leftJoin(designations, eq(employees.designationId, designations.id))
@@ -251,6 +257,57 @@ managerRouter.get("/team", async (req, res, next) => {
       .where(eq(employees.reportingManagerId, mgr.id))
       .orderBy(asc(employees.firstName));
     res.json({ team });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── GET /api/manager/team/attrition ────────────────────────────────────────
+// Returns the number of approved resignations from the manager's team whose
+// last_working_date falls within the given window (defaults to current month).
+// Plus the team size, so the UI can compute a percentage.
+managerRouter.get("/team/attrition", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const from = typeof req.query.from === "string"
+      ? req.query.from
+      : `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}-${String(monthStart.getDate()).padStart(2, "0")}`;
+    const to = typeof req.query.to === "string"
+      ? req.query.to
+      : `${monthEnd.getFullYear()}-${String(monthEnd.getMonth() + 1).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
+
+    const teamRows = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.reportingManagerId, mgr.id));
+    const teamSize = teamRows.length;
+    const teamIds = teamRows.map((r) => r.id);
+
+    if (teamIds.length === 0) {
+      res.json({ from, to, count: 0, teamSize: 0, percentage: 0 });
+      return;
+    }
+
+    const exited = await db
+      .select({ id: resignations.id })
+      .from(resignations)
+      .where(
+        and(
+          eq(resignations.status, "Approved"),
+          gte(resignations.lastWorkingDate, from),
+          lte(resignations.lastWorkingDate, to),
+          inArray(resignations.employeeId, teamIds),
+        ),
+      );
+
+    const count = exited.length;
+    const percentage =
+      teamSize > 0 ? Math.round((count / teamSize) * 1000) / 10 : 0;
+    res.json({ from, to, count, teamSize, percentage });
   } catch (e) {
     next(e);
   }
@@ -471,19 +528,73 @@ managerRouter.get("/regularisation-approvals", async (req, res, next) => {
   }
 });
 
+// "HH:MM:SS" → total minutes between two times on the same day.
+function minutesBetween(startTime: string, endTime: string): number {
+  const [sh = 0, sm = 0] = startTime.split(":").map(Number);
+  const [eh = 0, em = 0] = endTime.split(":").map(Number);
+  return Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+}
+
 managerRouter.post("/regularisation-approvals/:id/approve", async (req, res, next) => {
   try {
     const mgr = await loadCurrentManager(req.user!.id);
     const idNum = parseLeaveId(req.params.id);
-    const [row] = await db
-      .update(regularisationRequests)
-      .set({ status: "Approved", approverId: mgr.id, decidedAt: new Date() })
-      .where(eq(regularisationRequests.id, idNum))
-      .returning();
-    if (!row) {
-      throw new ApiError(404, "NOT_FOUND", "Request not found.");
-    }
-    res.json({ request: row });
+
+    // Wrap the status flip + attendance backfill in a single transaction so a
+    // failure on either side doesn't leave the request marked Approved while
+    // the calendar still shows Absent for the day.
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(regularisationRequests)
+        .set({ status: "Approved", approverId: mgr.id, decidedAt: new Date() })
+        .where(eq(regularisationRequests.id, idNum))
+        .returning();
+      if (!row) {
+        throw new ApiError(404, "NOT_FOUND", "Request not found.");
+      }
+
+      // Backfill attendance for the regularised date. UPSERT, because the
+      // row likely already exists with status='Absent' from the auto-mark.
+      // Late/early markers reset to 0 — the approved punches are the new
+      // authoritative timing for the day.
+      const workingMinutes = minutesBetween(
+        row.requestedPunchIn,
+        row.requestedPunchOut,
+      );
+      await tx
+        .insert(attendanceRecords)
+        .values({
+          employeeId: row.employeeId,
+          date: row.date,
+          punchIn: row.requestedPunchIn,
+          punchOut: row.requestedPunchOut,
+          workingMinutes,
+          lateByMinutes: 0,
+          earlyExitMinutes: 0,
+          status: "Present",
+          location: null,
+          isRegularised: true,
+          regularisationId: row.id,
+        })
+        .onConflictDoUpdate({
+          target: [attendanceRecords.employeeId, attendanceRecords.date],
+          set: {
+            punchIn: row.requestedPunchIn,
+            punchOut: row.requestedPunchOut,
+            workingMinutes,
+            lateByMinutes: 0,
+            earlyExitMinutes: 0,
+            status: "Present",
+            isRegularised: true,
+            regularisationId: row.id,
+            updatedAt: new Date(),
+          },
+        });
+
+      return row;
+    });
+
+    res.json({ request: result });
   } catch (e) {
     next(e);
   }

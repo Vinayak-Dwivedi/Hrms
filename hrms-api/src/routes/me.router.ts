@@ -22,8 +22,11 @@ import {
   ymd,
 } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
+import { meOnboardingRouter } from "@/routes/me-onboarding.router";
 
 export const meRouter: Router = Router();
+
+meRouter.use("/onboarding", meOnboardingRouter);
 
 // ── GET /api/me ─────────────────────────────────────────────────────────────
 meRouter.get("/", async (req, res, next) => {
@@ -56,6 +59,8 @@ meRouter.get("/", async (req, res, next) => {
       fullName: `${emp.firstName} ${emp.lastName}`,
       initials,
       avatarUrl: emp.profilePhotoUrl ?? null,
+      email: req.user!.email,
+      personalEmail: emp.personalEmail,
       workEmail: emp.workEmail,
       phone: emp.phone,
       role: designation?.name ?? null,
@@ -117,53 +122,120 @@ meRouter.get("/attendance/month", async (req, res, next) => {
 });
 
 // ── GET /api/me/attendance/week ─────────────────────────────────────────────
-// Rollup for the current ISO week (Monday → Sunday). Returns per-day records
-// plus totals — the dashboard's weekly chart consumes this directly.
+// Rollup for a window of attendance — 7d (default, Mon-Sun ISO week) or 30d
+// (rolling 30 days ending today). Returns per-day records, chart-ready buckets,
+// and totals. The dashboard's Attendance Overview consumes this directly.
+//
+// Query params:
+//   ?window=7|30   — default 7
+//   ?date=YYYY-MM-DD  — anchor (defaults to today); only meaningful for 7d
 meRouter.get("/attendance/week", async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
 
-    // Optional ?date=YYYY-MM-DD to anchor a specific week (defaults to today).
+    const windowParam: "7d" | "30d" =
+      req.query.window === "30" || req.query.window === "30d" ? "30d" : "7d";
+
     const anchorRaw =
       typeof req.query.date === "string" ? req.query.date : null;
-    const anchor = anchorRaw && /^\d{4}-\d{2}-\d{2}$/.test(anchorRaw)
-      ? new Date(`${anchorRaw}T00:00:00Z`)
-      : new Date();
-    // Monday-start. JS getDay(): 0=Sun, 1=Mon … 6=Sat.
-    const dow = anchor.getUTCDay();
-    const offsetToMonday = (dow + 6) % 7;
-    const monday = new Date(anchor);
-    monday.setUTCDate(anchor.getUTCDate() - offsetToMonday);
-    const sunday = new Date(monday);
-    sunday.setUTCDate(monday.getUTCDate() + 6);
+    const anchor =
+      anchorRaw && /^\d{4}-\d{2}-\d{2}$/.test(anchorRaw)
+        ? new Date(`${anchorRaw}T00:00:00Z`)
+        : new Date();
 
-    const start = ymd(monday);
-    const end = ymd(sunday);
+    // Pick start/end of the window.
+    let start: Date;
+    let end: Date;
+    if (windowParam === "7d") {
+      // Monday-start ISO week containing anchor. JS getDay(): 0=Sun, 1=Mon … 6=Sat.
+      const dow = anchor.getUTCDay();
+      const offsetToMonday = (dow + 6) % 7;
+      start = new Date(anchor);
+      start.setUTCDate(anchor.getUTCDate() - offsetToMonday);
+      end = new Date(start);
+      end.setUTCDate(start.getUTCDate() + 6);
+    } else {
+      // Rolling 30 days ending on the anchor (inclusive).
+      end = new Date(anchor);
+      start = new Date(anchor);
+      start.setUTCDate(anchor.getUTCDate() - 29);
+    }
+
+    const startStr = ymd(start);
+    const endStr = ymd(end);
 
     const rows = await db
       .select()
       .from(attendanceRecords)
       .where(and(
         eq(attendanceRecords.employeeId, emp.id),
-        gte(attendanceRecords.date, start),
-        lte(attendanceRecords.date, end),
+        gte(attendanceRecords.date, startStr),
+        lte(attendanceRecords.date, endStr),
       ))
       .orderBy(asc(attendanceRecords.date));
 
-    // Build a Mon-Sun array, filling in null records for days with no entry
-    // so the UI doesn't have to do calendar math.
+    // Build a per-day array filling in null records for missing days so the
+    // UI doesn't have to do calendar math.
+    const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const dayCount = windowParam === "7d" ? 7 : 30;
     const days: Array<{
       date: string;
       dayLabel: string;
       record: typeof rows[number] | null;
     }> = [];
-    const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setUTCDate(monday.getUTCDate() + i);
+    for (let i = 0; i < dayCount; i++) {
+      const d = new Date(start);
+      d.setUTCDate(start.getUTCDate() + i);
       const dateStr = ymd(d);
       const rec = rows.find((r) => r.date === dateStr) ?? null;
-      days.push({ date: dateStr, dayLabel: DOW[i] ?? "", record: rec });
+      const dow = d.getUTCDay();
+      const idxFromMon = (dow + 6) % 7;
+      days.push({ date: dateStr, dayLabel: DOW[idxFromMon] ?? "", record: rec });
+    }
+
+    // Build chart-ready points. For 7d → one point per day; for 30d → five
+    // weekly buckets of six days each, labelled by their start date (e.g. "May 8").
+    const MONTH_SHORT = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const chartPoints: Array<{
+      label: string;
+      presentMins: number;
+      absentCount: number;
+      leaveCount: number;
+    }> = [];
+
+    if (windowParam === "7d") {
+      for (const d of days) {
+        chartPoints.push({
+          label: d.dayLabel,
+          presentMins:
+            d.record?.status === "Present" ? (d.record.workingMinutes ?? 0) : 0,
+          absentCount: d.record?.status === "Absent" ? 1 : 0,
+          leaveCount: d.record?.status === "Leave" ? 1 : 0,
+        });
+      }
+    } else {
+      const bucketSize = 6;
+      const bucketCount = 5;
+      for (let i = 0; i < bucketCount; i++) {
+        const slice = days.slice(i * bucketSize, (i + 1) * bucketSize);
+        if (slice.length === 0) continue;
+        const first = new Date(`${slice[0]!.date}T00:00:00Z`);
+        const label = `${MONTH_SHORT[first.getUTCMonth()]} ${first.getUTCDate()}`;
+        chartPoints.push({
+          label,
+          presentMins: slice.reduce(
+            (s, d) =>
+              s +
+              (d.record?.status === "Present" ? (d.record.workingMinutes ?? 0) : 0),
+            0,
+          ),
+          absentCount: slice.filter((d) => d.record?.status === "Absent").length,
+          leaveCount: slice.filter((d) => d.record?.status === "Leave").length,
+        });
+      }
     }
 
     const totals = {
@@ -178,9 +250,11 @@ meRouter.get("/attendance/week", async (req, res, next) => {
     };
 
     res.json({
-      weekStart: start,
-      weekEnd: end,
+      weekStart: startStr,
+      weekEnd: endStr,
+      window: windowParam,
       days,
+      chartPoints,
       totals,
     });
   } catch (e) {

@@ -1,9 +1,9 @@
-import AppShell from "@/components/app/AppShell";
+import AuthAppShell from "@/components/app/AuthAppShell";
 
 export default function EmployeeLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell role="employee">{children}</AppShell>;
+  return <AuthAppShell>{children}</AuthAppShell>;
 }

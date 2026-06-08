@@ -37,6 +37,72 @@ const schema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+
+  ONBOARDING_BASE_URL: z
+    .string()
+    .default("http://localhost:3000/employee/onboarding"),
+  ONBOARDING_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(24),
+
+  COMPANY_NAME: z
+    .string()
+    .default("iLeads Auxiliary Services PVT LTD"),
+  LOGIN_BASE_URL: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v && v.trim().length > 0 ? v.trim().replace(/\/$/, "") : undefined,
+    ),
+  COMPANY_WEBSITE: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  COMPANY_SUPPORT_EMAIL: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  COMPANY_SUPPORT_PHONE: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+
+  SMTP_HOST: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .default("false")
+    .transform((s) => s.toLowerCase() === "true"),
+  SMTP_USER: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  SMTP_PASS: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  SMTP_FROM: z.string().default("HRMS <noreply@company.com>"),
+
+  UPLOAD_DIR: z.string().default("./uploads"),
+  UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(10_485_760),
+  UPLOAD_ALLOWED_MIME_TYPES: z
+    .string()
+    .default("application/pdf,image/jpeg,image/png,image/jpg")
+    .transform((s) =>
+      s
+        .split(",")
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  VIRUS_SCAN_ENABLED: z
+    .string()
+    .default("false")
+    .transform((s) => s.toLowerCase() === "true"),
+  ENABLE_SWAGGER: z
+    .string()
+    .default("")
+    .transform((s) => s.toLowerCase() === "true"),
 });
 
 const parsed = schema.safeParse(process.env);

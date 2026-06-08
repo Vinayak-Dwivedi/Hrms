@@ -13,12 +13,16 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
+    "db:baseline": "node scripts/baseline-drizzle-migrations.mjs",
+    "db:verify-onboarding": "node scripts/verify-onboarding-schema.mjs",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed:users": "node scripts/seed-users.mjs",
+    "seed:admin": "node scripts/seed-admin.mjs",
     "seed:hrms": "node scripts/seed-hrms-demo.mjs",
-    "seed:holidays": "node scripts/seed-holidays.mjs"
+    "seed:holidays": "node scripts/seed-holidays.mjs",
+    "seed:rbac": "node scripts/seed-rbac.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -31,9 +35,11 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "swagger-ui-express": "^5.0.1",
+    "nodemailer": "^8.0.10",
     "postgres": "^3.4.5",
     "rate-limit-redis": "^5.0.0",
-    "multer": "^1.4.5-lts.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
@@ -43,9 +49,11 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
-    "@types/node": "^20.14.0",
-    "drizzle-kit": "^1.0.0-beta.22",
     "@types/multer": "^1.4.11",
+    "@types/node": "^20.14.0",
+    "@types/nodemailer": "^6.4.23",
+    "@types/swagger-ui-express": "^4.1.8",
+    "drizzle-kit": "^1.0.0-beta.22",
     "tsx": "^4.16.2",
     "typescript": "^5.5.0"
   }

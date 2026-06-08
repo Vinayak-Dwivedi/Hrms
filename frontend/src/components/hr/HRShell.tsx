@@ -352,39 +352,7 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Footer */}
-        <div
-          style={{
-            borderTop: "1px solid #f3f4f6",
-            padding: collapsed ? "12px 10px" : "12px 12px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleLogout}
-            title={collapsed ? "Log out" : undefined}
-            className="flex items-center rounded-xl text-[13px] font-semibold w-full"
-            style={{
-              background: "#fee2e2",
-              color: "#dc2626",
-              border: "none",
-              cursor: "pointer",
-              padding: collapsed ? "10px 0" : "10px 12px",
-              gap: 12,
-              justifyContent: collapsed ? "center" : "flex-start",
-            }}
-          >
-            <LogOut size={16} />
-            {!collapsed && "Log out"}
-          </button>
-          {!collapsed && (
-            <p
-              className="text-[10px] mt-3 text-center"
-              style={{ color: "#9ca3af" }}
-            >
-              iLeads HRMS {APP_VERSION} · {APP_LOCATION}
-            </p>
-          )}
-        </div>
+      
       </aside>
 
       {/* Main column */}

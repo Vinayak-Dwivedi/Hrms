@@ -8,6 +8,7 @@ import { env } from "@/env";
 import { getRedis } from "@/lib/redis";
 import { errorHandler, notFoundHandler } from "@/middleware/error";
 import { requireAuth } from "@/middleware/auth";
+import { auditContext } from "@/middleware/audit-context";
 import { requestId } from "@/middleware/request-id";
 import { authRouter } from "@/routes/auth.router";
 import { healthRouter } from "@/routes/health.router";
@@ -15,6 +16,10 @@ import { hrmsRouter } from "@/routes/hrms.router";
 import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
 import { attendanceRouter } from "@/routes/attendance.router";
+import { onboardingRouter } from "@/routes/onboarding.router";
+import { employeeRoutes } from "@/modules/onboarding/routes/employee.routes";
+import { documentsRoutes } from "@/modules/onboarding/routes/documents.routes";
+import { openApiSpec } from "@/docs/openapi";
 
 function buildAuthRateLimiter() {
   const redis = getRedis();
@@ -65,10 +70,28 @@ export function createApp() {
   app.use(express.json({ limit: env.BODY_LIMIT_BYTES }));
   app.use(cookieParser());
   app.use(requestId());
+  app.use(auditContext);
 
   app.use("/api/health", healthRouter);
 
   app.use("/api/auth", buildAuthRateLimiter(), authRouter);
+  app.use("/api/onboarding", buildAuthRateLimiter(), onboardingRouter);
+
+  app.use("/uploads", requireAuth, express.static(env.UPLOAD_DIR));
+
+  if (env.NODE_ENV !== "production" || env.ENABLE_SWAGGER) {
+    app.get("/api/docs/openapi.json", (_req, res) => res.json(openApiSpec));
+    void import("swagger-ui-express")
+      .then((swaggerUi) => {
+        app.use("/api/docs", swaggerUi.default.serve, swaggerUi.default.setup(openApiSpec));
+      })
+      .catch(() => {
+        console.warn("[hrms-api] swagger-ui-express not installed; use GET /api/docs/openapi.json");
+      });
+  }
+
+  app.use("/api/employee", requireAuth, employeeRoutes);
+  app.use("/api/documents", requireAuth, documentsRoutes);
 
   app.use("/api/me",      requireAuth, meRouter);
   app.use("/api/manager", requireAuth, managerRouter);

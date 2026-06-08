@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { API_BASE } from "@/lib/hrms-client";
 
 export default function BulkUploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -31,9 +32,7 @@ export default function BulkUploadPage() {
     try {
       // The auth token lives in an httpOnly cookie (hrms_at) that JS can't
       // read, so send credentials and let the browser attach it automatically.
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-      const res = await fetch(`${apiUrl}/api/attendance/upload-bulk`, {
+      const res = await fetch(`${API_BASE}/api/attendance/upload-bulk`, {
         method: "POST",
         credentials: "include",
         body: formData,
