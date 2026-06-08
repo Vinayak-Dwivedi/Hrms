@@ -5,6 +5,10 @@ export interface Employee {
   initials: string;
   employeeId: string;
   avatarUrl?: string | null;
+  email?: string | null;
+  personalEmail?: string | null;
+  workEmail?: string | null;
+  phone?: string | null;
 }
 
 export interface AttendanceRecord {

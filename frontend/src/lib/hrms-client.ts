@@ -102,6 +102,8 @@ interface MeResponse {
   fullName: string;
   initials: string;
   avatarUrl: string | null;
+  email: string;
+  personalEmail: string;
   workEmail: string | null;
   phone: string;
   role: string | null;
@@ -120,6 +122,10 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
     avatarUrl: me.avatarUrl ?? null,
+    email: me.email,
+    personalEmail: me.personalEmail,
+    workEmail: me.workEmail,
+    phone: me.phone,
   };
 }
 
@@ -458,6 +464,10 @@ export async function fetchCurrentManager(): Promise<UIEmployee> {
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
     avatarUrl: me.avatarUrl ?? null,
+    email: me.email,
+    personalEmail: me.personalEmail,
+    workEmail: me.workEmail,
+    phone: me.phone,
   };
 }
 

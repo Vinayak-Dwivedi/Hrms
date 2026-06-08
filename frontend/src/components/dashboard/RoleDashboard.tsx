@@ -5,8 +5,12 @@ import {
   Calendar as CalendarIcon,
   CheckSquare,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
+  Mail,
   FileText,
+  Phone,
   GraduationCap,
   History,
   LayoutDashboard,
@@ -768,6 +772,20 @@ export default function RoleDashboard({ role }: { role: Role }) {
   // fetched the default 7d view on mount.
   const skipFirstWindowFetch = useRef(true);
 
+  async function loadWeek(anchor?: string | null) {
+    const resolved = anchor ?? weekAnchorRef.current ?? undefined;
+    setWeekLoading(true);
+    try {
+      const w = await fetchWeekAttendance(resolved ?? undefined, attWindow);
+      setWeek(w);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    } finally {
+      setWeekLoading(false);
+    }
+  }
+
   async function reload() {
     try {
       const baseTasks: Array<Promise<unknown>> = [
@@ -775,7 +793,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         adapters.fetchAttendanceToday().then(setAttendance),
         adapters.fetchLeaveBalances().then(setBalances),
         fetchUpcomingHolidays(5).then(setHolidays),
-        fetchWeekAttendance(undefined, attWindow).then(setWeek),
+        loadWeek(weekAnchorRef.current),
       ];
 
       if (role === "manager") {
@@ -814,12 +832,19 @@ export default function RoleDashboard({ role }: { role: Role }) {
       return;
     }
     let cancelled = false;
-    fetchWeekAttendance(undefined, attWindow)
+    setWeekLoading(true);
+    fetchWeekAttendance(weekAnchorRef.current ?? undefined, attWindow)
       .then((w) => {
-        if (!cancelled) setWeek(w);
+        if (!cancelled) {
+          setWeek(w);
+          setLoadError(null);
+        }
       })
       .catch((e) => {
         if (!cancelled) setLoadError((e as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setWeekLoading(false);
       });
     return () => {
       cancelled = true;
@@ -852,9 +877,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
       // manager are employees and own a punch record.
       const next = attendance.punchIn ? await punchOut() : await punchIn();
       setAttendance(next);
-      fetchWeekAttendance(undefined, attWindow)
-        .then(setWeek)
-        .catch(() => {});
+      void loadWeek(weekAnchorRef.current);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -866,17 +889,20 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const usedLeaves = (balances ?? []).reduce((s, l) => s + l.used, 0);
   const balLeaves = totalLeaves - usedLeaves;
 
-  const PALETTE = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"];
   // Leave Distribution: skip Compensatory Off entirely (it's almost always
   // 0 and clutters the legend). The Leave Balance rings above still include
   // every leave type — the filter is only for this chart.
   const usedByType = (balances ?? [])
     .filter((b) => !/^comp(ensatory)?\s*off$/i.test(b.name.trim()))
-    .map((b, i) => ({
-      label: b.name,
-      value: b.used,
-      color: PALETTE[i % PALETTE.length] ?? "#9ca3af",
-    }));
+    .map((b, i) => {
+      const palette = CHART_COLORS[i % CHART_COLORS.length];
+      return {
+        label: b.name,
+        value: b.used,
+        stroke: palette.stroke,
+        dotClass: palette.dot,
+      };
+    });
   const usedTotal = usedByType.reduce((s, x) => s + x.value, 0);
 
   const initials = identity?.initials ?? "··";
@@ -923,6 +949,29 @@ export default function RoleDashboard({ role }: { role: Role }) {
     week != null && isCurrentWeek(week.weekStart, week.weekEnd);
   const weekNavAnchor = weekAnchor ?? todayYmd();
 
+  function goPrevWeek() {
+    const anchor = shiftWeekAnchor(weekNavAnchor, -7);
+    setWeekAnchor(anchor);
+    weekAnchorRef.current = anchor;
+    void loadWeek(anchor);
+  }
+
+  function goNextWeek() {
+    if (onCurrentWeek) return;
+    const anchor = shiftWeekAnchor(weekNavAnchor, 7);
+    setWeekAnchor(anchor);
+    weekAnchorRef.current = anchor;
+    void loadWeek(anchor);
+  }
+
+  function goToWeekPreset(weeksAgo: number) {
+    const anchor =
+      weeksAgo === 0 ? null : shiftWeekAnchor(todayYmd(), -7 * weeksAgo);
+    setWeekAnchor(anchor);
+    weekAnchorRef.current = anchor;
+    void loadWeek(anchor);
+  }
+
   const bottomData: BottomData =
     role === "manager"
       ? { kind: "team", rows: teamLeaves }
@@ -941,50 +990,30 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
   return (
     <div className="w-full min-w-0 space-y-6">
-      
       {loadError && (
         <div className={employeeErrorBannerClass}>
           Failed to load iLeads HRMS data: {loadError}
         </div>
       )}
 
-      {/* Row 1 — Punch hero | Leave Balance | Upcoming Holidays */}
-      <div
-        className="grid gap-4 mb-4"
-        style={{
-          gridTemplateColumns:
-            "minmax(0,2.2fr) minmax(0,1.7fr) minmax(0,1.1fr)",
-        }}
-      >
-        {/* OLD USER CARD COMMENTED OUT AS REQUESTED */}
-        {false && (
-          <div className="relative rounded-2xl overflow-hidden text-white bg-gradient-to-br from-[#9b1747] via-[#7a1239] to-[#5e0c2a] shadow-[0_10px_30px_-12px_rgba(123,18,57,0.35)]">
-            {/* Soft top highlight — gives the card subtle depth */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
-            />
-
-            {/* Faint radial glow behind the avatar — adds a premium feel */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-white/[0.06] blur-2xl"
-            />
-
-            {/* Action button (glass) */}
+      {/* Row 1 — Profile | Leave Balance | Upcoming Holidays */}
+      <div className={dashboardGridClass}>
+        {/* My Attendance */}
+        <div className={cn(gradientCardClass, "min-h-0")}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-gray-900 m-0">
+              My Attendance
+            </h3>
             <button
               type="button"
               onClick={handlePunchToggle}
               disabled={punchBusy || !attendance}
-              className={[
-                "absolute top-4 right-4 z-10",
-                "px-3.5 py-1.5 rounded-lg text-[11px] font-bold tracking-wide",
-                "bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/25",
-                "text-white transition-colors",
+              className={cn(
+                employeeBtnSmClass,
                 punchBusy || !attendance
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer",
-              ].join(" ")}
+                  ? "opacity-60 cursor-not-allowed"
+                  : undefined,
+              )}
             >
               {punchBusy
                 ? "…"
@@ -992,222 +1021,97 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   ? "Punch Out"
                   : "Punch In"}
             </button>
-
-            <div className="relative flex items-center px-6 py-7 gap-5">
-              {/* Avatar with status dot in the corner */}
-              <div className="relative shrink-0">
-                <Avatar
-                  initials={initials}
-                  size={72}
-                  src={identity?.avatarUrl}
-                />
-                <span
-                  className={[
-                    "absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full",
-                    "ring-[3px] ring-[#7a1239]",
-                    attendance?.punchIn ? "bg-emerald-400" : "bg-gray-400",
-                  ].join(" ")}
-                  title={attendance?.punchIn ? "Checked In" : "Checked Out"}
-                />
-              </div>
-
-              {/* Identity */}
-              <div className="flex flex-col flex-1 min-w-0">
-                <p className="text-[20px] font-bold leading-tight tracking-tight truncate">
-                  {identity?.name ?? "Loading…"}
-                </p>
-                <p className="text-[12.5px] mt-1 leading-tight text-white/70 truncate">
-                  {identity?.role ?? ""}
-                </p>
-                {identity?.employeeId && (
-                  <div className="inline-flex self-start mt-2 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-white/10 backdrop-blur-sm border border-white/15 text-white/90 tracking-wide">
-                    {identity?.employeeId}
-                  </div>
-                )}
-              </div>
-
-              <div className="w-px self-stretch bg-white/15 mx-1" />
-
-              {/* PUNCH IN */}
-              <div className="flex flex-col shrink-0 min-w-[96px]">
-                <p className="text-[10px] font-bold tracking-[0.18em] text-white/55">
-                  PUNCH IN
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <Clock
-                    size={14}
-                    className={
-                      attendance?.punchIn ? "text-emerald-400" : "text-white/40"
-                    }
-                  />
-                  <p className="text-[16px] font-bold whitespace-nowrap tracking-tight">
-                    {formatTimeLong(attendance?.punchIn)}
-                  </p>
-                </div>
-                <p className="text-[10.5px] mt-1 text-white/55">
-                  {attendance?.punchIn ? "Today" : "Not punched in"}
-                </p>
-              </div>
-
-              {/* PUNCH OUT — right padding clears the absolute action button */}
-              <div className="flex flex-col shrink-0 min-w-[108px] pr-[88px]">
-                <p className="text-[10px] font-bold tracking-[0.18em] text-white/55">
-                  PUNCH OUT
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <Clock size={14} className="text-white/40" />
-                  <p
-                    className={[
-                      "text-[16px] font-bold whitespace-nowrap tracking-tight",
-                      attendance?.punchOut ? "text-white" : "text-white/65",
-                    ].join(" ")}
-                  >
-                    {attendance?.punchOut ?? "--:--"}
-                  </p>
-                </div>
-                <p className="text-[10.5px] mt-1 text-white/55">
-                  {attendance?.punchOut ? "Today" : "Not punched out"}
-                </p>
-              </div>
-            </div>
           </div>
-        )}
 
-        {/* NEW Punch hero card — premium, vertically centered, perfect padding */}
-        <div className="relative rounded-2xl overflow-hidden text-white bg-gradient-to-br from-[#9b1747] via-[#7a1239] to-[#5e0c2a] shadow-[0_10px_30px_-12px_rgba(123,18,57,0.35)]">
-          {/* Soft top highlight */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent"
-          />
-
-          {/* Faint radial glow behind the avatar */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -left-10 -top-10 h-44 w-44 rounded-full bg-white/[0.08] blur-2xl"
-          />
-
-          <div className="relative flex items-center px-6 py-6 gap-6 w-full h-full">
-            {/* Avatar — status is now shown as a pill in the identity column,
-                so no dot here. */}
-            <div className="relative shrink-0">
-              <Avatar
-                initials={initials}
-                size={88}
-                src={identity?.avatarUrl}
-              />
-            </div>
-
-            {/* Identity stack — Name → Designation → ID chip → Status pill
-                (with the temporary Punch In/Out button inline beside it). */}
-            <div className="flex flex-col flex-1 min-w-[140px] pr-2 gap-1.5">
-              <p className="text-[19px] font-bold leading-tight tracking-tight break-words">
+          <div className="flex items-start gap-3">
+            <Avatar
+              initials={initials}
+              size={64}
+              src={identity?.avatarUrl}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-bold text-gray-900 m-0 truncate">
                 {identity?.name ?? "Loading…"}
               </p>
-              <p className="text-[12.5px] leading-tight text-white/75 break-words">
+              <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">
                 {identity?.role ?? ""}
               </p>
-              {identity?.employeeId && (
-                <div className="inline-flex self-start px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 backdrop-blur-sm border border-white/15 text-white/95 tracking-wide shadow-sm">
-                  {identity?.employeeId}
-                </div>
-              )}
-              {/* Status pill + temporary punch button — button disappears once
-                  the matching action is done. Hidden entirely after both
-                  punches are recorded. */}
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-white/10 backdrop-blur-sm border border-white/15 text-white/90 tracking-wide">
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {identity?.employeeId && (
+                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                    {identity.employeeId}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600">
                   <span
-                    className={[
-                      "w-1.5 h-1.5 rounded-full",
-                      attendance?.punchIn ? "bg-emerald-400" : "bg-gray-400",
-                    ].join(" ")}
+                    className={cn(
+                      "rounded-full w-1.5 h-1.5",
+                      attendance?.punchIn ? "bg-green-500" : "bg-gray-400",
+                    )}
                   />
                   {attendance?.punchIn ? "Checked In" : "Checked Out"}
                 </span>
-                {attendance && !attendance.punchIn && (
-                  <button
-                    type="button"
-                    onClick={handlePunchToggle}
-                    disabled={punchBusy}
-                    className={[
-                      "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold tracking-wide",
-                      "bg-emerald-500 hover:bg-emerald-600 text-white transition-colors",
-                      punchBusy
-                        ? "cursor-not-allowed opacity-60"
-                        : "cursor-pointer",
-                    ].join(" ")}
-                  >
-                    {punchBusy ? "…" : "Punch In"}
-                  </button>
-                )}
-                {attendance && attendance.punchIn && !attendance.punchOut && (
-                  <button
-                    type="button"
-                    onClick={handlePunchToggle}
-                    disabled={punchBusy}
-                    className={[
-                      "px-2.5 py-0.5 rounded-md text-[10.5px] font-bold tracking-wide",
-                      "bg-rose-500 hover:bg-rose-600 text-white transition-colors",
-                      punchBusy
-                        ? "cursor-not-allowed opacity-60"
-                        : "cursor-pointer",
-                    ].join(" ")}
-                  >
-                    {punchBusy ? "…" : "Punch Out"}
-                  </button>
-                )}
+              </div>
+              <div className="flex flex-col gap-1.5 mt-2 min-w-0">
+                <span
+                  className="inline-flex items-center gap-1.5 self-start max-w-full px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600"
+                  title={[
+                    identity?.personalEmail
+                      ? `Personal: ${identity.personalEmail}`
+                      : null,
+                    identity?.workEmail ? `Work: ${identity.workEmail}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                >
+                  <Mail size={11} className="text-[#FF014F] shrink-0" />
+                  <span className="truncate">
+                    {[identity?.personalEmail, identity?.workEmail]
+                      .filter(Boolean)
+                      .join(", ") || "—"}
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 self-start max-w-full px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600">
+                  <Phone size={11} className="text-[#FF014F] shrink-0" />
+                  <span className="truncate">{identity?.phone ?? "—"}</span>
+                </span>
               </div>
             </div>
+          </div>
 
-            {/* Right side — premium divider + PUNCH IN / PUNCH OUT stacked.
-                The divider self-stretches to the height of the times column, so
-                it spans top of PUNCH IN label to bottom of the last caption. */}
-            <div className="flex items-stretch gap-5 shrink-0 self-center">
-              <div
-                aria-hidden
-                className="w-px self-stretch bg-gradient-to-b from-transparent via-white/40 to-transparent"
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100">
+            <div
+              className="flex items-center gap-2 rounded-md bg-white/80 border border-gray-100 px-2.5 py-1.5 min-w-0"
+              title={attendance?.punchIn ? "Punched in today" : "Not punched in"}
+            >
+              <Clock
+                size={12}
+                className={cn(
+                  "shrink-0",
+                  attendance?.punchIn ? "text-green-600" : "text-gray-400",
+                )}
               />
-              <div className="flex flex-col gap-3 justify-center">
-              <div className="flex flex-col pr-6">
-                <p className="text-[11px] font-bold tracking-[0.18em] text-white/60">
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold tracking-wider text-gray-400 m-0 leading-none">
                   PUNCH IN
                 </p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <Clock
-                    size={18}
-                    className={
-                      attendance?.punchIn ? "text-emerald-400" : "text-white/40"
-                    }
-                  />
-                  <p className="text-[22px] font-bold whitespace-nowrap tracking-tight leading-none">
-                    {formatTimeLong(attendance?.punchIn)}
-                  </p>
-                </div>
-                <p className="text-[11px] mt-1.5 text-white/55">
-                  {attendance?.punchIn ? "Today" : "Not punched in"}
+                <p className="text-xs font-bold text-gray-900 m-0 mt-0.5 leading-none whitespace-nowrap">
+                  {formatTimeLong(attendance?.punchIn)}
                 </p>
               </div>
-
-              <div className="flex flex-col">
-                <p className="text-[11px] font-bold tracking-[0.18em] text-white/60">
+            </div>
+            <div
+              className="flex items-center gap-2 rounded-md bg-white/80 border border-gray-100 px-2.5 py-1.5 min-w-0"
+              title={attendance?.punchOut ? "Punched out today" : "Not punched out"}
+            >
+              <Clock size={12} className="text-gray-400 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[9px] font-semibold tracking-wider text-gray-400 m-0 leading-none">
                   PUNCH OUT
                 </p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <Clock size={18} className="text-white/40" />
-                  <p
-                    className={[
-                      "text-[22px] font-bold whitespace-nowrap tracking-tight leading-none",
-                      attendance?.punchOut ? "text-white" : "text-white/65",
-                    ].join(" ")}
-                  >
-                    {attendance?.punchOut ?? "--:--"}
-                  </p>
-                </div>
-                <p className="text-[11px] mt-1.5 text-white/55">
-                  {attendance?.punchOut ? "Today" : "Not punched out"}
+                <p className="text-xs font-bold text-gray-900 m-0 mt-0.5 leading-none whitespace-nowrap">
+                  {attendance?.punchOut ?? "--:--"}
                 </p>
-              </div>
               </div>
             </div>
           </div>
@@ -1317,9 +1221,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
       {/* Row 2 — Attendance Overview | Leave Distribution | Quick Links */}
       <div className={dashboardGridClass}>
         {/* Attendance Overview */}
-        <div className="rounded-2xl bg-white p-5 border border-gray-200">
+        <div className={gradientCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[15px] font-bold text-gray-900">
+            <h3 className="text-sm font-semibold text-gray-900 m-0">
               Attendance Overview
             </h3>
             <div className="relative" ref={winMenuRef}>
@@ -1328,15 +1232,15 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 onClick={() => setWinMenuOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={winMenuOpen}
-                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-[#fff1f2] text-[#be185d] border border-[#fecdd3] cursor-pointer"
+                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-pink-50 text-[#FF014F] border border-pink-200 cursor-pointer"
               >
                 {attWindow === "7d" ? "Week" : "30 days"}
                 <ChevronDown
                   size={12}
-                  className={[
+                  className={cn(
                     "transition-transform duration-150",
-                    winMenuOpen ? "rotate-180" : "",
-                  ].join(" ")}
+                    winMenuOpen && "rotate-180",
+                  )}
                 />
               </button>
               {winMenuOpen && (
@@ -1358,12 +1262,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
                           setAttWindow(opt.value);
                           setWinMenuOpen(false);
                         }}
-                        className={[
+                        className={cn(
                           "w-full text-left px-3 py-1.5 text-[12px] cursor-pointer",
                           active
-                            ? "bg-[#fff1f2] text-[#be185d] font-semibold"
+                            ? "bg-pink-50 text-[#FF014F] font-semibold"
                             : "text-gray-700 hover:bg-gray-50",
-                        ].join(" ")}
+                        )}
                       >
                         {opt.label}
                       </button>
@@ -1374,6 +1278,58 @@ export default function RoleDashboard({ role }: { role: Role }) {
             </div>
           </div>
 
+          {attWindow === "7d" && week && (
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <button
+                type="button"
+                onClick={goPrevWeek}
+                aria-label="Previous week"
+                className="rounded-lg p-1.5 border border-gray-200 bg-white hover:bg-gray-50 cursor-pointer"
+              >
+                <ChevronLeft size={16} className="text-gray-600" />
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-gray-700 px-2 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1 cursor-pointer"
+                  >
+                    {formatWeekRange(week.weekStart, week.weekEnd)}
+                    <ChevronDown size={12} className="text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="center">
+                  <DropdownMenuItem onSelect={() => goToWeekPreset(0)}>
+                    This week
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => goToWeekPreset(1)}>
+                    Last week
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => goToWeekPreset(2)}>
+                    2 weeks ago
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => goToWeekPreset(3)}>
+                    3 weeks ago
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button
+                type="button"
+                onClick={goNextWeek}
+                disabled={onCurrentWeek}
+                aria-label="Next week"
+                className={cn(
+                  "rounded-lg p-1.5 border border-gray-200 bg-white",
+                  onCurrentWeek
+                    ? "opacity-40 cursor-not-allowed"
+                    : "hover:bg-gray-50 cursor-pointer",
+                )}
+              >
+                <ChevronRight size={16} className="text-gray-600" />
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 mb-3 w-full">
             <div className="col-span-2 sm:col-span-3 xl:col-span-1 rounded-lg p-2.5 bg-white/80 border border-gray-100 min-w-0">
               <p className="text-[9px] font-bold tracking-wider text-gray-400 m-0">
@@ -1382,14 +1338,20 @@ export default function RoleDashboard({ role }: { role: Role }) {
               <p className="text-sm font-bold leading-tight mt-0.5 text-gray-900 m-0">
                 {weekStatPlaceholder ?? fmtHm(totalMins)}
               </p>
-                </div>
+            </div>
             {attendanceStatCards.map((it) => (
-              <div key={it.label} className="rounded-lg p-2 bg-gray-50">
-                <p className="text-[9px] font-bold tracking-wider text-gray-400">
+              <div
+                key={it.label}
+                className="rounded-lg p-2.5 bg-white/80 border border-gray-100 min-w-0"
+              >
+                <p className="text-[9px] font-bold tracking-wider text-gray-400 m-0 truncate">
                   {it.label}
                 </p>
                 <p
-                  className={`text-sm font-bold leading-tight mt-0.5 m-0 ${it.text}`}
+                  className={cn(
+                    "text-sm font-bold leading-tight mt-0.5 m-0",
+                    it.text,
+                  )}
                 >
                   {it.display}
                 </p>
@@ -1428,15 +1390,22 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <h3 className="text-sm font-semibold text-gray-900 m-0">
               Leave Distribution
             </h3>
-          
+            <button
+              type="button"
+              onClick={() => void reload()}
+              className="rounded-full p-1 bg-white border border-gray-200 cursor-pointer"
+              aria-label="Refresh"
+            >
+              <RefreshCw size={12} className="text-gray-500" />
+            </button>
           </div>
 
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 flex-1 w-full min-h-[220px]">
             <Donut
               size={220}
               segments={
                 usedTotal > 0
-                  ? usedByType.map((s) => ({ value: s.value, color: s.color }))
+                  ? usedByType.map((s) => ({ value: s.value, color: s.stroke }))
                   : [{ value: 1, color: "#e5e7eb" }]
               }
               center={{
@@ -1450,34 +1419,27 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   Loading balances…
                 </p>
               )}
-              {usedByType.map((s) => {
-                const pct =
-                  usedTotal > 0
-                    ? ((s.value / usedTotal) * 100).toFixed(1)
-                    : "0.0";
-                return (
-                  <div
-                    key={s.label}
-                    className="flex items-center justify-between py-0.5"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className="rounded-full shrink-0 w-2 h-2"
-                        style={{ background: s.color }}
-                      />
-                      <span className="text-[11px] text-gray-700 truncate">
-                        {s.label}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-gray-500 font-medium tabular-nums shrink-0 ml-2">
-                      {s.value}
-                      <span className="text-gray-400 font-normal ml-1">
-                        ({pct}%)
-                      </span>
+              {usedByType.map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={cn(
+                        "rounded-full shrink-0 w-2.5 h-2.5",
+                        s.dotClass,
+                      )}
+                    />
+                    <span className="text-xs text-gray-700 truncate">
+                      {s.label}
                     </span>
                   </div>
-                );
-              })}
+                  <span className="text-sm text-gray-600 font-semibold tabular-nums shrink-0">
+                    {s.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1487,7 +1449,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
           <h3 className="text-sm font-semibold text-gray-900 mb-3 m-0">
             Quick Links
           </h3>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1 w-full content-stretch">
             {quickLinks.map(({ icon: Icon, label, href, external }) => (
               <a
                 key={label}
@@ -1495,7 +1457,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 {...(external
                   ? { target: "_blank", rel: "noopener noreferrer" }
                   : {})}
-                className="flex flex-col items-center text-center no-underline text-gray-900"
+                className="flex flex-col items-center justify-center text-center no-underline text-gray-900 rounded-lg border border-gray-100 bg-white/70 px-2 py-3 hover:bg-white transition-colors min-h-[96px]"
               >
                 <span className="flex items-center justify-center rounded-lg w-12 h-12 bg-pink-50 border border-pink-200">
                   <Icon size={20} className="text-[#FF014F]" />
