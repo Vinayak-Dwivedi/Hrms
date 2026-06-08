@@ -81,17 +81,17 @@ try {
   const [etype] = await sql`SELECT id FROM employment_types WHERE name = 'Full-Time'`;
 
   const desigDefs = [
-    ["Senior Associate", "L2", "L2"],
-    ["Process Manager", "M1", "M2"],
-    ["Associate", "L1", "L1"],
-    ["Senior Associate Plus", "L3", "L3"],
-    ["Team Leader", "M1", "M1"],
-    ["Quality Analyst", "L2", "L2"],
+    ["Senior Associate", "L2", "L2", "SRA"],
+    ["Process Manager", "M1", "M2", "PM"],
+    ["Associate", "L1", "L1", "ASC"],
+    ["Senior Associate Plus", "L3", "L3", "SRAP"],
+    ["Team Leader", "M1", "M1", "TL"],
+    ["Quality Analyst", "L2", "L2", "QA"],
   ];
-  for (const [name, gmin, gmax] of desigDefs) {
+  for (const [name, gmin, gmax, code] of desigDefs) {
     await sql`
-      INSERT INTO designations (name, department_id, grade_min_id, grade_max_id, employee_count)
-      VALUES (${name}, ${dept.id}, ${gradeByCode[gmin].id}, ${gradeByCode[gmax].id}, 1)
+      INSERT INTO designations (name, code, department_id, grade_min_id, grade_max_id, employee_count)
+      VALUES (${name}, ${code}, ${dept.id}, ${gradeByCode[gmin].id}, ${gradeByCode[gmax].id}, 1)
       ON CONFLICT (name) DO NOTHING
     `;
   }

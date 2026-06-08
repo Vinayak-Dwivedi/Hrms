@@ -793,3 +793,70 @@ export async function updateDepartment(
 export async function deleteDepartment(id: number): Promise<void> {
   await jsonFetch(`/departments/${id}`, { method: "DELETE" });
 }
+
+// ═══════════════════ Org Setup → Designations (HR) ═══════════════════
+// Backed by the generic CRUD endpoints at /api/hrms/designations. The single
+// "grade" shown in the UI maps to the table's gradeMin/gradeMax pair (same id
+// in both = exactly this grade). Head count is the read-only employeeCount,
+// maintained by the backend from employees in the designation.
+
+export interface DesignationApi {
+  id: number;
+  name: string;
+  code: string | null;
+  gradeMinId: number | null;
+  gradeMaxId: number | null;
+  employeeCount: number;
+}
+
+export interface DesignationInput {
+  name: string;
+  code: string;
+  gradeMinId: number | null;
+  gradeMaxId: number | null;
+}
+
+export interface GradeOption {
+  id: number;
+  code: string;
+  bandName: string;
+}
+
+export async function fetchDesignations(): Promise<DesignationApi[]> {
+  const res = await jsonFetch<{ data: DesignationApi[] }>(
+    "/designations?limit=500",
+  );
+  return res.data;
+}
+
+export async function fetchGrades(): Promise<GradeOption[]> {
+  const res = await jsonFetch<{ data: GradeOption[] }>("/grades?limit=500");
+  return res.data
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+export async function createDesignation(
+  input: DesignationInput,
+): Promise<DesignationApi> {
+  const res = await jsonFetch<{ data: DesignationApi }>("/designations", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function updateDesignation(
+  id: number,
+  input: DesignationInput,
+): Promise<DesignationApi> {
+  const res = await jsonFetch<{ data: DesignationApi }>(`/designations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+  return res.data;
+}
+
+export async function deleteDesignation(id: number): Promise<void> {
+  await jsonFetch(`/designations/${id}`, { method: "DELETE" });
+}

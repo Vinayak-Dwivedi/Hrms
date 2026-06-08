@@ -233,6 +233,9 @@ export const designations = pgTable(
   {
     id: serial("id").primaryKey(),
     name: varchar("name", { length: 150 }).notNull().unique(),
+    // short code shown in Org Setup → Designation (e.g. MGR, CEO). Nullable so
+    // pre-existing rows remain valid; unique when present.
+    code: varchar("code", { length: 20 }).unique(),
     departmentId: integer("department_id").references(() => departments.id, {
       onDelete: "set null",
     }),
