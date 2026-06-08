@@ -47,13 +47,20 @@ export async function writeAuditLog(entry: AuditEntry): Promise<void> {
   }
 }
 
+// `auditCtx` accepts `string | null | undefined` for both fields because
+// upstream sources differ: the express middleware (`AuditContext`) sets nulls
+// when headers are absent, while internal service AuditCtx shapes mark them
+// optional. The DB column itself is nullable — null falls through cleanly.
 export function writeAuditLogAsync(
   entry: AuditEntry,
-  auditCtx?: { ipAddress?: string; userAgent?: string },
+  auditCtx?: {
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  },
 ): void {
   void writeAuditLog({
     ...entry,
-    ipAddress: entry.ipAddress ?? auditCtx?.ipAddress,
-    userAgent: entry.userAgent ?? auditCtx?.userAgent,
+    ipAddress: entry.ipAddress ?? auditCtx?.ipAddress ?? null,
+    userAgent: entry.userAgent ?? auditCtx?.userAgent ?? null,
   });
 }

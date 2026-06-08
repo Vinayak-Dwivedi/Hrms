@@ -62,5 +62,9 @@ export async function ensureInvitationStatusFresh(employeeId: number) {
     onboardingStatus: inferOnboardingStatus(emp),
     onboardingTokenExpiry: emp.onboardingTokenExpiry,
     onboardingCompletedAt: emp.onboardingCompletedAt,
+    // Propagate so callers (e.g. approveOnboarding) can gate on "has the
+    // employee actually submitted yet?" — null when the optional column
+    // isn't supported by the running schema version.
+    onboardingSubmittedAt: emp.onboardingSubmittedAt ?? null,
   };
 }
