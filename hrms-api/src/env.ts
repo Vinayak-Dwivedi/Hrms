@@ -85,6 +85,19 @@ const schema = z.object({
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   SMTP_FROM: z.string().default("HRMS <noreply@company.com>"),
 
+  TWILIO_ACCOUNT_SID: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  TWILIO_AUTH_TOKEN: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  TWILIO_FROM_NUMBER: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+
   UPLOAD_DIR: z.string().default("./uploads"),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(10_485_760),
   UPLOAD_ALLOWED_MIME_TYPES: z

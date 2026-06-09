@@ -135,6 +135,16 @@ export async function upsertProfile(
 ) {
   const columnSupport = await getEmployeeColumnSupport();
   await db.transaction(async (tx) => {
+    let currentOnboardingStatus: string | undefined;
+    if (columnSupport.onboardingStatus) {
+      const [statusRow] = await tx
+        .select({ onboardingStatus: employees.onboardingStatus })
+        .from(employees)
+        .where(eq(employees.id, employeeId))
+        .limit(1);
+      currentOnboardingStatus = statusRow?.onboardingStatus ?? undefined;
+    }
+
     const encryptedLegacy = encryptEmployeeLegacySensitive(
       {
         panNo: input.identity.panNumber,
@@ -156,7 +166,16 @@ export async function upsertProfile(
       ...encryptedLegacy,
       updatedAt: new Date(),
     };
-    if (columnSupport.onboardingStatus) {
+    if (input.phone?.trim()) {
+      employeePatch.phone = input.phone.trim();
+    }
+    if (input.personalEmail?.trim()) {
+      employeePatch.personalEmail = input.personalEmail.trim().toLowerCase();
+    }
+    if (
+      columnSupport.onboardingStatus &&
+      currentOnboardingStatus !== "COMPLETED"
+    ) {
       employeePatch.onboardingStatus = "IN_PROGRESS";
     }
     await tx

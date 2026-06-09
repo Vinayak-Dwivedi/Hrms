@@ -1,42 +1,88 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { employees } from "@/db/schema/hrms";
+import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import { ApiError } from "@/middleware/error";
+
+export type CurrentEmployee = {
+  id: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  middleName: string | null;
+  workEmail: string | null;
+  personalEmail: string;
+  personalEmailVerified: boolean;
+  personalEmailVerifiedAt: Date | null;
+  phone: string;
+  phoneVerified: boolean;
+  phoneVerifiedAt: Date | null;
+  gender: string;
+  dob: string;
+  joiningDate: string;
+  profilePhotoUrl: string | null;
+  designationId: number | null;
+  departmentId: number | null;
+  gradeId: number | null;
+  branchId: number | null;
+  employmentTypeId: number | null;
+  reportingManagerId: number | null;
+  currentAddress: string | null;
+  permanentAddress: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+};
 
 /**
  * Loads the employee row linked to the authenticated user (via
  * employees.user_id ↔ users.id). Throws 404 if no employee row is linked —
  * the auth account exists but no HR profile was seeded for it.
  */
-export async function loadCurrentEmployee(userId: string) {
+export async function loadCurrentEmployee(
+  userId: string,
+): Promise<CurrentEmployee> {
+  const support = await getEmployeeColumnSupport();
+  const selectFields: Record<string, unknown> = {
+    id: employees.id,
+    empId: employees.empId,
+    firstName: employees.firstName,
+    lastName: employees.lastName,
+    middleName: employees.middleName,
+    workEmail: employees.workEmail,
+    personalEmail: employees.personalEmail,
+    phone: employees.phone,
+    gender: employees.gender,
+    dob: employees.dob,
+    joiningDate: employees.joiningDate,
+    profilePhotoUrl: employees.profilePhotoUrl,
+    designationId: employees.designationId,
+    departmentId: employees.departmentId,
+    gradeId: employees.gradeId,
+    branchId: employees.branchId,
+    employmentTypeId: employees.employmentTypeId,
+    reportingManagerId: employees.reportingManagerId,
+    currentAddress: employees.currentAddress,
+    permanentAddress: employees.permanentAddress,
+    emergencyContactName: employees.emergencyContactName,
+    emergencyContactPhone: employees.emergencyContactPhone,
+  };
+
+  if (support.personalEmailVerified) {
+    selectFields.personalEmailVerified = employees.personalEmailVerified;
+    selectFields.personalEmailVerifiedAt = employees.personalEmailVerifiedAt;
+  }
+
+  if (support.phoneVerified) {
+    selectFields.phoneVerified = employees.phoneVerified;
+    selectFields.phoneVerifiedAt = employees.phoneVerifiedAt;
+  }
+
   const [emp] = await db
-    .select({
-      id: employees.id,
-      empId: employees.empId,
-      firstName: employees.firstName,
-      lastName: employees.lastName,
-      middleName: employees.middleName,
-      workEmail: employees.workEmail,
-      personalEmail: employees.personalEmail,
-      phone: employees.phone,
-      gender: employees.gender,
-      dob: employees.dob,
-      joiningDate: employees.joiningDate,
-      profilePhotoUrl: employees.profilePhotoUrl,
-      designationId: employees.designationId,
-      departmentId: employees.departmentId,
-      gradeId: employees.gradeId,
-      branchId: employees.branchId,
-      employmentTypeId: employees.employmentTypeId,
-      reportingManagerId: employees.reportingManagerId,
-      currentAddress: employees.currentAddress,
-      permanentAddress: employees.permanentAddress,
-      emergencyContactName: employees.emergencyContactName,
-      emergencyContactPhone: employees.emergencyContactPhone,
-    })
+    .select(selectFields as Record<string, typeof employees.id>)
     .from(employees)
     .where(eq(employees.userId, userId))
     .limit(1);
+
   if (!emp) {
     throw new ApiError(
       404,
@@ -44,7 +90,45 @@ export async function loadCurrentEmployee(userId: string) {
       "Authenticated user has no linked employee record.",
     );
   }
-  return emp;
+
+  const row = emp as Record<string, unknown>;
+
+  return {
+    id: row.id as number,
+    empId: row.empId as string,
+    firstName: row.firstName as string,
+    lastName: row.lastName as string,
+    middleName: (row.middleName as string | null) ?? null,
+    workEmail: (row.workEmail as string | null) ?? null,
+    personalEmail: row.personalEmail as string,
+    personalEmailVerified: support.personalEmailVerified
+      ? Boolean(row.personalEmailVerified)
+      : false,
+    personalEmailVerifiedAt: support.personalEmailVerified
+      ? ((row.personalEmailVerifiedAt as Date | null) ?? null)
+      : null,
+    phone: row.phone as string,
+    phoneVerified: support.phoneVerified
+      ? Boolean(row.phoneVerified)
+      : false,
+    phoneVerifiedAt: support.phoneVerified
+      ? ((row.phoneVerifiedAt as Date | null) ?? null)
+      : null,
+    gender: row.gender as string,
+    dob: row.dob as string,
+    joiningDate: row.joiningDate as string,
+    profilePhotoUrl: (row.profilePhotoUrl as string | null) ?? null,
+    designationId: (row.designationId as number | null) ?? null,
+    departmentId: (row.departmentId as number | null) ?? null,
+    gradeId: (row.gradeId as number | null) ?? null,
+    branchId: (row.branchId as number | null) ?? null,
+    employmentTypeId: (row.employmentTypeId as number | null) ?? null,
+    reportingManagerId: (row.reportingManagerId as number | null) ?? null,
+    currentAddress: (row.currentAddress as string | null) ?? null,
+    permanentAddress: (row.permanentAddress as string | null) ?? null,
+    emergencyContactName: (row.emergencyContactName as string | null) ?? null,
+    emergencyContactPhone: (row.emergencyContactPhone as string | null) ?? null,
+  };
 }
 
 /**

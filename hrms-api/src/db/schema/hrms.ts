@@ -317,8 +317,16 @@ export const employees = pgTable(
     middleName: varchar("middle_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }).notNull(),
     personalEmail: citext("personal_email").notNull().unique(),
+    personalEmailVerified: boolean("personal_email_verified")
+      .notNull()
+      .default(false),
+    personalEmailVerifiedAt: timestamp("personal_email_verified_at", {
+      withTimezone: true,
+    }),
     workEmail: citext("work_email").unique(),
     phone: varchar("phone", { length: 20 }).notNull(),
+    phoneVerified: boolean("phone_verified").notNull().default(false),
+    phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
     dob: date("dob").notNull(),
     gender: genderEnum("gender").notNull(),
     bloodGroup: varchar("blood_group", { length: 5 }),

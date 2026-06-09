@@ -17,6 +17,7 @@ import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
 import { attendanceRouter } from "@/routes/attendance.router";
 import { onboardingRouter } from "@/routes/onboarding.router";
+import { profileEmailVerificationRouter } from "@/modules/email-verification/routes/profile.routes";
 import { employeeRoutes } from "@/modules/onboarding/routes/employee.routes";
 import { documentsRoutes } from "@/modules/onboarding/routes/documents.routes";
 import { openApiSpec } from "@/docs/openapi";
@@ -92,6 +93,12 @@ export function createApp() {
 
   app.use("/api/employee", requireAuth, employeeRoutes);
   app.use("/api/documents", requireAuth, documentsRoutes);
+  app.use(
+    "/api/profile",
+    requireAuth,
+    buildAuthRateLimiter(),
+    profileEmailVerificationRouter,
+  );
 
   app.use("/api/me",      requireAuth, meRouter);
   app.use("/api/manager", requireAuth, managerRouter);

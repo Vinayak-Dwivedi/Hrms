@@ -8,7 +8,9 @@ export interface Employee {
   email?: string | null;
   personalEmail?: string | null;
   workEmail?: string | null;
+  personalEmailVerified?: boolean;
   phone?: string | null;
+  phoneVerified?: boolean;
 }
 
 export interface AttendanceRecord {

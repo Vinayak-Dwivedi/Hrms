@@ -48,6 +48,10 @@ export type ColumnSupport = {
   bankSensitiveEncryptionReady: boolean;
   /** @deprecated Use employeeSensitiveHashes */
   sensitiveHashes: boolean;
+  personalEmailVerified: boolean;
+  emailVerificationOtps: boolean;
+  phoneVerified: boolean;
+  phoneVerificationOtps: boolean;
 
 };
 
@@ -70,6 +74,14 @@ const TRACKED_COLUMNS = [
   "onboarding_completed_at",
 
   "pan_no_hash",
+
+  "personal_email_verified",
+
+  "personal_email_verified_at",
+
+  "phone_verified",
+
+  "phone_verified_at",
 
 ] as const;
 
@@ -175,6 +187,30 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     ]),
   );
 
+  const otpTableResult = await db.execute<{ exists: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'email_verification_otps'
+    ) AS exists
+  `);
+  const otpTableRows = normalizeExecuteRows(otpTableResult) as Array<{
+    exists: boolean;
+  }>;
+
+  const phoneOtpTableResult = await db.execute<{ exists: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'phone_verification_otps'
+    ) AS exists
+  `);
+  const phoneOtpTableRows = normalizeExecuteRows(phoneOtpTableResult) as Array<{
+    exists: boolean;
+  }>;
+
   const employeeProbe = sensitiveByProbe.get("employee");
   const identityProbe = sensitiveByProbe.get("identity");
   const bankProbe = sensitiveByProbe.get("bank");
@@ -212,6 +248,14 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     identitySensitiveEncryptionReady,
     bankSensitiveEncryptionReady,
     sensitiveHashes: employeeSensitiveHashes,
+
+    personalEmailVerified: cols.has("personal_email_verified"),
+
+    emailVerificationOtps: otpTableRows[0]?.exists === true,
+
+    phoneVerified: cols.has("phone_verified"),
+
+    phoneVerificationOtps: phoneOtpTableRows[0]?.exists === true,
 
   };
 

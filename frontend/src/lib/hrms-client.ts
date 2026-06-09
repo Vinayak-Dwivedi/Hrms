@@ -17,6 +17,14 @@ import type {
 /** Empty in dev/prod when API is same-origin (Next rewrite or nginx). */
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+export function resolveApiAssetUrl(
+  path: string | null | undefined,
+): string | null {
+  if (!path) return null;
+  if (/^(https?:|blob:|data:)/i.test(path)) return path;
+  return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 function buildUrl(path: string): string {
   // Route by prefix to the matching hrms-api router mount point.
   //   /me/...      → /api/me/...
@@ -121,8 +129,12 @@ interface MeResponse {
   avatarUrl: string | null;
   email: string;
   personalEmail: string;
+  personalEmailVerified?: boolean;
+  personalEmailVerifiedAt?: string | null;
   workEmail: string | null;
   phone: string;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string | null;
   role: string | null;
   department: string | null;
   grade: string | null;
@@ -149,11 +161,13 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     role: me.role ?? "Employee",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
-    avatarUrl: me.avatarUrl ?? null,
+    avatarUrl: resolveApiAssetUrl(me.avatarUrl),
     email: me.email,
     personalEmail: me.personalEmail,
     workEmail: me.workEmail,
+    personalEmailVerified: me.personalEmailVerified ?? false,
     phone: me.phone,
+    phoneVerified: me.phoneVerified ?? false,
   };
 }
 
@@ -170,8 +184,12 @@ export interface MyProfile {
   avatarUrl: string | null;
   email: string;
   personalEmail: string;
+  personalEmailVerified: boolean;
+  personalEmailVerifiedAt: string | null;
   workEmail: string | null;
   phone: string;
+  phoneVerified: boolean;
+  phoneVerifiedAt: string | null;
   gender: string | null;
   dob: string | null;
   designation: string | null;
@@ -197,11 +215,15 @@ export async function fetchMyProfile(): Promise<MyProfile> {
     lastName: me.lastName,
     fullName: me.fullName,
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
-    avatarUrl: me.avatarUrl ?? null,
+    avatarUrl: resolveApiAssetUrl(me.avatarUrl),
     email: me.email,
     personalEmail: me.personalEmail,
+    personalEmailVerified: me.personalEmailVerified ?? false,
+    personalEmailVerifiedAt: me.personalEmailVerifiedAt ?? null,
     workEmail: me.workEmail,
     phone: me.phone,
+    phoneVerified: me.phoneVerified ?? false,
+    phoneVerifiedAt: me.phoneVerifiedAt ?? null,
     gender: me.gender ?? null,
     dob: me.dob ?? null,
     designation: me.role ?? null,

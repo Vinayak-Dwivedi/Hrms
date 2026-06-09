@@ -1,4 +1,15 @@
-import { boolean, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  smallint,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 /**
  * Minimum auth schema. Matches the column names of the legacy Better Auth
@@ -38,7 +49,56 @@ export const accounts = pgTable(
   (t) => [uniqueIndex("accounts_user_provider_uidx").on(t.userId, t.providerId)],
 );
 
+export const emailVerificationOtps = pgTable(
+  "email_verification_otps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    targetEmail: text("target_email").notNull(),
+    otpHash: text("otp_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    isUsed: boolean("is_used").notNull().default(false),
+    attemptCount: smallint("attempt_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("email_verification_otps_user_created_idx").on(t.userId, t.createdAt),
+    index("email_verification_otps_active_idx").on(t.userId, t.isUsed, t.expiresAt),
+  ],
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
+export type EmailVerificationOtp = typeof emailVerificationOtps.$inferSelect;
+export type NewEmailVerificationOtp = typeof emailVerificationOtps.$inferInsert;
+
+export const phoneVerificationOtps = pgTable(
+  "phone_verification_otps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    targetPhone: varchar("target_phone", { length: 20 }).notNull(),
+    otpHash: text("otp_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    isUsed: boolean("is_used").notNull().default(false),
+    attemptCount: smallint("attempt_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("phone_verification_otps_user_created_idx").on(t.userId, t.createdAt),
+    index("phone_verification_otps_active_idx").on(t.userId, t.isUsed, t.expiresAt),
+  ],
+);
+
+export type PhoneVerificationOtp = typeof phoneVerificationOtps.$inferSelect;
+export type NewPhoneVerificationOtp = typeof phoneVerificationOtps.$inferInsert;

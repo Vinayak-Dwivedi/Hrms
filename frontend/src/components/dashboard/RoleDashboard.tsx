@@ -8,9 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Mail,
   FileText,
-  Phone,
   GraduationCap,
   History,
   LayoutDashboard,
@@ -56,6 +54,7 @@ import type {
   LeaveType,
 } from "@/lib/dashboard";
 import type { Role } from "@/lib/roles";
+import { EmployeeEmailSummary } from "@/features/employees/components/EmployeeEmailStatus";
 import {
   employeeBtnSmClass,
   employeeCardClass,
@@ -1053,28 +1052,18 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 </span>
               </div>
               <div className="flex flex-col gap-1.5 mt-2 min-w-0">
-                <span
-                  className="inline-flex items-center gap-1.5 self-start max-w-full px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600"
-                  title={[
-                    identity?.personalEmail
-                      ? `Personal: ${identity.personalEmail}`
-                      : null,
-                    identity?.workEmail ? `Work: ${identity.workEmail}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                >
-                  <Mail size={11} className="text-[#FF014F] shrink-0" />
-                  <span className="truncate">
-                    {[identity?.personalEmail, identity?.workEmail]
-                      .filter(Boolean)
-                      .join(", ") || "—"}
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 self-start max-w-full px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600">
-                  <Phone size={11} className="text-[#FF014F] shrink-0" />
-                  <span className="truncate">{identity?.phone ?? "—"}</span>
-                </span>
+                <EmployeeEmailSummary
+                  className="space-y-1"
+                  fallbackEmail={identity?.email}
+                  personalEmail={identity?.personalEmail}
+                  personalEmailVerified={identity?.personalEmailVerified}
+                  phone={identity?.phone}
+                  phoneVerified={identity?.phoneVerified}
+                  phoneVerifyHref="/profile"
+                  rowClassName="mt-0"
+                  verifyHref="/profile"
+                  workEmail={identity?.workEmail}
+                />
               </div>
             </div>
           </div>

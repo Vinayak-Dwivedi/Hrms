@@ -40,8 +40,71 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1780627200000,
+      "when": 1780538400000,
+      "tag": "20260604020000_designation_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780579200000,
+      "tag": "20260604100000_rbac",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1780598400000,
+      "tag": "20260604120000_employee_middle_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780605600000,
+      "tag": "20260604130000_rbac_legacy_repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1780656000000,
+      "tag": "20260605100000_employee_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780826400000,
+      "tag": "20260606100000_onboarding_phase2",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780912800000,
+      "tag": "20260607100000_onboarding_phase3",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780999200000,
       "tag": "20260608100000_sensitive_field_encryption",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781085600000,
+      "tag": "20260609100000_personal_email_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781089200000,
+      "tag": "20260609110000_phone_verification",
       "breakpoints": true
     }
   ]

@@ -71,6 +71,12 @@ export const personalSchema = z.object({
 });
 
 export const upsertProfileSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{7,15}$/, "Enter a valid phone number")
+    .optional(),
+  personalEmail: z.string().trim().email().max(255).optional(),
   personal: personalSchema,
   identity: identitySchema,
   academic: z.array(academicDetailSchema).max(MAX_ACADEMIC_RECORDS).default([]),

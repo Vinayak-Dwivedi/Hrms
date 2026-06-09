@@ -1,51 +1,193 @@
 "use client";
 
-import { Camera, Lock, LogOut, Paperclip, Plus, X } from "lucide-react";
+import {
+  Briefcase,
+  FileText,
+  GraduationCap,
+  Info,
+  Landmark,
+  Lock,
+  LogOut,
+  Paperclip,
+  Phone,
+  Plus,
+  Shield,
+  Upload,
+  User,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import {
-  fetchMyProfile,
-  type MyProfile,
-  updateMyProfile,
-} from "@/lib/hrms-client";
+  loadEmployeeProfilePage,
+  profilePageToEditable,
+  saveEmployeeProfilePage,
+  sendPersonalEmailVerificationOtp,
+  sendPersonalPhoneVerificationOtp,
+  uploadProfilePhoto,
+  type ProfileEditableState,
+  type ProfileQualification,
+} from "../api/profile.client";
+import { EmployeeEmailRow, EmployeePhoneRow } from "./EmployeeEmailStatus";
+import PersonalEmailVerificationDialog from "./PersonalEmailVerificationDialog";
+import PersonalPhoneVerificationDialog from "./PersonalPhoneVerificationDialog";
+import type { MyProfile } from "@/lib/hrms-client";
 import {
   employeeBtnClass,
   employeeBtnOutlineSmClass,
   employeeCardClass,
   employeeErrorBannerClass,
-  employeeFormSectionBodyClass,
-  employeeFormSectionClass,
-  employeeFormSectionDescClass,
-  employeeFormSectionHeaderClass,
-  employeeFormSectionsGridClass,
-  employeeFormSectionTitleClass,
+  employeeFieldLabelClass,
+  employeeFilterLabelClass,
+  employeeIconMd,
+  employeeInputClass,
   employeeLoadingClass,
+  employeeSelectClass,
 } from "../employee-theme";
-import EmployeeFormSection from "./EmployeeFormSection";
 
-const labelClass =
-  "block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5";
+type ProfileTab =
+  | "profile"
+  | "contact"
+  | "employment"
+  | "emergency"
+  | "personal"
+  | "academics"
+  | "bank";
 
-const editableInputClass =
-  "w-full max-w-[260px] px-2.5 py-1.5 border border-gray-300 rounded-sm text-[13px] text-gray-800 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent transition-colors";
+type NavItem = {
+  id: ProfileTab;
+  label: string;
+  icon: typeof User;
+};
 
-// Greyed-out, HR/admin-only fields: muted background, no focus ring,
-// disabled cursor, and not focusable.
-const readonlyInputClass =
-  "w-full max-w-[260px] px-2.5 py-1.5 border border-gray-200 rounded-sm text-[13px] text-gray-500 bg-gray-100 cursor-not-allowed select-none focus:outline-none";
+const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Account",
+    items: [
+      { id: "profile", label: "Basic Information", icon: User },
+      { id: "contact", label: "Contact Details", icon: Phone },
+      { id: "emergency", label: "Emergency Contact", icon: Shield },
+    ],
+  },
+  {
+    title: "Employment & Records",
+    items: [
+      { id: "employment", label: "Employment", icon: Briefcase },
+      { id: "personal", label: "Personal & Compliance", icon: FileText },
+      { id: "academics", label: "Academic Details", icon: GraduationCap },
+      { id: "bank", label: "Bank Details", icon: Landmark },
+    ],
+  },
+];
+
+const TAB_META: Record<
+  ProfileTab,
+  { title: string; description: string; hrManaged?: boolean }
+> = {
+  profile: {
+    title: "Basic Information",
+    description:
+      "Your core identity details as maintained in the HRMS employee master.",
+    hrManaged: true,
+  },
+  contact: {
+    title: "Contact Details",
+    description:
+      "Keep your phone number, personal email, and address information up to date.",
+  },
+  employment: {
+    title: "Employment Details",
+    description:
+      "Your job placement, reporting structure, and employment classification.",
+    hrManaged: true,
+  },
+  emergency: {
+    title: "Emergency Contact",
+    description:
+      "Person to contact in case of an emergency. This information is kept confidential.",
+  },
+  personal: {
+    title: "Personal & Compliance",
+    description:
+      "Family details and statutory identifiers required for payroll and compliance.",
+  },
+  academics: {
+    title: "Academic Details",
+    description:
+      "Educational qualifications on file. Add or update your academic history.",
+  },
+  bank: {
+    title: "Bank Details",
+    description:
+      "Salary disbursement account information. Ensure details match your bank records.",
+  },
+};
+
+const editableInputClass = `${employeeInputClass} bg-white`;
+const readonlyInputClass = `${employeeInputClass} border-gray-200 text-gray-700 bg-gray-50/80 cursor-default select-none focus:ring-0`;
+
+function ProfileBadge({
+  variant,
+}: {
+  variant: "hr" | "editable";
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
+        variant === "hr"
+          ? "bg-gray-100 text-gray-600"
+          : "bg-[#fff1f2] text-[#be185d]"
+      }`}
+    >
+      {variant === "hr" ? (
+        <>
+          <Lock className="w-2.5 h-2.5" />
+          HR Managed
+        </>
+      ) : (
+        "Editable"
+      )}
+    </span>
+  );
+}
+
+function ProfileSectionHeader({ tab }: { tab: ProfileTab }) {
+  const meta = TAB_META[tab];
+  return (
+    <div className="mb-6 pb-5 border-b border-gray-100">
+      <div className="flex flex-wrap items-center gap-2.5 mb-2">
+        <h2 className="text-lg font-semibold text-gray-900 m-0 tracking-tight">
+          {meta.title}
+        </h2>
+        <ProfileBadge variant={meta.hrManaged ? "hr" : "editable"} />
+      </div>
+      <p className="text-sm text-gray-500 m-0 leading-relaxed max-w-2xl">
+        {meta.description}
+      </p>
+    </div>
+  );
+}
+
+function InfoBanner({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 mb-5">
+      <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+      <p className="text-sm text-blue-900 m-0 leading-relaxed">{children}</p>
+    </div>
+  );
+}
 
 function ReadOnlyField({
   label,
   value,
-  span2 = false,
 }: {
   label: string;
   value: string | null | undefined;
-  span2?: boolean;
 }) {
   return (
-    <div className={span2 ? "min-w-0 md:col-span-2" : "min-w-0"}>
-      <label className={labelClass}>
+    <div>
+      <label className={employeeFilterLabelClass}>
         <span className="inline-flex items-center gap-1">
           {label}
           <Lock className="w-3 h-3 text-gray-400" />
@@ -53,7 +195,6 @@ function ReadOnlyField({
       </label>
       <input
         className={readonlyInputClass}
-        disabled
         readOnly
         tabIndex={-1}
         value={value ?? "—"}
@@ -68,18 +209,18 @@ function EditableField({
   onChange,
   type = "text",
   placeholder,
-  span2 = false,
+  helper,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
-  span2?: boolean;
+  helper?: string;
 }) {
   return (
-    <div className={span2 ? "min-w-0 md:col-span-2" : "min-w-0"}>
-      <label className={labelClass}>{label}</label>
+    <div>
+      <label className={employeeFilterLabelClass}>{label}</label>
       <input
         className={editableInputClass}
         onChange={(e) => onChange(e.target.value)}
@@ -87,6 +228,11 @@ function EditableField({
         type={type}
         value={value}
       />
+      {helper ? (
+        <p className="text-xs text-gray-400 mt-1.5 mb-0 leading-relaxed">
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -96,17 +242,19 @@ function EditableTextArea({
   value,
   onChange,
   placeholder,
+  span2 = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  span2?: boolean;
 }) {
   return (
-    <div className="min-w-0">
-      <label className={labelClass}>{label}</label>
+    <div className={span2 ? "md:col-span-2" : undefined}>
+      <label className={employeeFilterLabelClass}>{label}</label>
       <textarea
-        className={`${editableInputClass} min-h-[80px] resize-y`}
+        className={`${editableInputClass} min-h-[96px] resize-y`}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={3}
@@ -116,92 +264,13 @@ function EditableTextArea({
   );
 }
 
-type Qualification = {
-  id: string;
-  qualification: string;
-  institution: string;
-  boardUniversity: string;
-  yearOfPassing: string;
-  gradePercentage: string;
-};
-
-type EditableState = {
-  // Contact details — persisted via the API.
-  phone: string;
-  personalEmail: string;
-  currentAddress: string;
-  permanentAddress: string;
-  emergencyContactName: string;
-  emergencyContactPhone: string;
-  // Personal & Compliance — frontend-only for now.
-  fatherName: string;
-  motherName: string;
-  panNumber: string;
-  aadhaarNumber: string;
-  uanNumber: string;
-  esicNumber: string;
-  // Academic details — dynamic array, frontend-only for now.
-  academics: Qualification[];
-  // Bank details — frontend-only for now.
-  accountNumber: string;
-  accountName: string;
-  bankName: string;
-  branchName: string;
-  ifscCode: string;
-  isPrimaryAccount: boolean;
-};
-
-// String-valued keys only — keeps the generic `set` helper type-safe.
-// (academics + isPrimaryAccount get their own dedicated handlers.)
 type StringFieldKey = {
-  [K in keyof EditableState]: EditableState[K] extends string ? K : never;
-}[keyof EditableState];
+  [K in keyof ProfileEditableState]: ProfileEditableState[K] extends string
+    ? K
+    : never;
+}[keyof ProfileEditableState];
 
-// Seeds the academics array with the two qualifications every profile has.
-function defaultAcademics(): Qualification[] {
-  return [
-    {
-      id: "class-10",
-      qualification: "Class 10",
-      institution: "",
-      boardUniversity: "",
-      yearOfPassing: "",
-      gradePercentage: "",
-    },
-    {
-      id: "class-12",
-      qualification: "Class 12",
-      institution: "",
-      boardUniversity: "",
-      yearOfPassing: "",
-      gradePercentage: "",
-    },
-  ];
-}
-
-function toEditable(p: MyProfile): EditableState {
-  return {
-    phone: p.phone ?? "",
-    personalEmail: p.personalEmail ?? "",
-    currentAddress: p.currentAddress ?? "",
-    permanentAddress: p.permanentAddress ?? "",
-    emergencyContactName: p.emergencyContactName ?? "",
-    emergencyContactPhone: p.emergencyContactPhone ?? "",
-    fatherName: "",
-    motherName: "",
-    panNumber: "",
-    aadhaarNumber: "",
-    uanNumber: "",
-    esicNumber: "",
-    academics: defaultAcademics(),
-    accountNumber: "",
-    accountName: "",
-    bankName: "",
-    branchName: "",
-    ifscCode: "",
-    isPrimaryAccount: false,
-  };
-}
+const FORM_GRID_CLASS = "grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5";
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -214,23 +283,189 @@ function fmtDate(iso: string | null): string {
   });
 }
 
+function ProfileSidebar({
+  profile,
+  avatarSrc,
+  activeTab,
+  onTabChange,
+  onRequestSeparation,
+  onVerifyPersonalEmail,
+  onVerifyPersonalPhone,
+}: {
+  profile: MyProfile;
+  avatarSrc: string | null;
+  activeTab: ProfileTab;
+  onTabChange: (tab: ProfileTab) => void;
+  onRequestSeparation: () => void;
+  onVerifyPersonalEmail: () => void;
+  onVerifyPersonalPhone: () => void;
+}) {
+  return (
+    <aside className="w-full md:w-[272px] shrink-0 border-b md:border-b-0 md:border-r border-gray-100 bg-white flex flex-col">
+      <div className="px-5 pt-6 pb-5 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-sm font-semibold shrink-0 ring-2 ring-white shadow-sm">
+            {avatarSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt={profile.fullName}
+                className="w-full h-full object-cover"
+                src={avatarSrc}
+              />
+            ) : (
+              profile.initials
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate m-0">
+              {profile.fullName}
+            </p>
+            <p className="text-xs text-gray-500 truncate m-0 mt-0.5">
+              {profile.designation ?? "Employee"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <span className="inline-flex px-2 py-0.5 rounded bg-gray-100 text-[11px] font-medium text-gray-600 tracking-wide">
+            {profile.empId}
+          </span>
+          {profile.department ? (
+            <span className="text-[11px] text-gray-400 truncate">
+              {profile.department}
+            </span>
+          ) : null}
+        </div>
+        <EmployeeEmailRow
+          email={profile.personalEmail}
+          isVerified={profile.personalEmailVerified ?? false}
+          onVerify={onVerifyPersonalEmail}
+          variant="personal"
+        />
+        <EmployeeEmailRow
+          email={profile.workEmail ?? profile.email}
+          variant="official"
+        />
+        <EmployeePhoneRow
+          isVerified={profile.phoneVerified ?? false}
+          onVerify={onVerifyPersonalPhone}
+          phone={profile.phone}
+        />
+      </div>
+
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title}>
+            <p
+              className={`${employeeFieldLabelClass} px-3 mb-2`}
+            >
+              {group.title}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map(({ id, label, icon: Icon }) => {
+                const active = activeTab === id;
+                return (
+                  <button
+                    className={`w-full flex items-center gap-2.5 pl-3 pr-3 py-2.5 rounded-md text-[13px] font-medium transition-all cursor-pointer border-0 border-l-2 ${
+                      active
+                        ? "border-l-[#FF014F] bg-gray-50 text-gray-900"
+                        : "border-l-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    }`}
+                    key={id}
+                    onClick={() => onTabChange(id)}
+                    type="button"
+                  >
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${active ? "text-[#FF014F]" : "text-gray-400"}`}
+                    />
+                    <span className="flex-1 text-left truncate">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      <div className="px-3 pb-5 pt-2 border-t border-gray-100 mt-auto">
+        <button
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer border-0 bg-transparent"
+          onClick={onRequestSeparation}
+          type="button"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>Request Resignation</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function ProfileActionBar({
+  saving,
+  onReset,
+  showReset = true,
+  hint = "Changes are saved to your employee record.",
+}: {
+  saving: boolean;
+  onReset: () => void;
+  showReset?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div className="shrink-0 px-8 py-4 border-t border-gray-100 bg-gray-50/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <p className="text-xs text-gray-500 m-0">{hint}</p>
+      <div className="flex items-center gap-3 shrink-0">
+        {showReset ? (
+          <button
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            disabled={saving}
+            onClick={onReset}
+            type="button"
+          >
+            Reset
+          </button>
+        ) : null}
+        <button
+          className={`${employeeBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+          disabled={saving}
+          type="submit"
+        >
+          {saving ? "Saving…" : "Save Changes"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileForm() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
-  const [form, setForm] = useState<EditableState | null>(null);
+  const [extendedProfile, setExtendedProfile] = useState<EmployeeProfile | null>(
+    null,
+  );
+  const [form, setForm] = useState<ProfileEditableState | null>(null);
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
+  const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
+  const [emailVerifyCooldown, setEmailVerifyCooldown] = useState(60);
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+  const [phoneVerifyCooldown, setPhoneVerifyCooldown] = useState(60);
+  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("profile");
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const pendingPhotoFileRef = useRef<File | null>(null);
 
   async function load() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchMyProfile();
-      setProfile(data);
-      setForm(toEditable(data));
+      const data = await loadEmployeeProfilePage();
+      setProfile(data.profile);
+      setExtendedProfile(data.extended);
+      setForm(data.form);
     } catch (e) {
       setError((e as Error).message ?? "Failed to load profile.");
     } finally {
@@ -240,7 +475,6 @@ export default function ProfileForm() {
 
   useEffect(() => {
     void load();
-    // Revoke any object URL we created for the photo preview on unmount.
     return () => {
       if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
@@ -255,7 +489,7 @@ export default function ProfileForm() {
     setForm((prev) => (prev ? { ...prev, isPrimaryAccount: checked } : prev));
   }
 
-  function updateAcademic(id: string, patch: Partial<Qualification>) {
+  function updateAcademic(id: string, patch: Partial<ProfileQualification>) {
     setForm((prev) =>
       prev
         ? {
@@ -297,54 +531,63 @@ export default function ProfileForm() {
     );
   }
 
+  async function handleVerifyPersonalEmail() {
+    if (!profile?.personalEmail || profile.personalEmailVerified) return;
+    setSendingEmailOtp(true);
+    try {
+      const result = await sendPersonalEmailVerificationOtp();
+      setEmailVerifyCooldown(result.resendCooldownSeconds);
+      setEmailVerifyOpen(true);
+      toast.success("Verification code sent to your personal email.");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Could not send verification code.");
+    } finally {
+      setSendingEmailOtp(false);
+    }
+  }
+
+  async function handleVerifyPersonalPhone() {
+    if (!profile?.phone || profile.phoneVerified) return;
+    setSendingPhoneOtp(true);
+    try {
+      const result = await sendPersonalPhoneVerificationOtp();
+      setPhoneVerifyCooldown(result.resendCooldownSeconds);
+      setPhoneVerifyOpen(true);
+      toast.success("Verification code sent to your mobile number.");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Could not send verification code.");
+    } finally {
+      setSendingPhoneOtp(false);
+    }
+  }
+
   function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (photoPreview) URL.revokeObjectURL(photoPreview);
+    pendingPhotoFileRef.current = file;
     setPhotoPreview(URL.createObjectURL(file));
   }
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form) return;
+    if (!form || !extendedProfile) return;
     setSaving(true);
     try {
-      // Persist the API-backed contact fields.
-      await updateMyProfile({
-        phone: form.phone.trim(),
-        personalEmail: form.personalEmail.trim(),
-        currentAddress: form.currentAddress.trim(),
-        permanentAddress: form.permanentAddress.trim(),
-        emergencyContactName: form.emergencyContactName.trim(),
-        emergencyContactPhone: form.emergencyContactPhone.trim(),
-      });
+      if (pendingPhotoFileRef.current) {
+        await uploadProfilePhoto(pendingPhotoFileRef.current);
+        pendingPhotoFileRef.current = null;
+        if (photoPreview) {
+          URL.revokeObjectURL(photoPreview);
+          setPhotoPreview(null);
+        }
+      }
 
-      // Personal & Compliance, Academics and Bank details are captured in
-      // local state and ready for backend wiring (frontend-only for now).
-      const pendingFrontendOnly = {
-        personal: {
-          fatherName: form.fatherName.trim(),
-          motherName: form.motherName.trim(),
-        },
-        compliance: {
-          panNumber: form.panNumber.trim(),
-          aadhaarNumber: form.aadhaarNumber.trim(),
-          uanNumber: form.uanNumber.trim(),
-          esicNumber: form.esicNumber.trim(),
-        },
-        academics: form.academics,
-        bank: {
-          accountNumber: form.accountNumber.trim(),
-          accountName: form.accountName.trim(),
-          bankName: form.bankName.trim(),
-          branchName: form.branchName.trim(),
-          ifscCode: form.ifscCode.trim(),
-          isPrimary: form.isPrimaryAccount,
-        },
-      };
-      console.debug("[profile] pending (not yet persisted):", pendingFrontendOnly);
-
-      toast.success("Profile updated.");
+      const data = await saveEmployeeProfilePage(form, extendedProfile);
+      setProfile(data.profile);
+      setExtendedProfile(data.extended);
+      setForm(data.form);
+      toast.success("Profile updated successfully.");
     } catch (err) {
       toast.error((err as Error).message ?? "Failed to update profile.");
     } finally {
@@ -374,356 +617,399 @@ export default function ProfileForm() {
   }
 
   const avatarSrc = photoPreview ?? profile.avatarUrl;
+  const showActionBar = activeTab !== "employment";
 
   return (
     <>
-    <form className={`${employeeCardClass} overflow-hidden`} onSubmit={onSave}>
-      <div className="p-6">
-        <div className={employeeFormSectionsGridClass}>
-          <EmployeeFormSection
-            description="Identity details managed by HR. These cannot be edited here."
-            title="Basic Information"
-          >
-            {/* Profile photo */}
-            <div className="md:col-span-2 flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-violet-600 flex items-center justify-center text-white text-xl font-bold shrink-0">
-                {avatarSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    alt={profile.fullName}
-                    className="w-full h-full object-cover"
-                    src={avatarSrc}
+      <form
+        className={`${employeeCardClass} overflow-hidden shadow-sm`}
+        onSubmit={onSave}
+      >
+        <div className="flex flex-col md:flex-row min-h-[620px]">
+          <ProfileSidebar
+            activeTab={activeTab}
+            avatarSrc={avatarSrc}
+            onRequestSeparation={() => setExitOpen(true)}
+            onTabChange={setActiveTab}
+            onVerifyPersonalEmail={() => {
+              if (!sendingEmailOtp) void handleVerifyPersonalEmail();
+            }}
+            onVerifyPersonalPhone={() => {
+              if (!sendingPhoneOtp) void handleVerifyPersonalPhone();
+            }}
+            profile={profile}
+          />
+
+          <div className="flex-1 flex flex-col min-w-0 bg-white">
+            <div className="flex-1 px-8 py-7 overflow-y-auto">
+              <ProfileSectionHeader tab={activeTab} />
+
+              {activeTab === "profile" && (
+                <div className="max-w-3xl">
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-5 mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-xl font-semibold shrink-0 ring-4 ring-white shadow-md">
+                        {avatarSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            alt={profile.fullName}
+                            className="w-full h-full object-cover"
+                            src={avatarSrc}
+                          />
+                        ) : (
+                          profile.initials
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 m-0">
+                          Profile Photo
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 mb-3 leading-relaxed">
+                          Upload a professional headshot. Accepted formats: JPG,
+                          PNG. Maximum size 2&nbsp;MB.
+                        </p>
+                        <button
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
+                          onClick={() => fileRef.current?.click()}
+                          type="button"
+                        >
+                          <Upload className="w-4 h-4 text-gray-500" />
+                          Upload Image
+                        </button>
+                        <input
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={onPhotoChange}
+                          ref={fileRef}
+                          type="file"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={FORM_GRID_CLASS}>
+                    <ReadOnlyField label="Employee ID" value={profile.empId} />
+                    <ReadOnlyField label="Full Name" value={profile.fullName} />
+                    <div className="md:col-span-2">
+                      <ReadOnlyField
+                        label="Work Email"
+                        value={profile.workEmail}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "contact" && (
+                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                  <EditableField
+                    helper="Used for urgent communication and emergency outreach."
+                    label="Phone Number"
+                    onChange={(v) => set("phone", v)}
+                    placeholder="9999900000"
+                    type="tel"
+                    value={form.phone}
                   />
-                ) : (
-                  profile.initials
-                )}
-              </div>
-              <div>
-                <button
-                  className={employeeBtnOutlineSmClass}
-                  onClick={() => fileRef.current?.click()}
-                  type="button"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  Change Photo
-                </button>
-                <input
-                  accept="image/png,image/jpeg,image/jpg"
-                  className="hidden"
-                  onChange={onPhotoChange}
-                  ref={fileRef}
-                  type="file"
-                />
-                <p className="text-xs text-gray-400 mt-1.5 mb-0">
-                  JPG or PNG, up to 2&nbsp;MB.
-                </p>
-              </div>
-            </div>
-
-            <ReadOnlyField label="Employee ID" value={profile.empId} />
-            <ReadOnlyField label="Full Name" value={profile.fullName} />
-            <ReadOnlyField label="Work Email" value={profile.workEmail} span2 />
-          </EmployeeFormSection>
-
-          <section className={employeeFormSectionClass}>
-            <div className={employeeFormSectionHeaderClass}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className={employeeFormSectionTitleClass}>
-                    Contact Details
-                  </h3>
-                  <p className={employeeFormSectionDescClass}>
-                    Your contact details. You can update these yourself.
-                  </p>
+                  <EditableField
+                    label="Personal Email"
+                    onChange={(v) => set("personalEmail", v)}
+                    placeholder="you@example.com"
+                    type="email"
+                    value={form.personalEmail}
+                  />
+                  <EditableTextArea
+                    label="Current Address"
+                    onChange={(v) => set("currentAddress", v)}
+                    placeholder="House / street / city / state / PIN"
+                    span2
+                    value={form.currentAddress}
+                  />
+                  <EditableTextArea
+                    label="Permanent Address"
+                    onChange={(v) => set("permanentAddress", v)}
+                    placeholder="House / street / city / state / PIN"
+                    span2
+                    value={form.permanentAddress}
+                  />
                 </div>
-                <button
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#dc2626] bg-white border border-[#fca5a5] rounded-lg hover:bg-[#fef2f2] transition-colors cursor-pointer shrink-0"
-                  onClick={() => setExitOpen(true)}
-                  type="button"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  Exit
-                </button>
-              </div>
-            </div>
-            <div className={employeeFormSectionBodyClass}>
-              <EditableField
-                label="Phone Number"
-                onChange={(v) => set("phone", v)}
-                placeholder="9999900000"
-                type="tel"
-                value={form.phone}
-              />
-              <EditableField
-                label="Personal Email"
-                onChange={(v) => set("personalEmail", v)}
-                placeholder="you@example.com"
-                type="email"
-                value={form.personalEmail}
-              />
-              <EditableTextArea
-                label="Current Address"
-                onChange={(v) => set("currentAddress", v)}
-                placeholder="House / street / city / state / PIN"
-                value={form.currentAddress}
-              />
-              <EditableTextArea
-                label="Permanent Address"
-                onChange={(v) => set("permanentAddress", v)}
-                placeholder="House / street / city / state / PIN"
-                value={form.permanentAddress}
-              />
-            </div>
-          </section>
+              )}
 
-          <EmployeeFormSection
-            dense
-            description="Job placement and reporting line. Managed by HR/admin."
-            title="Employment Details"
-          >
-            <ReadOnlyField
-              label="Date of Joining"
-              value={fmtDate(profile.joiningDate)}
-            />
-            <ReadOnlyField label="Department" value={profile.department} />
-            <ReadOnlyField label="Designation" value={profile.designation} />
-            <ReadOnlyField
-              label="Employment Type"
-              value={profile.employmentType}
-            />
-            <ReadOnlyField
-              label="Reporting Manager"
-              value={profile.reportingManager}
-            />
-          </EmployeeFormSection>
-
-          <EmployeeFormSection
-            description="Who we should reach in case of an emergency."
-            title="Emergency Contact"
-          >
-            <EditableField
-              label="Contact Name"
-              onChange={(v) => set("emergencyContactName", v)}
-              placeholder="Full name"
-              value={form.emergencyContactName}
-            />
-            <EditableField
-              label="Contact Phone"
-              onChange={(v) => set("emergencyContactPhone", v)}
-              placeholder="9999900000"
-              type="tel"
-              value={form.emergencyContactPhone}
-            />
-          </EmployeeFormSection>
-        </div>
-
-        <div className="mt-5 space-y-5">
-          {/* ── Personal & Compliance ───────────────────────────────── */}
-          <EmployeeFormSection
-            dense
-            description="Family and statutory identifiers."
-            title="Personal & Compliance"
-          >
-            <EditableField
-              label="Father's Name"
-              onChange={(v) => set("fatherName", v)}
-              placeholder="Full name"
-              value={form.fatherName}
-            />
-            <EditableField
-              label="Mother's Name"
-              onChange={(v) => set("motherName", v)}
-              placeholder="Full name"
-              value={form.motherName}
-            />
-            <EditableField
-              label="PAN Number"
-              onChange={(v) => set("panNumber", v)}
-              placeholder="ABCDE1234F"
-              value={form.panNumber}
-            />
-            <EditableField
-              label="Aadhaar Number"
-              onChange={(v) => set("aadhaarNumber", v)}
-              placeholder="1234 5678 9012"
-              value={form.aadhaarNumber}
-            />
-            <EditableField
-              label="UAN"
-              onChange={(v) => set("uanNumber", v)}
-              placeholder="12-digit UAN"
-              value={form.uanNumber}
-            />
-            <EditableField
-              label="ESIC"
-              onChange={(v) => set("esicNumber", v)}
-              placeholder="ESIC number"
-              value={form.esicNumber}
-            />
-          </EmployeeFormSection>
-
-          {/* ── Academic Details (dynamic array) ────────────────────── */}
-          <section className={employeeFormSectionClass}>
-            <div className={employeeFormSectionHeaderClass}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className={employeeFormSectionTitleClass}>
-                    Academic Details
-                  </h3>
-                  <p className={employeeFormSectionDescClass}>
-                    Your educational qualifications.
-                  </p>
-                </div>
-                <button
-                  className={employeeBtnOutlineSmClass}
-                  onClick={addAcademic}
-                  type="button"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add qualification
-                </button>
-              </div>
-            </div>
-            <div className="px-5 py-5 space-y-4">
-              {form.academics.map((a, i) => (
-                <div
-                  className="border border-gray-200 rounded-lg p-4"
-                  key={a.id}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                      Qualification {i + 1}
-                    </span>
-                    {form.academics.length > 1 && (
-                      <button
-                        aria-label="Remove qualification"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-500 bg-transparent border-0 cursor-pointer p-0 transition-colors"
-                        onClick={() => removeAcademic(a.id)}
-                        type="button"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
-                    <EditableField
-                      label="Qualification"
-                      onChange={(v) => updateAcademic(a.id, { qualification: v })}
-                      placeholder="e.g. Class 10"
-                      value={a.qualification}
+              {activeTab === "employment" && (
+                <div className="max-w-3xl">
+                  <InfoBanner>
+                    Employment details are managed by HR and cannot be modified
+                    from this page. Contact HR for updates to your role,
+                    department, or reporting manager.
+                  </InfoBanner>
+                  <div className={FORM_GRID_CLASS}>
+                    <ReadOnlyField
+                      label="Date of Joining"
+                      value={fmtDate(profile.joiningDate)}
                     />
-                    <EditableField
-                      label="Institution / School"
-                      onChange={(v) => updateAcademic(a.id, { institution: v })}
-                      placeholder="Name"
-                      value={a.institution}
+                    <ReadOnlyField
+                      label="Employment Type"
+                      value={profile.employmentType}
                     />
-                    <EditableField
-                      label="Board / University"
-                      onChange={(v) =>
-                        updateAcademic(a.id, { boardUniversity: v })
-                      }
-                      placeholder="e.g. CBSE"
-                      value={a.boardUniversity}
+                    <ReadOnlyField
+                      label="Department"
+                      value={profile.department}
                     />
-                    <EditableField
-                      label="Year of Passing"
-                      onChange={(v) => updateAcademic(a.id, { yearOfPassing: v })}
-                      placeholder="2018"
-                      value={a.yearOfPassing}
+                    <ReadOnlyField
+                      label="Designation"
+                      value={profile.designation}
                     />
-                    <EditableField
-                      label="Grade / Percentage"
-                      onChange={(v) =>
-                        updateAcademic(a.id, { gradePercentage: v })
-                      }
-                      placeholder="e.g. 85%"
-                      value={a.gradePercentage}
-                    />
+                    <ReadOnlyField label="Grade" value={profile.grade} />
+                    <ReadOnlyField label="Branch" value={profile.branch} />
+                    <div className="md:col-span-2">
+                      <ReadOnlyField
+                        label="Reporting Manager"
+                        value={profile.reportingManager}
+                      />
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
+              )}
 
-          {/* ── Bank Details ────────────────────────────────────────── */}
-          <EmployeeFormSection
-            dense
-            description="Salary account details."
-            title="Bank Details"
-          >
-            <EditableField
-              label="Account Number"
-              onChange={(v) => set("accountNumber", v)}
-              placeholder="Account number"
-              value={form.accountNumber}
-            />
-            <EditableField
-              label="Account Name"
-              onChange={(v) => set("accountName", v)}
-              placeholder="As per bank records"
-              value={form.accountName}
-            />
-            <EditableField
-              label="Bank Name"
-              onChange={(v) => set("bankName", v)}
-              placeholder="e.g. HDFC Bank"
-              value={form.bankName}
-            />
-            <EditableField
-              label="Branch"
-              onChange={(v) => set("branchName", v)}
-              placeholder="Branch name"
-              value={form.branchName}
-            />
-            <EditableField
-              label="IFSC Code"
-              onChange={(v) => set("ifscCode", v)}
-              placeholder="HDFC0001234"
-              value={form.ifscCode}
-            />
-            <div className="min-w-0 flex items-end">
-              <label className="flex items-center gap-2 cursor-pointer pb-2">
-                <input
-                  checked={form.isPrimaryAccount}
-                  className="w-4 h-4 accent-[#FF014F] cursor-pointer"
-                  onChange={(e) => setPrimaryAccount(e.target.checked)}
-                  type="checkbox"
-                />
-                <span className="text-[13px] text-gray-700">
-                  Primary account
-                </span>
-              </label>
+              {activeTab === "emergency" && (
+                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                  <EditableField
+                    label="Contact Name"
+                    onChange={(v) => set("emergencyContactName", v)}
+                    placeholder="Full name"
+                    value={form.emergencyContactName}
+                  />
+                  <EditableField
+                    helper="We collect this in case of emergencies."
+                    label="Contact Phone"
+                    onChange={(v) => set("emergencyContactPhone", v)}
+                    placeholder="9999900000"
+                    type="tel"
+                    value={form.emergencyContactPhone}
+                  />
+                </div>
+              )}
+
+              {activeTab === "personal" && (
+                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                  <EditableField
+                    label="Father's Name"
+                    onChange={(v) => set("fatherName", v)}
+                    placeholder="Full name"
+                    value={form.fatherName}
+                  />
+                  <EditableField
+                    label="Mother's Name"
+                    onChange={(v) => set("motherName", v)}
+                    placeholder="Full name"
+                    value={form.motherName}
+                  />
+                  <EditableField
+                    label="PAN Number"
+                    onChange={(v) => set("panNumber", v)}
+                    placeholder="ABCDE1234F"
+                    value={form.panNumber}
+                  />
+                  <EditableField
+                    label="Aadhaar Number"
+                    onChange={(v) => set("aadhaarNumber", v)}
+                    placeholder="1234 5678 9012"
+                    value={form.aadhaarNumber}
+                  />
+                  <EditableField
+                    label="UAN"
+                    onChange={(v) => set("uanNumber", v)}
+                    placeholder="12-digit UAN"
+                    value={form.uanNumber}
+                  />
+                  <EditableField
+                    label="ESIC"
+                    onChange={(v) => set("esicNumber", v)}
+                    placeholder="ESIC number"
+                    value={form.esicNumber}
+                  />
+                </div>
+              )}
+
+              {activeTab === "academics" && (
+                <div className="max-w-3xl space-y-4">
+                  {form.academics.map((a, i) => (
+                    <div
+                      className="rounded-lg border border-gray-100 bg-gray-50/30 overflow-hidden"
+                      key={a.id}
+                    >
+                      <div className="flex items-center justify-between px-5 py-3.5 bg-gray-50 border-b border-gray-100">
+                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Qualification {i + 1}
+                        </span>
+                        {form.academics.length > 1 && (
+                          <button
+                            aria-label="Remove qualification"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-red-600 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                            onClick={() => removeAcademic(a.id)}
+                            type="button"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className={`p-5 ${FORM_GRID_CLASS}`}>
+                        <EditableField
+                          label="Qualification"
+                          onChange={(v) =>
+                            updateAcademic(a.id, { qualification: v })
+                          }
+                          placeholder="e.g. Class 10"
+                          value={a.qualification}
+                        />
+                        <EditableField
+                          label="Institution / School"
+                          onChange={(v) =>
+                            updateAcademic(a.id, { institution: v })
+                          }
+                          placeholder="Name"
+                          value={a.institution}
+                        />
+                        <EditableField
+                          label="Board / University"
+                          onChange={(v) =>
+                            updateAcademic(a.id, { boardUniversity: v })
+                          }
+                          placeholder="e.g. CBSE"
+                          value={a.boardUniversity}
+                        />
+                        <EditableField
+                          label="Year of Passing"
+                          onChange={(v) =>
+                            updateAcademic(a.id, { yearOfPassing: v })
+                          }
+                          placeholder="2018"
+                          value={a.yearOfPassing}
+                        />
+                        <EditableField
+                          label="Grade / Percentage"
+                          onChange={(v) =>
+                            updateAcademic(a.id, { gradePercentage: v })
+                          }
+                          placeholder="e.g. 85%"
+                          value={a.gradePercentage}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    className={employeeBtnOutlineSmClass}
+                    onClick={addAcademic}
+                    type="button"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Qualification
+                  </button>
+                </div>
+              )}
+
+              {activeTab === "bank" && (
+                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                  <EditableField
+                    label="Account Number"
+                    onChange={(v) => set("accountNumber", v)}
+                    placeholder="Account number"
+                    value={form.accountNumber}
+                  />
+                  <EditableField
+                    label="Account Name"
+                    onChange={(v) => set("accountName", v)}
+                    placeholder="As per bank records"
+                    value={form.accountName}
+                  />
+                  <EditableField
+                    label="Bank Name"
+                    onChange={(v) => set("bankName", v)}
+                    placeholder="e.g. HDFC Bank"
+                    value={form.bankName}
+                  />
+                  <EditableField
+                    label="Branch"
+                    onChange={(v) => set("branchName", v)}
+                    placeholder="Branch name"
+                    value={form.branchName}
+                  />
+                  <EditableField
+                    label="IFSC Code"
+                    onChange={(v) => set("ifscCode", v)}
+                    placeholder="HDFC0001234"
+                    value={form.ifscCode}
+                  />
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2.5 cursor-pointer h-[42px]">
+                      <input
+                        checked={form.isPrimaryAccount}
+                        className="w-4 h-4 accent-[#FF014F] cursor-pointer"
+                        onChange={(e) => setPrimaryAccount(e.target.checked)}
+                        type="checkbox"
+                      />
+                      <span className="text-sm text-gray-700">
+                        Mark as primary salary account
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
-          </EmployeeFormSection>
+
+            {showActionBar ? (
+              <ProfileActionBar
+                hint={
+                  TAB_META[activeTab].hrManaged
+                    ? "Profile photo is saved when you click Save Changes."
+                    : "Changes are saved to your employee record."
+                }
+                onReset={() => {
+                  pendingPhotoFileRef.current = null;
+                  if (photoPreview) {
+                    URL.revokeObjectURL(photoPreview);
+                    setPhotoPreview(null);
+                  }
+                  if (profile && extendedProfile) {
+                    setForm(profilePageToEditable(profile, extendedProfile));
+                  }
+                }}
+                saving={saving}
+                showReset={!TAB_META[activeTab].hrManaged}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      </form>
 
-      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
-        <button
-          className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-          disabled={saving}
-          onClick={() => setForm(toEditable(profile))}
-          type="button"
-        >
-          Reset
-        </button>
-        <button
-          className={`${employeeBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
-          disabled={saving}
-          type="submit"
-        >
-          {saving ? "Saving…" : "Save Changes"}
-        </button>
-      </div>
-    </form>
-    {exitOpen && <ResignationExitDialog onClose={() => setExitOpen(false)} />}
+      {exitOpen && <ResignationExitDialog onClose={() => setExitOpen(false)} />}
+      <PersonalEmailVerificationDialog
+        email={profile.personalEmail}
+        initialCooldownSeconds={emailVerifyCooldown}
+        onClose={() => setEmailVerifyOpen(false)}
+        onVerified={async () => {
+          const data = await loadEmployeeProfilePage();
+          setProfile(data.profile);
+          setExtendedProfile(data.extended);
+          setForm(data.form);
+        }}
+        open={emailVerifyOpen}
+      />
+      <PersonalPhoneVerificationDialog
+        initialCooldownSeconds={phoneVerifyCooldown}
+        onClose={() => setPhoneVerifyOpen(false)}
+        onVerified={async () => {
+          const data = await loadEmployeeProfilePage();
+          setProfile(data.profile);
+          setExtendedProfile(data.extended);
+          setForm(data.form);
+        }}
+        open={phoneVerifyOpen}
+        phone={profile.phone}
+      />
     </>
   );
 }
-
-// ── Exit → Resignation dialog (frontend-only, no API) ─────────────────────────
 
 const RESIGNATION_REASONS = [
   "Better Opportunity",
@@ -736,10 +1022,6 @@ const RESIGNATION_REASONS = [
   "Compensation",
 ];
 
-const dlgLabelClass = "block text-sm font-semibold text-gray-800 mb-1.5";
-const dlgControlClass =
-  "w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-800 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-colors";
-
 function ResignationExitDialog({ onClose }: { onClose: () => void }) {
   const [lwd, setLwd] = useState("");
   const [reason, setReason] = useState("");
@@ -747,6 +1029,18 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [buyout, setBuyout] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -759,135 +1053,141 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <form
-        className="w-full max-w-[640px] bg-white rounded-xl border border-gray-400 shadow-2xl overflow-hidden"
-        onSubmit={submit}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900 m-0">Resignation</h2>
-          <button
-            aria-label="Close"
-            className="text-gray-400 hover:text-gray-600 bg-transparent border-0 cursor-pointer p-0"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Close dialog"
+        className="absolute inset-0 bg-black/50 border-0 cursor-default"
+        onClick={onClose}
+        type="button"
+      />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl px-4">
+        <form
+          className="bg-white rounded-xl shadow-2xl overflow-hidden"
+          onSubmit={submit}
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div>
-              <label className={dlgLabelClass}>
-                Last Working Day <span className="text-red-500">*</span>
-              </label>
-              <input
-                className={dlgControlClass}
-                onChange={(e) => setLwd(e.target.value)}
-                type="date"
-                value={lwd}
-              />
+              <h3 className="text-base font-semibold text-gray-900 m-0">
+                Request Resignation
+              </h3>
+              <p className="text-xs text-gray-500 mt-1 mb-0">
+                Submit your resignation for HR review
+              </p>
             </div>
-            <div>
-              <label className={dlgLabelClass}>
-                Reason <span className="text-red-500">*</span>
-              </label>
-              <select
-                className={`${dlgControlClass} cursor-pointer ${reason ? "" : "text-gray-400"}`}
-                onChange={(e) => setReason(e.target.value)}
-                value={reason}
-              >
-                <option value="">Select reason</option>
-                {RESIGNATION_REASONS.map((r) => (
-                  <option className="text-gray-800" key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className={dlgLabelClass}>
-              Detailed Remarks <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              className={`${dlgControlClass} min-h-[96px] resize-y`}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Enter detailed remarks..."
-              rows={4}
-              value={remarks}
-            />
-          </div>
-
-          <div>
-            <label className={dlgLabelClass}>Attachment</label>
             <button
-              className="w-full flex items-center gap-3 px-4 py-3 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 text-left cursor-pointer bg-white transition-colors"
-              onClick={() => fileRef.current?.click()}
+              aria-label="Close"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer"
+              onClick={onClose}
               type="button"
             >
-              <span className="flex items-center justify-center w-9 h-9 rounded-md bg-blue-50 text-blue-500 shrink-0">
-                <Paperclip className="w-4 h-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-700">
-                  Choose file
-                </span>
-                <span className="block text-xs text-gray-400 truncate">
-                  {fileName ?? "No file chosen"}
-                </span>
-              </span>
+              <X className={`${employeeIconMd} text-gray-500`} />
             </button>
-            <input
-              className="hidden"
-              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-              ref={fileRef}
-              type="file"
-            />
           </div>
 
-          <div>
-            <label className={dlgLabelClass}>Notice Buyout Request</label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                checked={buyout}
-                className="w-4 h-4 accent-blue-600 cursor-pointer"
-                onChange={(e) => setBuyout(e.target.checked)}
-                type="checkbox"
+          <div className="px-6 py-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className={employeeFilterLabelClass}>
+                  Last Working Day <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className={employeeInputClass}
+                  onChange={(e) => setLwd(e.target.value)}
+                  type="date"
+                  value={lwd}
+                />
+              </div>
+              <div>
+                <label className={employeeFilterLabelClass}>
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className={`${employeeSelectClass} ${reason ? "" : "text-gray-400"}`}
+                  onChange={(e) => setReason(e.target.value)}
+                  value={reason}
+                >
+                  <option value="">Select reason</option>
+                  {RESIGNATION_REASONS.map((r) => (
+                    <option className="text-gray-800" key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className={employeeFilterLabelClass}>
+                Detailed Remarks <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className={`${employeeInputClass} min-h-[96px] resize-y`}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Enter detailed remarks..."
+                rows={4}
+                value={remarks}
               />
-              <span className="text-sm text-gray-700">
-                Yes, I want to request a notice buyout
-              </span>
-            </label>
-          </div>
-        </div>
+            </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
-          <button
-            className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer transition-colors"
-            type="submit"
-          >
-            Submit
-          </button>
-        </div>
-      </form>
+            <div>
+              <label className={employeeFilterLabelClass}>Attachment</label>
+              <button
+                className="w-full flex items-center gap-3 px-4 py-3 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 text-left cursor-pointer bg-white transition-colors"
+                onClick={() => fileRef.current?.click()}
+                type="button"
+              >
+                <span className="flex items-center justify-center w-9 h-9 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0">
+                  <Paperclip className="w-4 h-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-gray-700">
+                    Choose file
+                  </span>
+                  <span className="block text-xs text-gray-400 truncate">
+                    {fileName ?? "No file chosen"}
+                  </span>
+                </span>
+              </button>
+              <input
+                className="hidden"
+                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                ref={fileRef}
+                type="file"
+              />
+            </div>
+
+            <div>
+              <label className={employeeFilterLabelClass}>
+                Notice Buyout Request
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer mt-1.5">
+                <input
+                  checked={buyout}
+                  className="w-4 h-4 accent-[#FF014F] cursor-pointer"
+                  onChange={(e) => setBuyout(e.target.checked)}
+                  type="checkbox"
+                />
+                <span className="text-sm text-gray-700">
+                  Yes, I want to request a notice buyout
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <button
+              className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm cursor-pointer transition-colors"
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button className={employeeBtnClass} type="submit">
+              Submit Request
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

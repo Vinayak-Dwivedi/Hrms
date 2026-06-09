@@ -23,6 +23,9 @@
     "seed:hrms": "node scripts/seed-hrms-demo.mjs",
     "seed:holidays": "node scripts/seed-holidays.mjs",
     "seed:rbac": "node scripts/seed-rbac.mjs",
+    "db:migrate-designation-code": "node scripts/apply-designation-code-schema.mjs",
+    "db:migrate-personal-email-verification": "node scripts/apply-personal-email-verification-schema.mjs",
+    "db:migrate-phone-verification": "node scripts/apply-phone-verification-schema.mjs",
     "db:migrate-sensitive-schema": "node scripts/apply-sensitive-schema.mjs",
     "migrate:encrypt-sensitive": "node scripts/apply-sensitive-schema.mjs && node scripts/migrate-encrypt-sensitive-fields.mjs",
     "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/middleware/require-permission.test.ts"

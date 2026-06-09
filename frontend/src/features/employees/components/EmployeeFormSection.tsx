@@ -15,6 +15,8 @@ interface Props {
   title: string;
   description?: string;
   dense?: boolean;
+  headerAction?: ReactNode;
+  bodyClassName?: string;
   children: ReactNode;
 }
 
@@ -22,19 +24,36 @@ export default function EmployeeFormSection({
   title,
   description,
   dense = false,
+  headerAction,
+  bodyClassName,
   children,
 }: Props) {
   return (
     <section className={employeeFormSectionClass}>
       <div className={employeeFormSectionHeaderClass}>
-        <h3 className={employeeFormSectionTitleClass}>{title}</h3>
-        {description ? (
-          <p className={employeeFormSectionDescClass}>{description}</p>
-        ) : null}
+        {headerAction ? (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className={employeeFormSectionTitleClass}>{title}</h3>
+              {description ? (
+                <p className={employeeFormSectionDescClass}>{description}</p>
+              ) : null}
+            </div>
+            <div className="shrink-0">{headerAction}</div>
+          </div>
+        ) : (
+          <>
+            <h3 className={employeeFormSectionTitleClass}>{title}</h3>
+            {description ? (
+              <p className={employeeFormSectionDescClass}>{description}</p>
+            ) : null}
+          </>
+        )}
       </div>
       <div
         className={cn(
           dense ? employeeFormSectionBodyDenseClass : employeeFormSectionBodyClass,
+          bodyClassName,
         )}
       >
         {children}

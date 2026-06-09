@@ -209,6 +209,55 @@ function buildInvitationHtml(params: ResolvedInvitationParams): string {
   `.trim();
 }
 
+export type PersonalEmailVerificationParams = {
+  to: string;
+  employeeName: string;
+  otp: string;
+  expiresInMinutes: number;
+};
+
+export async function sendPersonalEmailVerificationOtp(
+  params: PersonalEmailVerificationParams,
+): Promise<void> {
+  const transport = createTransport();
+  const subject = `${env.COMPANY_NAME} — Verify your personal email`;
+  const text = [
+    `Hello ${params.employeeName},`,
+    "",
+    `Your verification code is: ${params.otp}`,
+    "",
+    `This code expires in ${params.expiresInMinutes} minutes.`,
+    "If you did not request this, you can ignore this email.",
+  ].join("\n");
+  const html = `
+    <p>Hello ${params.employeeName},</p>
+    <p>Your verification code is:</p>
+    <p style="font-size:24px;font-weight:bold;letter-spacing:4px;">${params.otp}</p>
+    <p>This code expires in ${params.expiresInMinutes} minutes.</p>
+    <p>If you did not request this, you can ignore this email.</p>
+  `.trim();
+
+  if (!transport) {
+    if (env.NODE_ENV !== "production") {
+      console.info(
+        "[mailer] SMTP not configured — personal email OTP (dev log):",
+      );
+      console.info(`To: ${params.to}`);
+      console.info(`Subject: ${subject}`);
+      console.info(`OTP: ${params.otp}`);
+    }
+    return;
+  }
+
+  await transport.sendMail({
+    from: env.SMTP_FROM,
+    to: params.to,
+    subject,
+    text,
+    html,
+  });
+}
+
 export async function sendOnboardingInvitation(
   params: OnboardingInvitationParams,
 ): Promise<void> {

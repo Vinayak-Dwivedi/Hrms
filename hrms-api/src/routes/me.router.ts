@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
@@ -23,8 +25,24 @@ import {
   todayYmd,
   ymd,
 } from "@/lib/employee";
+import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
+import { env } from "@/env";
 import { ApiError } from "@/middleware/error";
+import {
+  PROFILE_PIC_SUBDIR,
+  profilePhotoUpload,
+} from "@/middleware/profile-photo.middleware";
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
+
+function resolveProfilePhotoDiskPath(
+  profilePhotoUrl: string | null | undefined,
+): string | null {
+  if (!profilePhotoUrl?.startsWith(`/uploads/${PROFILE_PIC_SUBDIR}/`)) {
+    return null;
+  }
+  const filename = path.basename(profilePhotoUrl);
+  return path.join(env.UPLOAD_DIR, PROFILE_PIC_SUBDIR, filename);
+}
 
 export const meRouter: Router = Router();
 
@@ -79,8 +97,13 @@ meRouter.get("/", async (req, res, next) => {
       avatarUrl: emp.profilePhotoUrl ?? null,
       email: req.user!.email,
       personalEmail: emp.personalEmail,
+      personalEmailVerified: emp.personalEmailVerified,
+      personalEmailVerifiedAt:
+        emp.personalEmailVerifiedAt?.toISOString() ?? null,
       workEmail: emp.workEmail,
       phone: emp.phone,
+      phoneVerified: emp.phoneVerified,
+      phoneVerifiedAt: emp.phoneVerifiedAt?.toISOString() ?? null,
       gender: emp.gender,
       dob: emp.dob,
       role: designation?.name ?? null,
@@ -119,6 +142,45 @@ const updateMeSchema = z
   })
   .strict();
 
+// ── POST /api/me/profile-photo ──────────────────────────────────────────────
+meRouter.post(
+  "/profile-photo",
+  profilePhotoUpload.single("file"),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        throw new ApiError(400, "NO_FILE", "No image uploaded.");
+      }
+
+      const emp = await loadCurrentEmployee(req.user!.id);
+      const relativeUrl = `/uploads/${PROFILE_PIC_SUBDIR}/${req.file.filename}`;
+      const oldPath = resolveProfilePhotoDiskPath(emp.profilePhotoUrl);
+      if (oldPath && fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+
+      await db
+        .update(employees)
+        .set({
+          profilePhotoUrl: relativeUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(employees.id, emp.id));
+
+      res.json({
+        ok: true,
+        avatarUrl: relativeUrl,
+        profilePhotoUrl: relativeUrl,
+      });
+    } catch (e) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      next(e);
+    }
+  },
+);
+
 meRouter.patch("/", async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
@@ -135,11 +197,29 @@ meRouter.patch("/", async (req, res, next) => {
       );
     }
 
+    const nextPersonalEmail = body.personalEmail.toLowerCase();
+    const emailChanged =
+      nextPersonalEmail !== emp.personalEmail.toLowerCase();
+    const phoneChanged = body.phone !== emp.phone;
+    const columnSupport = await getEmployeeColumnSupport();
+
     await db
       .update(employees)
       .set({
         phone: body.phone,
-        personalEmail: body.personalEmail.toLowerCase(),
+        personalEmail: nextPersonalEmail,
+        ...(emailChanged && columnSupport.personalEmailVerified
+          ? {
+              personalEmailVerified: false,
+              personalEmailVerifiedAt: null,
+            }
+          : {}),
+        ...(phoneChanged && columnSupport.phoneVerified
+          ? {
+              phoneVerified: false,
+              phoneVerifiedAt: null,
+            }
+          : {}),
         currentAddress: body.currentAddress?.trim() || null,
         permanentAddress: body.permanentAddress?.trim() || null,
         emergencyContactName: body.emergencyContactName?.trim() || null,
