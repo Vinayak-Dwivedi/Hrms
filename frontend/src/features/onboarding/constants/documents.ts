@@ -43,7 +43,7 @@ export const ONBOARDING_DOCUMENT_SECTIONS = [
     id: "educational",
     title: "Educational documents",
     description:
-      "Upload degree certificates, mark sheets, or other academic records.",
+      "",
     types: EDUCATIONAL_DOCUMENT_TYPES,
     required: false,
   },
@@ -51,7 +51,7 @@ export const ONBOARDING_DOCUMENT_SECTIONS = [
     id: "professional",
     title: "Professional documents",
     description:
-      "Upload experience letters, relieving letters, offer letters, or pay slips.",
+      "",
     types: PROFESSIONAL_DOCUMENT_TYPES,
     required: false,
   },

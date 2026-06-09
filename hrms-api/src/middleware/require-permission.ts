@@ -33,18 +33,38 @@ const JWT_ROLE_DEFAULT_PERMISSIONS: Record<string, readonly string[]> = {
     "attendance.view",
     "payroll.view",
   ],
+  hr: [
+    "employees.view",
+    "employees.create",
+    "employees.edit",
+    "leave.view",
+    "attendance.view",
+    "attendance.upload",
+    "onboarding.view",
+    "onboarding.manage",
+    "onboarding.verify_documents",
+    "onboarding.resend_invitation",
+  ],
 };
 
-function authRoleToRbacCode(jwtRole: string): string {
+export function authRoleToRbacCode(jwtRole: string): string {
   if (jwtRole === "admin") return "admin";
   if (jwtRole === "manager") return "manager";
+  if (jwtRole === "hr") return "hr";
   if (jwtRole === "user") return "employee";
   return "employee";
+}
+
+export function defaultPermissionCodesForJwtRole(jwtRole: string): string[] {
+  return [...defaultPermissionsForJwtRole(jwtRole)];
 }
 
 function defaultPermissionsForJwtRole(jwtRole: string): Set<string> {
   if (jwtRole === "manager") {
     return new Set(JWT_ROLE_DEFAULT_PERMISSIONS.manager);
+  }
+  if (jwtRole === "hr") {
+    return new Set(JWT_ROLE_DEFAULT_PERMISSIONS.hr);
   }
   if (jwtRole === "user") {
     return new Set(JWT_ROLE_DEFAULT_PERMISSIONS.user);
@@ -126,4 +146,10 @@ export function requirePermission(...required: string[]) {
 
 export function clearPermissionCache(): void {
   permissionCache.clear();
+}
+
+/** Resolved permission codes for a JWT auth role (used by /api/auth/me). */
+export async function getPermissionsForJwtRole(jwtRole: string): Promise<string[]> {
+  const codes = await loadPermissionsForJwtRole(jwtRole);
+  return [...codes];
 }

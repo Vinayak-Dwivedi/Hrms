@@ -217,8 +217,9 @@ function AddEmployeeFormContent({
                   {...employeeFieldControl}
                   autoComplete="tel"
                   field={field}
-                  inputMode="tel"
+                  inputMode="numeric"
                   label="Phone"
+                  maxLength={10}
                   placeholder="9999900000"
                   type="tel"
                 />
@@ -277,7 +278,12 @@ function AddEmployeeFormContent({
           <EmployeeFormField>
             <form.Field name="spouseName">
               {(field) => (
-                <TextField {...employeeFieldControl} field={field} label="Spouse name" />
+                <TextField
+                  {...employeeFieldControl}
+                  field={field}
+                  label="Spouse name"
+                  placeholder="Required if married"
+                />
               )}
             </form.Field>
           </EmployeeFormField>

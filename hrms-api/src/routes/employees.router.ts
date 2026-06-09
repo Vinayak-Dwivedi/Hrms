@@ -56,7 +56,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
+const PHONE_REGEX = /^[0-9]{10}$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const optionalId = z
@@ -90,7 +90,10 @@ const createEmployeeSchema = z
     lastName: z.string().trim().min(1).max(100),
     personalEmail: z.string().trim().email(),
     workEmail: z.string().trim().email(),
-    phone: z.string().trim().regex(PHONE_REGEX),
+    phone: z
+      .string()
+      .trim()
+      .regex(PHONE_REGEX, "Phone must be exactly 10 digits."),
     dob: z.string().regex(DATE_REGEX),
     gender: z.enum(["Male", "Female", "Other"]),
     joiningDate: z.string().regex(DATE_REGEX),
@@ -144,6 +147,19 @@ function mapDbError(e: unknown): ApiError {
     }
     if (/work_email|users_email/i.test(msg)) {
       return new ApiError(409, "DUPLICATE_EMAIL", "Work email already exists.");
+    }
+    if (/pan_no_hash|pan_number_hash/i.test(msg)) {
+      return new ApiError(409, "DUPLICATE_PAN", "PAN number already registered.");
+    }
+    if (/aadhaar_no_hash|aadhaar_number_hash/i.test(msg)) {
+      return new ApiError(
+        409,
+        "DUPLICATE_AADHAAR",
+        "Aadhaar number already registered.",
+      );
+    }
+    if (/uan_no_hash|uan_number_hash/i.test(msg)) {
+      return new ApiError(409, "DUPLICATE_UAN", "UAN already registered.");
     }
     return new ApiError(409, "DUPLICATE", "A record with this value already exists.");
   }
@@ -299,7 +315,7 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
         createdAt: now,
         updatedAt: now,
       })
-      .returning();
+      .returning({ id: employees.id });
 
     if (!employee) {
       throw new ApiError(500, "INSERT_FAILED", "Failed to create employee.");

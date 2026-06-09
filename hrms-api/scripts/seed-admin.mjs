@@ -37,10 +37,10 @@ if (!url) {
   process.exit(1);
 }
 
-const ADMIN_EMAIL = "admin@ileads.com";
-const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "admin@ileads.com";
+const ADMIN_EMAIL = "admin@iotindia.ai";
+const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "12345678";
 const ADMIN_NAME = "HR Admin";
-const EMP_ID = "ILD-0001";
+const EMP_ID = "IOT-0001";
 /** Legacy `user_types` row: slug `admin` (Administrator). */
 const ADMIN_USER_TYPE_ID = 1;
 

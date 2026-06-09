@@ -33,6 +33,7 @@ const ROLES = [
   { code: "employee", name: "Employee", description: "Standard employee access" },
   { code: "manager", name: "Manager", description: "Team manager access" },
   { code: "admin", name: "Administrator", description: "Full HRMS administration" },
+  { code: "hr", name: "HR", description: "HR portal and onboarding access" },
 ];
 
 const ROLE_PERMISSION_CODES = {
@@ -52,6 +53,18 @@ const ROLE_PERMISSION_CODES = {
     "onboarding.verify_documents",
   ],
   admin: PERMISSIONS.map((p) => p.code),
+  hr: [
+    "employees.view",
+    "employees.create",
+    "employees.edit",
+    "leave.view",
+    "attendance.view",
+    "attendance.upload",
+    "onboarding.view",
+    "onboarding.manage",
+    "onboarding.verify_documents",
+    "onboarding.resend_invitation",
+  ],
 };
 
 try {

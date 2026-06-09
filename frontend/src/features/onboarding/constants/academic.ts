@@ -1,5 +1,5 @@
-export const QUAL_CLASS_10 = "Class 10 (Matriculation)" as const;
-export const QUAL_CLASS_12 = "Class 12 (HSC / Intermediate)" as const;
+export const QUAL_CLASS_10 = "Class 10" as const;
+export const QUAL_CLASS_12 = "Class 12" as const;
 export const QUAL_GRADUATION = "Graduation" as const;
 export const QUAL_POST_GRADUATION = "Post Graduation" as const;
 export const QUAL_OTHER = "Other" as const;

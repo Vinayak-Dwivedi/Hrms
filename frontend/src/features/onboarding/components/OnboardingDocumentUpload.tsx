@@ -7,6 +7,16 @@ import {
   uploadOnboardingDocument,
 } from "../api/onboarding.client";
 import {
+  onboardingBtnDestructiveClass,
+  onboardingBtnOutlineClass,
+  onboardingDocCardClass,
+  onboardingErrorAlertClass,
+  onboardingStatusPendingClass,
+  onboardingStatusRejectedClass,
+  onboardingStatusUploadedClass,
+  onboardingStatusVerifiedClass,
+} from "../constants/onboarding-theme";
+import {
   ONBOARDING_DOCUMENT_SECTIONS,
   type OnboardingDocumentType,
 } from "../constants/documents";
@@ -26,10 +36,10 @@ interface Props {
 }
 
 const STATUS_CLASS: Record<DocStatus, string> = {
-  Pending: "bg-yellow-100 text-yellow-800",
-  Uploaded: "bg-blue-100 text-blue-800",
-  Verified: "bg-green-100 text-green-800",
-  Rejected: "bg-red-100 text-red-800",
+  Pending: onboardingStatusPendingClass,
+  Uploaded: onboardingStatusUploadedClass,
+  Verified: onboardingStatusVerifiedClass,
+  Rejected: onboardingStatusRejectedClass,
 };
 
 const FILE_ACCEPT =
@@ -100,9 +110,11 @@ export default function OnboardingDocumentUpload({
                 <span className="text-red-500 font-normal"> *</span>
               ) : null}
             </h2>
-            <p className="text-sm text-gray-500 mt-1 mb-0">
-              {section.description}
-            </p>
+            {section.description ? (
+              <p className="text-sm text-gray-500 mt-1 mb-0">
+                {section.description}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-3">
@@ -113,16 +125,13 @@ export default function OnboardingDocumentUpload({
               const busy = uploading === docType || deleting === row?.id;
 
               return (
-                <div
-                  key={docType}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg border border-gray-200 bg-white"
-                >
+                <div key={docType} className={onboardingDocCardClass}>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 m-0">
                       {docType}
                     </p>
                     <span
-                      className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_CLASS[uploaded ? "Uploaded" : status]}`}
+                      className={`${STATUS_CLASS[uploaded ? "Uploaded" : status]} mt-1`}
                     >
                       {uploaded ? "Uploaded" : status}
                     </span>
@@ -149,7 +158,7 @@ export default function OnboardingDocumentUpload({
                       type="button"
                       disabled={busy}
                       onClick={() => inputRefs.current[docType]?.click()}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
+                      className={onboardingBtnOutlineClass}
                     >
                       <Upload size={16} />
                       {uploading === docType
@@ -163,7 +172,7 @@ export default function OnboardingDocumentUpload({
                         type="button"
                         disabled={busy}
                         onClick={() => void handleDelete(row.id!, docType)}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
+                        className={onboardingBtnDestructiveClass}
                         title="Remove document"
                       >
                         <Trash2 size={16} />
@@ -178,7 +187,11 @@ export default function OnboardingDocumentUpload({
         </section>
       ))}
 
-      {error && <p className="text-sm text-red-600 m-0">{error}</p>}
+      {error && (
+        <p className={`m-0 ${onboardingErrorAlertClass}`} role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

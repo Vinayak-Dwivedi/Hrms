@@ -32,6 +32,7 @@ import {
   fetchLeaveApprovals,
 } from "@/lib/hrms-client";
 import type { Employee } from "@/lib/dashboard";
+import { useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
 
 // ─── nav model ──────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ type NavEntry = {
   href: string;
   also?: string[];
   badgeKey?: "pendingApprovals";
+  requiredPermission?: string | string[];
 };
 
 type NavSection = {
@@ -65,11 +67,36 @@ const USER_MGMT_SECTION: NavSection = {
   collapsible: true,
   collapsedIcon: Users,
   entries: [
-    { icon: Users, label: "Employees", href: "/employees" },
-    { icon: Building2, label: "Department", href: "/departments" },
-    { icon: UserPlus, label: "Add Employee", href: "/add-employee" },
-    { icon: ShieldPlus, label: "Add Permission", href: "/add-permission" },
-    { icon: Shield, label: "User Roles", href: "/user-roles" },
+    {
+      icon: Users,
+      label: "Employees",
+      href: "/employees",
+      requiredPermission: "employees.view",
+    },
+    {
+      icon: Building2,
+      label: "Department",
+      href: "/departments",
+      requiredPermission: "employees.view",
+    },
+    {
+      icon: UserPlus,
+      label: "Add Employee",
+      href: "/add-employee",
+      requiredPermission: "employees.create",
+    },
+    {
+      icon: ShieldPlus,
+      label: "Add Permission",
+      href: "/add-permission",
+      requiredPermission: "admin.permissions",
+    },
+    {
+      icon: Shield,
+      label: "User Roles",
+      href: "/user-roles",
+      requiredPermission: "admin.roles",
+    },
   ],
 };
 
@@ -80,8 +107,38 @@ const SETTINGS_SECTION: NavSection = {
   sectionKey: "settings",
   collapsible: true,
   collapsedIcon: Settings,
-  entries: [{ icon: MapPin, label: "Location", href: "/locations" }],
+  entries: [
+    {
+      icon: MapPin,
+      label: "Location",
+      href: "/locations",
+      requiredPermission: "admin.roles",
+    },
+  ],
 };
+
+function navEntryAllowed(
+  entry: NavEntry,
+  hasAnyPermission: (codes: string[]) => boolean,
+): boolean {
+  if (!entry.requiredPermission) return true;
+  const codes = Array.isArray(entry.requiredPermission)
+    ? entry.requiredPermission
+    : [entry.requiredPermission];
+  return hasAnyPermission(codes);
+}
+
+function filterNavSections(
+  sections: NavSection[],
+  hasAnyPermission: (codes: string[]) => boolean,
+): NavSection[] {
+  return sections
+    .map((section) => ({
+      ...section,
+      entries: section.entries.filter((e) => navEntryAllowed(e, hasAnyPermission)),
+    }))
+    .filter((section) => section.entries.length > 0);
+}
 
 // Single source of truth for what each role sees. Sections render in order.
 function buildNav(role: Role): NavSection[] {
@@ -90,9 +147,24 @@ function buildNav(role: Role): NavSection[] {
       {
         title: "PERSONAL",
         entries: [
-          { icon: Briefcase, label: "Dashboard", href: "/manager/dashboard" },
-          { icon: Clock, label: "My Attendance", href: "/manager/attendance" },
-          { icon: CalendarIcon, label: "Leave", href: "/manager/leave" },
+          {
+            icon: Briefcase,
+            label: "Dashboard",
+            href: "/manager/dashboard",
+            requiredPermission: "leave.approve",
+          },
+          {
+            icon: Clock,
+            label: "My Attendance",
+            href: "/manager/attendance",
+            requiredPermission: "attendance.view",
+          },
+          {
+            icon: CalendarIcon,
+            label: "Leave",
+            href: "/manager/leave",
+            requiredPermission: "leave.view",
+          },
         ],
       },
       {
@@ -102,17 +174,20 @@ function buildNav(role: Role): NavSection[] {
             icon: LayoutDashboard,
             label: "Team Dashboard",
             href: "/manager/team-dashboard",
+            requiredPermission: "leave.approve",
           },
           {
             icon: Clock,
             label: "Team Attendance",
             href: "/manager/team-attendance-report",
+            requiredPermission: "leave.approve",
           },
           {
             icon: CheckSquare,
             label: "Approvals",
             href: "/manager/approvals",
             badgeKey: "pendingApprovals",
+            requiredPermission: "leave.approve",
           },
         ],
       },
@@ -127,19 +202,35 @@ function buildNav(role: Role): NavSection[] {
         title: "PERSONAL",
         entries: [
           { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
-          { icon: Clock, label: "My Attendance", href: "/attendance" },
-          { icon: CalendarIcon, label: "Leave", href: "/leave" },
+          {
+            icon: Clock,
+            label: "My Attendance",
+            href: "/attendance",
+            requiredPermission: "attendance.view",
+          },
+          {
+            icon: CalendarIcon,
+            label: "Leave",
+            href: "/leave",
+            requiredPermission: "leave.view",
+          },
         ],
       },
       {
         title: "ADMINISTRATION",
         entries: [
-          { icon: Users, label: "Employees", href: "/employees" },
+          {
+            icon: Users,
+            label: "Employees",
+            href: "/employees",
+            requiredPermission: "employees.view",
+          },
           {
             icon: CheckSquare,
             label: "Approvals",
             href: "/manager/approvals",
             badgeKey: "pendingApprovals",
+            requiredPermission: "leave.approve",
           },
           {
             icon: LayoutDashboard,
@@ -159,16 +250,37 @@ function buildNav(role: Role): NavSection[] {
       title: "PERSONAL",
       entries: [
         { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
-        { icon: Clock, label: "Attendance", href: "/attendance" },
+        {
+          icon: Clock,
+          label: "Attendance",
+          href: "/attendance",
+          requiredPermission: "attendance.view",
+        },
         {
           icon: CalendarIcon,
           label: "Leave",
           href: "/leave",
           also: ["/leave/new"],
+          requiredPermission: "leave.view",
         },
-        { icon: FileText, label: "My Requests", href: "/requests" },
-        { icon: Receipt, label: "My Payslips", href: "/payslips" },
-        { icon: Users, label: "Directory", href: "/directory" },
+        {
+          icon: FileText,
+          label: "My Requests",
+          href: "/requests",
+          requiredPermission: "leave.view",
+        },
+        {
+          icon: Receipt,
+          label: "My Payslips",
+          href: "/payslips",
+          requiredPermission: "payroll.view",
+        },
+        {
+          icon: Users,
+          label: "Directory",
+          href: "/directory",
+          requiredPermission: "employees.view",
+        },
         { icon: BookOpen, label: "L&D Portal", href: "/lnd" },
         { icon: FileText, label: "Company Policies", href: "/policies" },
       ],
@@ -324,6 +436,7 @@ export default function AppShell({
   role?: Role;
 }) {
   const pathname = usePathname();
+  const { hasAnyPermission } = useAuth();
 
   const [identity, setIdentity] = useState<Employee | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -416,7 +529,7 @@ export default function AppShell({
     };
   }, [pathname, role]);
 
-  const sections = buildNav(role);
+  const sections = filterNavSections(buildNav(role), hasAnyPermission);
   const badgeFor = (key?: NavEntry["badgeKey"]): number | null => {
     if (key === "pendingApprovals") return pendingApprovals;
     return null;

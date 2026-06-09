@@ -271,6 +271,46 @@ export async function uploadOnboardingDocument(
   return (await res.json()) as OnboardingDocumentRow;
 }
 
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const match =
+    /filename\*=UTF-8''([^;]+)|filename="([^"]+)"|filename=([^;]+)/i.exec(
+      header,
+    );
+  const raw = match?.[1] ?? match?.[2] ?? match?.[3];
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw.replace(/"/g, ""));
+  } catch {
+    return raw.replace(/"/g, "");
+  }
+}
+
+export async function fetchOnboardingDocumentFile(documentId: string): Promise<{
+  blob: Blob;
+  mimeType: string;
+  filename: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/documents/${documentId}`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw await parseError(res);
+  }
+  const blob = await res.blob();
+  const mimeType =
+    res.headers.get("Content-Type")?.split(";")[0]?.trim() ||
+    blob.type ||
+    "application/octet-stream";
+  const filename =
+    filenameFromContentDisposition(res.headers.get("Content-Disposition")) ??
+    "document";
+  return { blob, mimeType, filename };
+}
+
 export async function deleteOnboardingDocument(documentId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/documents/${documentId}`, {
     method: "DELETE",

@@ -36,6 +36,13 @@
       "when": 1780534800000,
       "tag": "20260604010000_department_code",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780627200000,
+      "tag": "20260608100000_sensitive_field_encryption",
+      "breakpoints": true
     }
   ]
 }
