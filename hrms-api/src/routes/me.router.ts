@@ -33,6 +33,8 @@ import {
   profilePhotoUpload,
 } from "@/middleware/profile-photo.middleware";
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
+import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
+import { runWorkflowOnNewRequest } from "@/services/leave-workflow-engine";
 
 function resolveProfilePhotoDiskPath(
   profilePhotoUrl: string | null | undefined,
@@ -570,6 +572,37 @@ meRouter.get("/leave-requests", async (req, res, next) => {
   }
 });
 
+// GET /api/me/leave-policy?leaveTypeCode=CO
+//   Resolves the leave policy that applies to the current employee for the
+//   given leave_type. Drives the dashboard's "your policy says…" cards and
+//   the Apply Leave form's behavior.
+meRouter.get("/leave-policy", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const code = typeof req.query.leaveTypeCode === "string"
+      ? req.query.leaveTypeCode
+      : null;
+    const id = req.query.leaveTypeId ? Number(req.query.leaveTypeId) : null;
+    if (!code && !id) {
+      throw new ApiError(
+        400,
+        "BAD_QUERY",
+        "leaveTypeCode or leaveTypeId is required.",
+      );
+    }
+    const result = await resolvePolicyForEmployee(emp.id, {
+      id: id ?? undefined,
+      code: code ?? undefined,
+    });
+    if (!result) {
+      throw new ApiError(404, "NOT_FOUND", "Leave type not found.");
+    }
+    res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
 meRouter.get("/leave-balances", async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
@@ -633,7 +666,32 @@ meRouter.post("/leave-requests", async (req, res, next) => {
         managerId: emp.reportingManagerId ?? null,
       })
       .returning();
-    res.status(201).json({ request: row });
+
+    // Run the policy's approval workflow. AutoApprove / AutoReject flip the
+    // status inline; Route leaves it Pending for the manager to handle.
+    const workflowResult = await runWorkflowOnNewRequest({
+      requestId: row!.id,
+      employeeId: emp.id,
+      leaveTypeId,
+      days: Number(body.days),
+      durationType: body.durationType,
+      reason: body.reason,
+      actorUserId: req.user!.id,
+    });
+
+    // Re-read the row so the response reflects any workflow-applied changes.
+    const [finalRow] = await db
+      .select()
+      .from(leaveRequests)
+      .where(eq(leaveRequests.id, row!.id))
+      .limit(1);
+
+    res.status(201).json({
+      request: finalRow,
+      workflow: workflowResult.workflowName
+        ? { name: workflowResult.workflowName, appliedStatus: workflowResult.status }
+        : null,
+    });
   } catch (e) {
     next(e);
   }

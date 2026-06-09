@@ -16,6 +16,8 @@ import { hrmsRouter } from "@/routes/hrms.router";
 import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
 import { attendanceRouter } from "@/routes/attendance.router";
+import { adminLeaveTypesRouter } from "@/routes/admin-leave-types.router";
+import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
 import { onboardingRouter } from "@/routes/onboarding.router";
 import { profileEmailVerificationRouter } from "@/modules/email-verification/routes/profile.routes";
 import { employeeRoutes } from "@/modules/onboarding/routes/employee.routes";
@@ -104,6 +106,8 @@ export function createApp() {
   app.use("/api/manager", requireAuth, managerRouter);
   app.use("/api/hrms",    requireAuth, hrmsRouter);
   app.use("/api/attendance", requireAuth, attendanceRouter);
+  app.use("/api/admin/leave-types", requireAuth, adminLeaveTypesRouter);
+  app.use("/api/admin/leave-policies", requireAuth, adminLeavePoliciesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -100,7 +100,7 @@ const USER_MGMT_SECTION: NavSection = {
   ],
 };
 
-const SETTINGS_HREFS = ["/locations"];
+const SETTINGS_HREFS = ["/locations", "/leave-policy"];
 
 const SETTINGS_SECTION: NavSection = {
   title: "SETTINGS",
@@ -114,6 +114,7 @@ const SETTINGS_SECTION: NavSection = {
       href: "/locations",
       requiredPermission: "admin.roles",
     },
+    { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
   ],
 };
 
@@ -359,6 +360,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/user-roles": "User Roles",
   "/departments": "Department",
   "/locations": "Location",
+  "/leave-policy": "Leave Policy",
   "/employees": "Employees",
   "/employees/bulk-upload": "Bulk Upload",
 };

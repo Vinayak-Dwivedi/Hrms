@@ -79,6 +79,7 @@ import {
   punchIn,
   punchOut,
 } from "@/lib/hrms-client";
+import { getMyResolvedPolicy } from "@/features/leave-policy/api/leave-policies.client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -761,6 +762,17 @@ export default function RoleDashboard({ role }: { role: Role }) {
   >(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [punchBusy, setPunchBusy] = useState(false);
+  // Resolved Comp-Off policy for the current user — read from
+  // /api/me/leave-policy. Drives the "Your Comp Off rules" mini-card below
+  // the Leave Balance rings.
+  const [compOffPolicy, setCompOffPolicy] = useState<{
+    name: string;
+    weekendUnits: number;
+    holidayUnits: number;
+    expiryMode: string;
+    expiryDays: number;
+    matchedReason: string;
+  } | null>(null);
 
   // Attendance Overview window: "7d" (Mon–Sun) or "30d" (rolling 30 days
   // grouped into 5 buckets). Drives both the chart and the totals row.
@@ -785,6 +797,27 @@ export default function RoleDashboard({ role }: { role: Role }) {
     }
   }
 
+  async function loadResolvedCompOffPolicy() {
+    try {
+      const r = await getMyResolvedPolicy("CO");
+      if (!r.policy) {
+        setCompOffPolicy(null);
+        return;
+      }
+      const s = (r.policy.settings ?? {}) as Record<string, unknown>;
+      setCompOffPolicy({
+        name: r.policy.name,
+        weekendUnits: Number(s.weekendUnits ?? 0),
+        holidayUnits: Number(s.holidayUnits ?? 0),
+        expiryMode: String(s.expiryMode ?? "yearEnd"),
+        expiryDays: Number(s.expiryDays ?? 0),
+        matchedReason: r.policy.matchedReason,
+      });
+    } catch {
+      setCompOffPolicy(null);
+    }
+  }
+
   async function reload() {
     try {
       const baseTasks: Array<Promise<unknown>> = [
@@ -793,6 +826,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
         adapters.fetchLeaveBalances().then(setBalances),
         fetchUpcomingHolidays(5).then(setHolidays),
         loadWeek(weekAnchorRef.current),
+        // Resolve the active Comp Off policy. Fire-and-forget — a missing
+        // policy just means the card hides, not a full dashboard error.
+        loadResolvedCompOffPolicy(),
       ];
 
       if (role === "manager") {
@@ -1147,6 +1183,28 @@ export default function RoleDashboard({ role }: { role: Role }) {
               </div>
             ))}
           </div>
+
+          {/* Resolved Comp-Off policy strip — only shown when a policy is
+              actually active. Driven by /api/me/leave-policy?leaveTypeCode=CO. */}
+          {compOffPolicy && (
+            <div className="mt-3 px-3 py-2 rounded-xl bg-[#fff1f2] border border-[#fecdd3] flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FF014F] to-[#eb0249] text-white flex items-center justify-center text-[10px] font-bold tracking-wider shrink-0">
+                CO
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11.5px] font-semibold text-[#be185d] leading-tight truncate">
+                  {compOffPolicy.name}
+                </p>
+                <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
+                  Earn {compOffPolicy.weekendUnits} unit/weekend ·{" "}
+                  {compOffPolicy.holidayUnits} unit/holiday ·{" "}
+                  {compOffPolicy.expiryMode === "yearEnd"
+                    ? "expires year-end"
+                    : `expires in ${compOffPolicy.expiryDays} days`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Upcoming Holidays */}

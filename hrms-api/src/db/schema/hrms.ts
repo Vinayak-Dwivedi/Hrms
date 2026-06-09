@@ -834,8 +834,99 @@ export const leaveTypes = pgTable("leave_types", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull().unique(),
   code: varchar("code", { length: 5 }).notNull().unique(),
+  // Accent color for the catalog row icon — hex with '#'.
+  color: varchar("color", { length: 10 }).notNull().default("#dc143c"),
+  description: text("description"),
+  // Soft delete / disable toggle. Inactive types stay in history but don't
+  // appear in apply-leave dropdowns or accrual calculations.
+  isActive: boolean("is_active").notNull().default(true),
+  isPaid: boolean("is_paid").notNull().default(true),
+  allowHalfDay: boolean("allow_half_day").notNull().default(true),
+  allowNegativeBalance: boolean("allow_negative_balance").notNull().default(false),
+  // 'Male' / 'Female' / null. Used for maternity / paternity restrictions.
+  genderRestriction: varchar("gender_restriction", { length: 10 }),
+  // Minimum days in advance a request must be raised. 0 = same-day allowed.
+  minNoticeDays: integer("min_notice_days").notNull().default(0),
+  // null means proof is never required.
+  requiresProofAfterDays: integer("requires_proof_after_days"),
+  // null = unlimited continuous stretch.
+  maxContinuousDays: integer("max_continuous_days"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ───── Leave Policies (HR-configurable rules per leave type) ──────────────
+
+export const leavePolicies = pgTable("leave_policies", {
+  id: serial("id").primaryKey(),
+  leaveTypeId: integer("leave_type_id")
+    .notNull()
+    .references(() => leaveTypes.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 150 }).notNull(),
+  description: text("description"),
+  status: varchar("status", { length: 20 }).notNull().default("Active"),
+  isDefault: boolean("is_default").notNull().default(false),
+  // Settings vary by leave_type — Zod-validated at API boundary.
+  settings: jsonb("settings").notNull().default({}),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const leavePolicyScope = pgTable("leave_policy_scope", {
+  id: serial("id").primaryKey(),
+  policyId: integer("policy_id")
+    .notNull()
+    .references(() => leavePolicies.id, { onDelete: "cascade" }),
+  // 'Company' | 'Branch' | 'Department' | 'Designation' | 'Grade'
+  // | 'EmploymentType' | 'Process' | 'Employee'
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  scopeId: integer("scope_id"),
+  priority: integer("priority").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const leaveApprovalWorkflows = pgTable("leave_approval_workflows", {
+  id: serial("id").primaryKey(),
+  policyId: integer("policy_id")
+    .notNull()
+    .references(() => leavePolicies.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 150 }).notNull(),
+  description: text("description"),
+  // Array of { field, operator, value }
+  criteria: jsonb("criteria").notNull().default([]),
+  // 'AutoApprove' | 'AutoReject' | 'Route'
+  outcome: varchar("outcome", { length: 20 }).notNull(),
+  fromMode: varchar("from_mode", { length: 80 })
+    .notNull()
+    .default("Person performing this action"),
+  toRecipients: jsonb("to_recipients").notNull().default([]),
+  ccRecipients: jsonb("cc_recipients").notNull().default([]),
+  bccRecipients: jsonb("bcc_recipients").notNull().default([]),
+  replyToRecipients: jsonb("reply_to_recipients").notNull().default([]),
+  subject: text("subject").notNull().default(""),
+  body: text("body").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
     .notNull(),
 });
 

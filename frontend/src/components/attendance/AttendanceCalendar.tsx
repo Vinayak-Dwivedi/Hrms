@@ -126,8 +126,60 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Policy resolved for the picked leave type. null = no policy / still loading
+  // / fetch failed (in which case we treat as "no restrictions" — permissive).
+  const [policy, setPolicy] = useState<{
+    allowHalfDay: boolean;
+    minNoticeDays: number;
+    requireReason: boolean;
+    name: string;
+  } | null>(null);
 
   const workingDays = countWorkingDays(fromDate, toDate);
+
+  // Re-fetch the resolved policy whenever the selected leave type changes.
+  // We hit /api/me/leave-policy?leaveTypeCode=... and only consume settings
+  // we actually care about for this form.
+  useEffect(() => {
+    const code = types[leaveTypeIdx]?.code;
+    if (!code) {
+      setPolicy(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getMyResolvedPolicy } = await import(
+          "@/features/leave-policy/api/leave-policies.client"
+        );
+        const r = await getMyResolvedPolicy(code);
+        if (cancelled) return;
+        if (!r.policy) {
+          setPolicy(null);
+          return;
+        }
+        const s = (r.policy.settings ?? {}) as Record<string, unknown>;
+        setPolicy({
+          allowHalfDay: Boolean(s.allowHalfDay ?? true),
+          minNoticeDays: Number(s.minNoticeDays ?? 0),
+          requireReason: Boolean(s.requireReason ?? true),
+          name: r.policy.name,
+        });
+      } catch {
+        if (!cancelled) setPolicy(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leaveTypeIdx, types]);
+
+  // If the picked leave type forbids half-day, snap back to "Full Day".
+  useEffect(() => {
+    if (policy && !policy.allowHalfDay && duration !== "Full Day") {
+      setDuration("Full Day");
+    }
+  }, [policy, duration]);
 
   const leaveOptions = types.map((l) => ({
     label: `${l.name} — ${l.available} days left`,
@@ -148,6 +200,19 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
     if (!code) {
       setSubmitError("Pick a leave type.");
       return;
+    }
+    // Min-notice enforcement from the resolved policy.
+    if (policy && policy.minNoticeDays > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const start = new Date(`${fromDate}T00:00:00`);
+      const diffDays = Math.floor((start.getTime() - today.getTime()) / 86400000);
+      if (diffDays < policy.minNoticeDays) {
+        setSubmitError(
+          `Policy "${policy.name}" requires at least ${policy.minNoticeDays} day(s) notice. Pick a later "From" date.`,
+        );
+        return;
+      }
     }
     const days =
       duration === "Full Day" ? Math.max(1, workingDays) : 0.5;
@@ -219,26 +284,40 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
             />
           </div>
 
-          {/* Duration */}
+          {/* Duration — half-day options disabled when the resolved policy
+              forbids them (settings.allowHalfDay === false on the leave-type's
+              policy). */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>Duration</label>
             <div style={{ display: "flex", gap: 0, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb" }}>
-              {(["Full Day", "First Half", "Second Half"] as const).map((opt) => (
+              {(["Full Day", "First Half", "Second Half"] as const).map((opt) => {
+                const halfBlocked = policy && !policy.allowHalfDay && opt !== "Full Day";
+                return (
                 <button
                   key={opt}
-                  onClick={() => setDuration(opt)}
+                  onClick={() => !halfBlocked && setDuration(opt)}
+                  disabled={Boolean(halfBlocked)}
+                  title={halfBlocked ? "Half-day not allowed by policy for this leave type." : undefined}
                   style={{
                     flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
-                    border: "none", cursor: "pointer",
+                    border: "none", cursor: halfBlocked ? "not-allowed" : "pointer",
                     background: duration === opt ? "#e91e8c" : "transparent",
-                    color: duration === opt ? "#fff" : "#6b7280",
+                    color: halfBlocked ? "#cbd5e1" : duration === opt ? "#fff" : "#6b7280",
                     transition: "background 0.15s",
                   }}
                 >
                   {opt}
                 </button>
-              ))}
+                );
+              })}
             </div>
+            {policy && (
+              <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+                Policy: <strong>{policy.name}</strong>
+                {policy.minNoticeDays > 0 && ` · min ${policy.minNoticeDays}-day notice`}
+                {!policy.allowHalfDay && " · half-day disabled"}
+              </p>
+            )}
           </div>
 
           {/* From / To */}

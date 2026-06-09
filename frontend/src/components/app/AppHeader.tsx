@@ -37,6 +37,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/admin/approvals": "Approvals",
   "/admin/org": "Org Dashboard",
   "/admin/reports": "Reports",
+  "/locations": "Location",
+  "/leave-policy": "Leave Policy",
 };
 
 function breadcrumbFor(pathname: string): string {
