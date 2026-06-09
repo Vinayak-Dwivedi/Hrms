@@ -36,6 +36,19 @@ export type ColumnSupport = {
 
   onboardingCompletedAt: boolean;
 
+  /** employees.pan_no_hash exists */
+  employeeSensitiveHashes: boolean;
+  /** employee_identity_details.pan_number_hash exists */
+  identitySensitiveHashes: boolean;
+  /** employee_bank_details.account_number_hash exists */
+  bankSensitiveHashes: boolean;
+  /** Hash columns exist and ciphertext value columns are text (safe to encrypt). */
+  employeeSensitiveEncryptionReady: boolean;
+  identitySensitiveEncryptionReady: boolean;
+  bankSensitiveEncryptionReady: boolean;
+  /** @deprecated Use employeeSensitiveHashes */
+  sensitiveHashes: boolean;
+
 };
 
 
@@ -55,6 +68,8 @@ const TRACKED_COLUMNS = [
   "onboarding_token_used",
 
   "onboarding_completed_at",
+
+  "pan_no_hash",
 
 ] as const;
 
@@ -128,6 +143,52 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
 
   );
 
+  const sensitiveResult = await db.execute<{
+    probe: string;
+    has_hash: boolean;
+    value_is_text: boolean;
+  }>(sql`
+    SELECT
+      required.probe::text AS probe,
+      (c_hash.column_name IS NOT NULL) AS has_hash,
+      (c_val.data_type = 'text') AS value_is_text
+    FROM (
+      VALUES
+        ('employee', 'employees', 'pan_no_hash', 'pan_no'),
+        ('identity', 'employee_identity_details', 'pan_number_hash', 'pan_number'),
+        ('bank', 'employee_bank_details', 'account_number_hash', 'account_number')
+    ) AS required(probe, table_name, hash_column, value_column)
+    LEFT JOIN information_schema.columns c_hash
+      ON c_hash.table_schema = 'public'
+      AND c_hash.table_name = required.table_name
+      AND c_hash.column_name = required.hash_column
+    LEFT JOIN information_schema.columns c_val
+      ON c_val.table_schema = 'public'
+      AND c_val.table_name = required.table_name
+      AND c_val.column_name = required.value_column
+  `);
+
+  const sensitiveByProbe = new Map(
+    normalizeExecuteRows(sensitiveResult).map((r) => [
+      r.probe,
+      { hasHash: Boolean(r.has_hash), valueIsText: Boolean(r.value_is_text) },
+    ]),
+  );
+
+  const employeeProbe = sensitiveByProbe.get("employee");
+  const identityProbe = sensitiveByProbe.get("identity");
+  const bankProbe = sensitiveByProbe.get("bank");
+
+  const employeeSensitiveHashes = employeeProbe?.hasHash ?? false;
+  const identitySensitiveHashes = identityProbe?.hasHash ?? false;
+  const bankSensitiveHashes = bankProbe?.hasHash ?? false;
+  const employeeSensitiveEncryptionReady =
+    employeeSensitiveHashes && (employeeProbe?.valueIsText ?? false);
+  const identitySensitiveEncryptionReady =
+    identitySensitiveHashes && (identityProbe?.valueIsText ?? false);
+  const bankSensitiveEncryptionReady =
+    bankSensitiveHashes && (bankProbe?.valueIsText ?? false);
+
   cachedColumns = {
 
     middleName: cols.has("middle_name"),
@@ -143,6 +204,14 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     onboardingTokenUsed: cols.has("onboarding_token_used"),
 
     onboardingCompletedAt: cols.has("onboarding_completed_at"),
+
+    employeeSensitiveHashes,
+    identitySensitiveHashes,
+    bankSensitiveHashes,
+    employeeSensitiveEncryptionReady,
+    identitySensitiveEncryptionReady,
+    bankSensitiveEncryptionReady,
+    sensitiveHashes: employeeSensitiveHashes,
 
   };
 

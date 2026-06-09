@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Employee } from "@/lib/dashboard";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
+import { useAuth } from "@/lib/auth-context";
 import { fetchCurrentEmployee, signOut } from "@/lib/hrms-client";
 
 // ── nav config ───────────────────────────────────────────────────────────────
@@ -26,21 +27,63 @@ type NavEntry = {
   label: string;
   href: string;
   also?: string[];
+  requiredPermission?: string | string[];
 };
 
 export const HR_NAV: NavEntry[] = [
-  { icon: Briefcase, label: "Dashboard", href: "/hr/dashboard" },
-  { icon: Clock, label: "Attendance", href: "/hr/attendance" },
-  { icon: CalendarIcon, label: "Leave", href: "/hr/leave" },
+  {
+    icon: Briefcase,
+    label: "Dashboard",
+    href: "/hr/dashboard",
+    requiredPermission: "onboarding.view",
+  },
+  {
+    icon: Clock,
+    label: "Attendance",
+    href: "/hr/attendance",
+    requiredPermission: "attendance.view",
+  },
+  {
+    icon: CalendarIcon,
+    label: "Leave",
+    href: "/hr/leave",
+    requiredPermission: "leave.view",
+  },
 ];
 
 // ── Org Setup collapsible group ──────────────────────────────────────────────
 const ORG_SETUP_BASE = "/hr/org-setup";
 const ORG_SETUP_CHILDREN: NavEntry[] = [
-  { icon: MapPin, label: "Location", href: "/hr/org-setup/location" },
-  { icon: Building2, label: "Department", href: "/hr/org-setup/department" },
-  { icon: BadgeCheck, label: "Designation", href: "/hr/org-setup/designation" },
+  {
+    icon: MapPin,
+    label: "Location",
+    href: "/hr/org-setup/location",
+    requiredPermission: "onboarding.manage",
+  },
+  {
+    icon: Building2,
+    label: "Department",
+    href: "/hr/org-setup/department",
+    requiredPermission: "onboarding.manage",
+  },
+  {
+    icon: BadgeCheck,
+    label: "Designation",
+    href: "/hr/org-setup/designation",
+    requiredPermission: "onboarding.manage",
+  },
 ];
+
+function navEntryAllowed(
+  entry: NavEntry,
+  hasAnyPermission: (codes: string[]) => boolean,
+): boolean {
+  if (!entry.requiredPermission) return true;
+  const codes = Array.isArray(entry.requiredPermission)
+    ? entry.requiredPermission
+    : [entry.requiredPermission];
+  return hasAnyPermission(codes);
+}
 
 function isNavActive(entry: NavEntry, pathname: string): boolean {
   if (pathname === entry.href) return true;
@@ -124,6 +167,13 @@ function loadCollapsed(): boolean {
 export default function HRShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { hasAnyPermission } = useAuth();
+
+  const visibleHrNav = HR_NAV.filter((e) => navEntryAllowed(e, hasAnyPermission));
+  const visibleOrgChildren = ORG_SETUP_CHILDREN.filter((e) =>
+    navEntryAllowed(e, hasAnyPermission),
+  );
+  const showOrgSetup = visibleOrgChildren.length > 0;
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -254,8 +304,8 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
           className="flex flex-col gap-1 flex-1"
           style={{ padding: collapsed ? "10px 10px" : "8px 12px" }}
         >
-          {HR_NAV.map(({ icon: Icon, label, href }) => {
-            const entry = HR_NAV.find((e) => e.label === label);
+          {visibleHrNav.map(({ icon: Icon, label, href }) => {
+            const entry = visibleHrNav.find((e) => e.label === label);
             const active = entry ? isNavActive(entry, pathname) : false;
             return (
               <a
@@ -280,75 +330,76 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
           })}
 
           {/* Org Setup — collapsible group */}
-          {collapsed ? (
-            <a
-              href="/hr/org-setup/location"
-              title="Org Setup"
-              className="flex items-center justify-center rounded-xl text-[13px] font-medium no-underline"
-              style={{
-                color: inOrgSetup ? "#fff" : "#4b5563",
-                background: inOrgSetup
-                  ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
-                  : "transparent",
-                padding: "10px 0",
-              }}
-            >
-              <Network size={16} />
-            </a>
-          ) : (
-            <div className="flex flex-col">
-              <button
-                type="button"
-                onClick={toggleOrg}
-                className="flex items-center rounded-xl text-[13px] font-medium w-full"
+          {showOrgSetup &&
+            (collapsed ? (
+              <a
+                href={visibleOrgChildren[0]?.href ?? "/hr/org-setup/location"}
+                title="Org Setup"
+                className="flex items-center justify-center rounded-xl text-[13px] font-medium no-underline"
                 style={{
-                  color: inOrgSetup ? "#be185d" : "#4b5563",
-                  background: inOrgSetup ? "#fff1f2" : "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "10px 12px",
-                  gap: 12,
+                  color: inOrgSetup ? "#fff" : "#4b5563",
+                  background: inOrgSetup
+                    ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
+                    : "transparent",
+                  padding: "10px 0",
                 }}
               >
                 <Network size={16} />
-                <span className="flex-1 text-left">Org Setup</span>
-                <ChevronRight
-                  size={14}
+              </a>
+            ) : (
+              <div className="flex flex-col">
+                <button
+                  type="button"
+                  onClick={toggleOrg}
+                  className="flex items-center rounded-xl text-[13px] font-medium w-full"
                   style={{
-                    transform: orgOpen ? "rotate(90deg)" : "none",
-                    transition: "transform 160ms ease",
+                    color: inOrgSetup ? "#be185d" : "#4b5563",
+                    background: inOrgSetup ? "#fff1f2" : "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "10px 12px",
+                    gap: 12,
                   }}
-                />
-              </button>
+                >
+                  <Network size={16} />
+                  <span className="flex-1 text-left">Org Setup</span>
+                  <ChevronRight
+                    size={14}
+                    style={{
+                      transform: orgOpen ? "rotate(90deg)" : "none",
+                      transition: "transform 160ms ease",
+                    }}
+                  />
+                </button>
 
-              {orgOpen && (
-                <div className="flex flex-col gap-1 mt-1">
-                  {ORG_SETUP_CHILDREN.map(({ icon: Icon, label, href }) => {
-                    const active =
-                      pathname === href || pathname.startsWith(`${href}/`);
-                    return (
-                      <a
-                        key={label}
-                        href={href}
-                        className="flex items-center rounded-xl text-[13px] font-medium no-underline"
-                        style={{
-                          color: active ? "#fff" : "#4b5563",
-                          background: active
-                            ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
-                            : "transparent",
-                          padding: "9px 12px 9px 36px",
-                          gap: 10,
-                        }}
-                      >
-                        <Icon size={15} />
-                        {label}
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                {orgOpen && (
+                  <div className="flex flex-col gap-1 mt-1">
+                    {visibleOrgChildren.map(({ icon: Icon, label, href }) => {
+                      const active =
+                        pathname === href || pathname.startsWith(`${href}/`);
+                      return (
+                        <a
+                          key={label}
+                          href={href}
+                          className="flex items-center rounded-xl text-[13px] font-medium no-underline"
+                          style={{
+                            color: active ? "#fff" : "#4b5563",
+                            background: active
+                              ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
+                              : "transparent",
+                            padding: "9px 12px 9px 36px",
+                            gap: 10,
+                          }}
+                        >
+                          <Icon size={15} />
+                          {label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
         </nav>
 
         {/* Footer */}

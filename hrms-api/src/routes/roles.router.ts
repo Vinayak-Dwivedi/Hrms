@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/db/runtime";
 import { permissions, rolePermissions, roles } from "@/db/schema/hrms";
 import { ApiError } from "@/middleware/error";
+import { clearPermissionCache } from "@/middleware/require-permission";
 
 export const rolesRouter = Router();
 
@@ -105,6 +106,8 @@ rolesRouter.put("/:id/permissions", async (req, res, next) => {
         .set({ updatedAt: sql`now()` })
         .where(eq(roles.id, roleId));
     });
+
+    clearPermissionCache();
 
     res.json({ data: { permissionIds: uniqueIds } });
   } catch (e) {

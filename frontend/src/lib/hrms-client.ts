@@ -55,6 +55,11 @@ export interface LoggedInUser {
   role: string;
 }
 
+export interface AuthSession {
+  user: LoggedInUser;
+  permissions: string[];
+}
+
 export async function signIn(
   loginId: string,
   password: string,
@@ -82,14 +87,26 @@ export async function signOut(): Promise<void> {
   });
 }
 
-export async function fetchAuthMe(): Promise<LoggedInUser | null> {
+export async function fetchAuthSession(): Promise<AuthSession | null> {
   const res = await fetch(`${API_BASE}/api/auth/me`, {
     credentials: "include",
   });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error(`/auth/me failed: ${res.status}`);
-  const data = (await res.json()) as { user: LoggedInUser };
-  return data.user;
+  const data = (await res.json()) as {
+    user: LoggedInUser;
+    permissions?: string[];
+  };
+  return {
+    user: data.user,
+    permissions: data.permissions ?? [],
+  };
+}
+
+/** @deprecated Use fetchAuthSession for permission-aware auth. */
+export async function fetchAuthMe(): Promise<LoggedInUser | null> {
+  const session = await fetchAuthSession();
+  return session?.user ?? null;
 }
 
 // ───────────────────────────── /me ─────────────────────────────

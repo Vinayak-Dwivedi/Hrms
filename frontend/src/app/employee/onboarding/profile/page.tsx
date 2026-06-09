@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchEmployeeProfile,
   fetchOnboardingStatus,
@@ -13,19 +13,34 @@ import {
 import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
 import OnboardingDocumentUpload from "@/features/onboarding/components/OnboardingDocumentUpload";
 import OnboardingProfileForm from "@/features/onboarding/components/OnboardingProfileForm";
+import OnboardingReviewStep from "@/features/onboarding/components/OnboardingReviewStep";
+import OnboardingSuccessAlert from "@/features/onboarding/components/OnboardingSuccessAlert";
+import { onboardingBtnPrimaryClass, onboardingErrorAlertClass } from "@/features/onboarding/constants/onboarding-theme";
+import { useOnboardingProgress } from "@/features/onboarding/context/onboarding-progress-context";
 import { signOut } from "@/lib/hrms-client";
 
 const ONBOARDING_SUBMIT_SUCCESS_MESSAGE =
   "Onboarding submitted successfully. HR will review your documents and approve your account.";
 const CLOSE_AFTER_SUCCESS_MS = 3000;
 
-export default function OnboardingProfilePage() {
+type ProfileSubStep = "profile" | "documents" | "review";
+
+function parseSubStep(raw: string | null): ProfileSubStep {
+  if (raw === "documents" || raw === "review") return raw;
+  return "profile";
+}
+
+function OnboardingProfilePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { setProgress } = useOnboardingProgress();
+
+  const step = parseSubStep(searchParams.get("step"));
+
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [initialProfile, setInitialProfile] =
     useState<OnboardingProfileValues | null>(null);
-  const [step, setStep] = useState<"profile" | "documents">("profile");
   const [profileSaved, setProfileSaved] = useState(false);
   const [submittingProfile, setSubmittingProfile] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -33,6 +48,25 @@ export default function OnboardingProfilePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [onboardingSubmitted, setOnboardingSubmitted] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncProgress = useCallback(
+    (data: OnboardingStatus, subStep: ProfileSubStep) => {
+      setProgress({
+        profileComplete: data.profileComplete,
+        documentsReady: data.pendingDocuments.length === 0,
+        profileSubStep: subStep,
+      });
+    },
+    [setProgress],
+  );
+
+  const navigateToStep = useCallback(
+    (next: ProfileSubStep) => {
+      router.replace(`/employee/onboarding/profile?step=${next}`);
+      setProgress({ profileSubStep: next });
+    },
+    [router, setProgress],
+  );
 
   const loadStatus = useCallback(async () => {
     const [data, profile] = await Promise.all([
@@ -47,14 +81,25 @@ export default function OnboardingProfilePage() {
     }
     if (data.profileComplete) {
       setProfileSaved(true);
-      setStep("documents");
     }
+    return data;
   }, [router]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     loadStatus()
+      .then((data) => {
+        if (!cancelled && data) {
+          syncProgress(data, step);
+          if (data.profileComplete && step === "profile") {
+            const requested = searchParams.get("step");
+            if (!requested) {
+              navigateToStep("documents");
+            }
+          }
+        }
+      })
       .catch((e) => {
         if (!cancelled) setError((e as Error).message);
       })
@@ -64,7 +109,30 @@ export default function OnboardingProfilePage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStatus]);
+
+  useEffect(() => {
+    if (status) {
+      syncProgress(status, step);
+    }
+  }, [step, status, syncProgress]);
+
+  useEffect(() => {
+    if (!status || loading) return;
+
+    if (step === "documents" && !status.profileComplete) {
+      navigateToStep("profile");
+      return;
+    }
+    if (step === "review") {
+      if (!status.profileComplete) {
+        navigateToStep("profile");
+      } else if (status.pendingDocuments.length > 0) {
+        navigateToStep("documents");
+      }
+    }
+  }, [step, status, loading, navigateToStep]);
 
   useEffect(() => {
     return () => {
@@ -87,10 +155,13 @@ export default function OnboardingProfilePage() {
       const result = await updateOnboardingProfile(values);
       setProfileSaved(true);
       setSuccess("Profile saved successfully.");
-      if (result.profileComplete) {
-        setStep("documents");
+      const data = await loadStatus();
+      if (data) {
+        syncProgress(data, "documents");
       }
-      await loadStatus();
+      if (result.profileComplete) {
+        navigateToStep("documents");
+      }
     } finally {
       setSubmittingProfile(false);
     }
@@ -117,7 +188,7 @@ export default function OnboardingProfilePage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto text-center text-sm text-gray-500 py-16">
+      <div className="text-center text-sm text-gray-500 py-16">
         Loading onboarding…
       </div>
     );
@@ -126,9 +197,7 @@ export default function OnboardingProfilePage() {
   if (onboardingSubmitted) {
     return (
       <div className="max-w-lg mx-auto text-center py-16 space-y-4">
-        <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-          {ONBOARDING_SUBMIT_SUCCESS_MESSAGE}
-        </div>
+        <OnboardingSuccessAlert message={ONBOARDING_SUBMIT_SUCCESS_MESSAGE} />
         <p className="text-sm text-gray-500 m-0">
           This page will close shortly. You can also close this tab now.
         </p>
@@ -137,7 +206,7 @@ export default function OnboardingProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-1">
         Complete Your Profile
       </h1>
@@ -145,42 +214,12 @@ export default function OnboardingProfilePage() {
         Fill in your details and upload required documents to finish onboarding.
       </p>
 
-      <div className="flex gap-2 mb-8">
-        <button
-          type="button"
-          onClick={() => setStep("profile")}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border ${
-            step === "profile"
-              ? "bg-pink-600 text-white border-pink-600"
-              : "bg-white text-gray-700 border-gray-200"
-          }`}
-        >
-          1. Profile
-        </button>
-        <button
-          type="button"
-          onClick={() => profileSaved && setStep("documents")}
-          disabled={!profileSaved && !status?.profileComplete}
-          className={`px-4 py-2 text-sm font-medium rounded-lg border ${
-            step === "documents"
-              ? "bg-pink-600 text-white border-pink-600"
-              : "bg-white text-gray-700 border-gray-200"
-          } ${!profileSaved && !status?.profileComplete ? "opacity-50 cursor-not-allowed" : ""}`}
-        >
-          2. Documents
-        </button>
-      </div>
-
       {error && (
-        <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className={`mb-4 ${onboardingErrorAlertClass}`} role="alert">
           {error}
         </div>
       )}
-      {success && (
-        <div className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-          {success}
-        </div>
-      )}
+      {success && <OnboardingSuccessAlert message={success} />}
 
       {step === "profile" && initialProfile && (
         <OnboardingProfileForm
@@ -196,7 +235,9 @@ export default function OnboardingProfilePage() {
           <OnboardingDocumentUpload
             documents={status.documents}
             onUploaded={() => {
-              void loadStatus();
+              void loadStatus().then((data) => {
+                if (data) syncProgress(data, "documents");
+              });
               setSuccess("Document uploaded.");
             }}
           />
@@ -209,22 +250,38 @@ export default function OnboardingProfilePage() {
 
           <button
             type="button"
-            disabled={completing || status.pendingDocuments.length > 0}
-            onClick={() => void handleComplete()}
-            className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{
-              background: completing ? "#f471a8" : "#e91e63",
-              border: "none",
-              cursor:
-                completing || status.pendingDocuments.length > 0
-                  ? "not-allowed"
-                  : "pointer",
-            }}
+            disabled={status.pendingDocuments.length > 0}
+            onClick={() => navigateToStep("review")}
+            className={onboardingBtnPrimaryClass}
           >
-            {completing ? "Submitting…" : "Complete Onboarding"}
+            Continue to Review
           </button>
         </div>
       )}
+
+      {step === "review" && status && initialProfile && (
+        <OnboardingReviewStep
+          profile={initialProfile}
+          documents={status.documents}
+          pendingDocuments={status.pendingDocuments}
+          completing={completing}
+          onComplete={() => void handleComplete()}
+        />
+      )}
     </div>
+  );
+}
+
+export default function OnboardingProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="text-center text-sm text-gray-500 py-16">
+          Loading onboarding…
+        </div>
+      }
+    >
+      <OnboardingProfilePageInner />
+    </Suspense>
   );
 }

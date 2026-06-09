@@ -9,17 +9,35 @@ import * as professionalRepo from "@/modules/onboarding/repositories/professiona
 import type { UpsertProfileInput } from "@/modules/onboarding/schemas/profile.schema";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { ApiError } from "@/middleware/error";
+import {
+  employeeDetailSelect,
+  getEmployeeColumnSupport,
+} from "@/lib/employee-schema-compat";
+import {
+  decryptEmployeeLegacyRow,
+  encryptEmployeeLegacySensitive,
+} from "@/lib/sensitive-employee-fields";
 
 async function getEmployeeRow(employeeId: number) {
+  const support = await getEmployeeColumnSupport();
+  const selectFields = {
+    ...(employeeDetailSelect(support) as Record<string, unknown>),
+  };
+  if (support.employeeSensitiveHashes) {
+    selectFields.panNoHash = employees.panNoHash;
+    selectFields.aadhaarNoHash = employees.aadhaarNoHash;
+    selectFields.uanNoHash = employees.uanNoHash;
+    selectFields.esicNoHash = employees.esicNoHash;
+  }
   const [row] = await db
-    .select()
+    .select(selectFields as Record<string, typeof employees.id>)
     .from(employees)
     .where(eq(employees.id, employeeId))
     .limit(1);
   if (!row) {
     throw new ApiError(404, "NOT_FOUND", "Employee not found.");
   }
-  return row;
+  return decryptEmployeeLegacyRow(row as Record<string, unknown>);
 }
 
 function mapAcademic(rows: Awaited<ReturnType<typeof academicRepo.listAcademicByEmployeeId>>) {
@@ -115,25 +133,35 @@ export async function upsertProfile(
   input: UpsertProfileInput,
   actorUserId?: string,
 ) {
+  const columnSupport = await getEmployeeColumnSupport();
   await db.transaction(async (tx) => {
-    await tx
-      .update(employees)
-      .set({
-        currentAddress: input.personal.currentAddress,
-        permanentAddress: input.personal.permanentAddress,
-        emergencyContactName: input.personal.emergencyContactName,
-        emergencyContactPhone: input.personal.emergencyContactPhone,
-        fatherName: input.personal.fatherName?.trim() || null,
-        motherName: input.personal.motherName?.trim() || null,
-        bloodGroup: input.personal.bloodGroup?.trim() || null,
-        nationality: input.personal.nationality?.trim() || "Indian",
+    const encryptedLegacy = encryptEmployeeLegacySensitive(
+      {
         panNo: input.identity.panNumber,
         aadhaarNo: input.identity.aadhaarNumber,
         uanNo: input.identity.uanNumber?.trim() || null,
         esicNo: input.identity.esicNumber?.trim() || null,
-        onboardingStatus: "IN_PROGRESS",
-        updatedAt: new Date(),
-      })
+      },
+      { includeHashes: columnSupport.employeeSensitiveEncryptionReady },
+    );
+    const employeePatch: Record<string, unknown> = {
+      currentAddress: input.personal.currentAddress,
+      permanentAddress: input.personal.permanentAddress,
+      emergencyContactName: input.personal.emergencyContactName,
+      emergencyContactPhone: input.personal.emergencyContactPhone,
+      fatherName: input.personal.fatherName?.trim() || null,
+      motherName: input.personal.motherName?.trim() || null,
+      bloodGroup: input.personal.bloodGroup?.trim() || null,
+      nationality: input.personal.nationality?.trim() || "Indian",
+      ...encryptedLegacy,
+      updatedAt: new Date(),
+    };
+    if (columnSupport.onboardingStatus) {
+      employeePatch.onboardingStatus = "IN_PROGRESS";
+    }
+    await tx
+      .update(employees)
+      .set(employeePatch)
       .where(eq(employees.id, employeeId));
   });
 

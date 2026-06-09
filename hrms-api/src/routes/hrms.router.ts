@@ -17,9 +17,15 @@ import {
   roles,
 } from "@/db/schema/hrms";
 import { createCrudRouter } from "@/lib/crud-factory";
+import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
+import { requirePermission } from "@/middleware/require-permission";
 import { hrOnboardingRoutes } from "@/modules/hr-onboarding/routes/onboarding.routes";
 import { employeesRouter } from "@/routes/employees.router";
 import { rolesRouter } from "@/routes/roles.router";
+
+const orgSetupAccess = requirePermission("employees.view", "onboarding.manage");
+const adminRolesAccess = requirePermission("admin.roles");
+const adminPermissionsAccess = requirePermission("admin.permissions");
 
 /**
  * Generic CRUD endpoints over the HR-domain tables. Composite-PK tables
@@ -31,20 +37,20 @@ export const hrmsRouter: Router = Router();
 
 hrmsRouter.use("/onboarding", hrOnboardingRoutes);
 
-hrmsRouter.use("/branches",                  createCrudRouter("branch", branches));
-hrmsRouter.use("/locations",                 createCrudRouter("location", locations));
-hrmsRouter.use("/departments",               createCrudRouter("department", departments));
-hrmsRouter.use("/grades",                    createCrudRouter("grade", grades));
-hrmsRouter.use("/employment-types",          createCrudRouter("employment type", employmentTypes));
-hrmsRouter.use("/designations",              createCrudRouter("designation", designations));
+hrmsRouter.use("/branches",                  orgSetupAccess, createCrudRouter("branch", branches));
+hrmsRouter.use("/locations",                 orgSetupAccess, createCrudRouter("location", locations));
+hrmsRouter.use("/departments",               orgSetupAccess, createCrudRouter("department", departments));
+hrmsRouter.use("/grades",                    orgSetupAccess, createCrudRouter("grade", grades));
+hrmsRouter.use("/employment-types",          orgSetupAccess, createCrudRouter("employment type", employmentTypes));
+hrmsRouter.use("/designations",              orgSetupAccess, createCrudRouter("designation", designations));
 hrmsRouter.use("/employees", employeesRouter);
-hrmsRouter.use("/employees",                 createCrudRouter("employee", employees));
+hrmsRouter.use("/employees",                 createCrudRouter("employee", employees, { excludedColumns: EMPLOYEE_CRUD_EXCLUDED_COLUMNS }));
 hrmsRouter.use("/resignations",              createCrudRouter("resignation", resignations));
 hrmsRouter.use("/regularisation-requests",   createCrudRouter("regularisation request", regularisationRequests));
 hrmsRouter.use("/leave-types",               createCrudRouter("leave type", leaveTypes));
 hrmsRouter.use("/leave-requests",            createCrudRouter("leave request", leaveRequests));
 hrmsRouter.use("/notifications",             createCrudRouter("notification", notifications));
 hrmsRouter.use("/broadcasts",                createCrudRouter("broadcast", broadcasts));
-hrmsRouter.use("/permissions",               createCrudRouter("permission", permissions));
-hrmsRouter.use("/roles", rolesRouter);
-hrmsRouter.use("/roles",                     createCrudRouter("role", roles));
+hrmsRouter.use("/permissions",               adminPermissionsAccess, createCrudRouter("permission", permissions));
+hrmsRouter.use("/roles",                     adminRolesAccess, rolesRouter);
+hrmsRouter.use("/roles",                     adminRolesAccess, createCrudRouter("role", roles));

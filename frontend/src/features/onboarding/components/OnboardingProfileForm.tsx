@@ -17,6 +17,7 @@ import {
   QUAL_OTHER,
   QUAL_POST_GRADUATION,
 } from "../constants/academic";
+import { onboardingBtnPrimaryClass } from "../constants/onboarding-theme";
 import {
   onboardingProfileSchema,
   type AcademicDetailValues,
@@ -642,12 +643,7 @@ export default function OnboardingProfileForm({
       <button
         type="submit"
         disabled={submitting}
-        className="px-6 py-2.5 rounded-lg text-sm font-semibold text-white"
-        style={{
-          background: submitting ? "#f471a8" : "#e91e63",
-          border: "none",
-          cursor: submitting ? "not-allowed" : "pointer",
-        }}
+        className={onboardingBtnPrimaryClass}
       >
         {submitting ? "Saving…" : "Save Profile"}
       </button>

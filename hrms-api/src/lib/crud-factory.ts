@@ -33,9 +33,44 @@ function clampInt(raw: unknown, fallback: number, max?: number): number {
   return max ? Math.min(n, max) : n;
 }
 
-export function createCrudRouter(tableName: string, table: PgTable): Router {
+export type CrudRouterOptions = {
+  /** Column keys omitted from API responses and rejected on write */
+  excludedColumns?: string[];
+};
+
+function omitColumns<T extends Record<string, unknown>>(
+  row: T,
+  excluded: Set<string>,
+): T {
+  if (excluded.size === 0) return row;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (!excluded.has(k)) out[k] = v;
+  }
+  return out as T;
+}
+
+/** Drizzle select/returning shape omitting columns absent from legacy DBs. */
+function buildSelectShape(table: PgTable, excluded: Set<string>) {
+  const cols = getTableColumns(table);
+  const shape: Record<string, unknown> = {};
+  for (const [key, col] of Object.entries(cols)) {
+    if (!excluded.has(key)) {
+      shape[key] = col;
+    }
+  }
+  return shape;
+}
+
+export function createCrudRouter(
+  tableName: string,
+  table: PgTable,
+  options?: CrudRouterOptions,
+): Router {
   const cols = getTableColumns(table);
   const colNames = new Set(Object.keys(cols));
+  const excluded = new Set(options?.excludedColumns ?? []);
+  const writable = new Set([...colNames].filter((k) => !excluded.has(k)));
   const idCol = (cols as Record<string, unknown>).id as
     | { name: string }
     | undefined;
@@ -45,14 +80,19 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
   }
 
   const router = Router();
+  const selectShape = buildSelectShape(table, excluded);
 
   router.get("/", async (req, res, next) => {
     try {
       const limit = clampInt(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
       const offset = clampInt(req.query.offset, 0);
-      const rows = await db.select().from(table).limit(limit).offset(offset);
+      const rows = await db
+        .select(selectShape as never)
+        .from(table)
+        .limit(limit)
+        .offset(offset);
       res.json({
-        data: rows.map(bigintSafe),
+        data: rows.map((row) => omitColumns(bigintSafe(row), excluded)),
         limit,
         offset,
         count: rows.length,
@@ -66,14 +106,14 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
     try {
       const id = req.params.id;
       const [row] = await db
-        .select()
+        .select(selectShape as never)
         .from(table)
         .where(sql`${sql.identifier(idCol.name)} = ${id}`)
         .limit(1);
       if (!row) {
         throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);
       }
-      res.json({ data: bigintSafe(row) });
+      res.json({ data: omitColumns(bigintSafe(row), excluded) });
     } catch (e) {
       next(e);
     }
@@ -85,7 +125,7 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         throw new ApiError(400, "INVALID_BODY", "Expected a JSON object body.");
       }
-      const values = pickColumns(body as Record<string, unknown>, colNames);
+      const values = pickColumns(body as Record<string, unknown>, writable);
       if (Object.keys(values).length === 0) {
         throw new ApiError(400, "EMPTY_BODY", "Body contains no recognised columns.");
       }
@@ -93,8 +133,8 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
         const [row] = await db
           .insert(table)
           .values(values as never)
-          .returning();
-        res.status(201).json({ data: bigintSafe(row) });
+          .returning(selectShape as never);
+        res.status(201).json({ data: omitColumns(bigintSafe(row), excluded) });
       } catch (e) {
         throw new ApiError(400, "INSERT_FAILED", (e as Error).message);
       }
@@ -110,7 +150,7 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         throw new ApiError(400, "INVALID_BODY", "Expected a JSON object body.");
       }
-      const values = pickColumns(body as Record<string, unknown>, colNames);
+      const values = pickColumns(body as Record<string, unknown>, writable);
       delete values.id;
       if (Object.keys(values).length === 0) {
         throw new ApiError(400, "EMPTY_BODY", "Body contains no updatable columns.");
@@ -120,11 +160,11 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
           .update(table)
           .set(values as never)
           .where(sql`${sql.identifier(idCol.name)} = ${id}`)
-          .returning();
+          .returning(selectShape as never);
         if (!row) {
           throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);
         }
-        res.json({ data: bigintSafe(row) });
+        res.json({ data: omitColumns(bigintSafe(row), excluded) });
       } catch (e) {
         if (e instanceof ApiError) throw e;
         throw new ApiError(400, "UPDATE_FAILED", (e as Error).message);
@@ -140,7 +180,7 @@ export function createCrudRouter(tableName: string, table: PgTable): Router {
       const [row] = await db
         .delete(table)
         .where(sql`${sql.identifier(idCol.name)} = ${id}`)
-        .returning();
+        .returning(selectShape as never);
       if (!row) {
         throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);
       }

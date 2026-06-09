@@ -334,10 +334,14 @@ export const employees = pgTable(
     emergencyContactName: varchar("emergency_contact_name", { length: 200 }),
     emergencyContactPhone: varchar("emergency_contact_phone", { length: 20 }),
 
-    panNo: varchar("pan_no", { length: 15 }).unique(),
-    uanNo: varchar("uan_no", { length: 20 }).unique(),
-    aadhaarNo: varchar("aadhaar_no", { length: 12 }).unique(),
-    esicNo: varchar("esic_no", { length: 20 }).unique(),
+    panNo: text("pan_no"),
+    panNoHash: text("pan_no_hash").unique(),
+    uanNo: text("uan_no"),
+    uanNoHash: text("uan_no_hash").unique(),
+    aadhaarNo: text("aadhaar_no"),
+    aadhaarNoHash: text("aadhaar_no_hash").unique(),
+    esicNo: text("esic_no"),
+    esicNoHash: text("esic_no_hash").unique(),
 
     linkedinUrl: varchar("linkedin_url", { length: 255 }),
     profilePhotoUrl: varchar("profile_photo_url", { length: 500 }),
@@ -430,14 +434,6 @@ export const employees = pgTable(
     check(
       "emp_dob_18yrs_chk",
       sql`${table.dob} <= CURRENT_DATE - INTERVAL '18 years'`,
-    ),
-    check(
-      "emp_pan_chk",
-      sql`${table.panNo} IS NULL OR ${table.panNo} ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'`,
-    ),
-    check(
-      "emp_aadhaar_chk",
-      sql`${table.aadhaarNo} IS NULL OR ${table.aadhaarNo} ~ '^[0-9]{12}$'`,
     ),
     check(
       "emp_exit_after_join_chk",
@@ -534,12 +530,17 @@ export const employeeIdentityDetails = pgTable("employee_identity_details", {
   employeeId: integer("employee_id")
     .primaryKey()
     .references(() => employees.id, { onDelete: "cascade" }),
-  panNumber: varchar("pan_number", { length: 15 }),
-  aadhaarNumber: varchar("aadhaar_number", { length: 12 }),
-  passportNumber: varchar("passport_number", { length: 20 }),
+  panNumber: text("pan_number"),
+  panNumberHash: text("pan_number_hash").unique(),
+  aadhaarNumber: text("aadhaar_number"),
+  aadhaarNumberHash: text("aadhaar_number_hash").unique(),
+  passportNumber: text("passport_number"),
+  passportNumberHash: text("passport_number_hash"),
   passportExpiry: date("passport_expiry"),
-  uanNumber: varchar("uan_number", { length: 20 }),
-  esicNumber: varchar("esic_number", { length: 20 }),
+  uanNumber: text("uan_number"),
+  uanNumberHash: text("uan_number_hash").unique(),
+  esicNumber: text("esic_number"),
+  esicNumberHash: text("esic_number_hash"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -604,7 +605,8 @@ export const employeeBankDetails = pgTable(
     employeeId: integer("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    accountNumber: varchar("account_number", { length: 25 }).notNull(),
+    accountNumber: text("account_number").notNull(),
+    accountNumberHash: text("account_number_hash"),
     accountName: varchar("account_name", { length: 100 }).notNull(),
     bankName: varchar("bank_name", { length: 100 }).notNull(),
     branchName: varchar("branch_name", { length: 100 }).notNull(),
@@ -625,7 +627,7 @@ export const employeeBankDetails = pgTable(
   (table) => [
     uniqueIndex("employee_bank_details_employee_account_uq").on(
       table.employeeId,
-      table.accountNumber,
+      table.accountNumberHash,
     ),
     uniqueIndex("uq_one_primary_bank_detail")
       .on(table.employeeId)

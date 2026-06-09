@@ -20,6 +20,7 @@ import { isJtiRevoked, revokeJti } from "@/lib/redis";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { requireAuth } from "@/middleware/auth";
 import { ApiError } from "@/middleware/error";
+import { getPermissionsForJwtRole } from "@/middleware/require-permission";
 
 export const authRouter: Router = Router();
 
@@ -253,7 +254,8 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
       .where(eq(users.id, req.user!.id))
       .limit(1);
     if (!u) throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
-    res.json({ user: shapeUser(u) });
+    const permissions = await getPermissionsForJwtRole(u.role);
+    res.json({ user: shapeUser(u), permissions });
   } catch (e) {
     next(e);
   }

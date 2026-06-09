@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { z } from "zod";
 import { onboardingLogin } from "../api/onboarding.client";
+import { onboardingBtnPrimaryFullClass } from "../constants/onboarding-theme";
 import { OnboardingInlineError } from "./OnboardingErrorState";
 
 const schema = z.object({
@@ -167,14 +168,8 @@ export default function OnboardingLoginForm({
       <button
         type="submit"
         disabled={submitting}
-        className="w-full text-[15px] font-bold text-white rounded-lg"
-        style={{
-          height: 50,
-          background: submitting ? "#f471a8" : "#e91e63",
-          border: "none",
-          cursor: submitting ? "not-allowed" : "pointer",
-          letterSpacing: 0.2,
-        }}
+        className={onboardingBtnPrimaryFullClass}
+        style={{ height: 50, letterSpacing: 0.2 }}
       >
         {submitting ? "Signing in…" : "Continue to Onboarding"}
       </button>

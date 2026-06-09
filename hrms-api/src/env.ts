@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { initSensitiveFieldCrypto } from "@/lib/sensitive-field-crypto";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -103,6 +104,9 @@ const schema = z.object({
     .string()
     .default("")
     .transform((s) => s.toLowerCase() === "true"),
+
+  ENCRYPTION_KEY: z.string().optional(),
+  ENCRYPTION_INDEX_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -116,3 +120,39 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export type Env = z.infer<typeof schema>;
+
+const TEST_CRYPTO_KEYS = {
+  encryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  indexKey: "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+};
+
+function resolveCryptoKeys() {
+  if (env.ENCRYPTION_KEY && env.ENCRYPTION_INDEX_KEY) {
+    return {
+      encryptionKey: env.ENCRYPTION_KEY,
+      indexKey: env.ENCRYPTION_INDEX_KEY,
+    };
+  }
+  if (env.NODE_ENV === "production") {
+    console.error(
+      "Invalid environment:\n  ENCRYPTION_KEY and ENCRYPTION_INDEX_KEY are required in production.",
+    );
+    process.exit(1);
+  }
+  if (env.NODE_ENV === "test") {
+    return {
+      encryptionKey: env.ENCRYPTION_KEY ?? TEST_CRYPTO_KEYS.encryptionKey,
+      indexKey: env.ENCRYPTION_INDEX_KEY ?? TEST_CRYPTO_KEYS.indexKey,
+    };
+  }
+  console.warn(
+    "[hrms-api] ENCRYPTION_KEY / ENCRYPTION_INDEX_KEY not set — using development defaults. Set both before production.",
+  );
+  return {
+    encryptionKey: "dev-local-encryption-key-32-chars-min!!",
+    indexKey: "dev-local-index-key-32-chars-min!!!!!",
+  };
+}
+
+
+initSensitiveFieldCrypto(resolveCryptoKeys());

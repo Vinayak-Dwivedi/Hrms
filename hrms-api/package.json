@@ -22,7 +22,10 @@
     "seed:admin": "node scripts/seed-admin.mjs",
     "seed:hrms": "node scripts/seed-hrms-demo.mjs",
     "seed:holidays": "node scripts/seed-holidays.mjs",
-    "seed:rbac": "node scripts/seed-rbac.mjs"
+    "seed:rbac": "node scripts/seed-rbac.mjs",
+    "db:migrate-sensitive-schema": "node scripts/apply-sensitive-schema.mjs",
+    "migrate:encrypt-sensitive": "node scripts/apply-sensitive-schema.mjs && node scripts/migrate-encrypt-sensitive-fields.mjs",
+    "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/middleware/require-permission.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

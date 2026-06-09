@@ -9,6 +9,7 @@ import {
   onboardingStatusWhere,
   type OnboardingPipelineStatus,
 } from "@/lib/employee-schema-compat";
+import { decryptEmployeeLegacyRow } from "@/lib/sensitive-employee-fields";
 
 const SENSITIVE_KEYS = new Set(["passwordHash", "onboardingToken"]);
 
@@ -92,6 +93,10 @@ export async function getEmployeeAdminById(id: number) {
     .where(eq(employees.id, id))
     .limit(1);
   return row
-    ? redactEmployeeRow(enrichEmployeeRow(row, support) as Record<string, unknown>)
+    ? redactEmployeeRow(
+        decryptEmployeeLegacyRow(
+          enrichEmployeeRow(row, support) as Record<string, unknown>,
+        ),
+      )
     : null;
 }

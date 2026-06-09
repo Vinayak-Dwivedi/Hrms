@@ -19,7 +19,16 @@ type AuditCtx = { ipAddress?: string | null; userAgent?: string | null };
 
 async function loadEmployeeForInvite(employeeId: number) {
   const [employee] = await db
-    .select()
+    .select({
+      id: employees.id,
+      userId: employees.userId,
+      workEmail: employees.workEmail,
+      personalEmail: employees.personalEmail,
+      firstName: employees.firstName,
+      middleName: employees.middleName,
+      lastName: employees.lastName,
+      employeeStatus: employees.employeeStatus,
+    })
     .from(employees)
     .where(eq(employees.id, employeeId))
     .limit(1);

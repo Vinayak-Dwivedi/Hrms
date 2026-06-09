@@ -5,7 +5,8 @@ import type {
   UpdateEmployeePayload,
 } from "../api/employees.client";
 
-const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
+const PHONE_REGEX = /^[0-9]{10}$/;
+const PHONE_MESSAGE = "Phone must be exactly 10 digits (numbers only).";
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const requiredEmail = (label: string) =>
@@ -86,7 +87,7 @@ export function createEmployeeFormSchema(
         .string()
         .trim()
         .min(1, "Phone number is required.")
-        .regex(PHONE_REGEX, "Phone must be 7–15 digits, optional leading +."),
+        .regex(PHONE_REGEX, PHONE_MESSAGE),
       dob: z
         .string()
         .min(1, "Date of birth is required.")
@@ -114,8 +115,8 @@ export function createEmployeeFormSchema(
       spouseName: z
         .string()
         .trim()
-        .min(1, "Spouse name is required.")
-        .max(200, "Spouse name must be at most 200 characters."),
+        .max(200, "Spouse name must be at most 200 characters.")
+        .optional(),
     })
     .superRefine((data, ctx) => {
       const dob = new Date(`${data.dob}T00:00:00`);
@@ -126,6 +127,14 @@ export function createEmployeeFormSchema(
           code: "custom",
           message: "Employee must be at least 18 years old.",
           path: ["dob"],
+        });
+      }
+
+      if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Spouse name is required when marital status is Married.",
+          path: ["spouseName"],
         });
       }
     });
@@ -162,7 +171,8 @@ export function toCreatePayload(values: CreateEmployeeFormValues) {
   return {
     ...rest,
     middleName: rest.middleName?.trim() || null,
-    spouseName: rest.spouseName.trim(),
+    spouseName:
+      rest.maritalStatus === "Married" ? rest.spouseName?.trim() || null : null,
     maritalStatus: rest.maritalStatus,
     departmentId: Number(rest.departmentId),
     designationId: Number(rest.designationId),
@@ -235,7 +245,8 @@ export const updateEmployeeFormSchema = z
     phone: z
       .string()
       .trim()
-      .regex(PHONE_REGEX, "Phone must be 7–15 digits, optional leading +."),
+      .min(1, "Phone number is required.")
+      .regex(PHONE_REGEX, PHONE_MESSAGE),
     dob: z.string().regex(DATE_REGEX, "Date of birth is required."),
     gender: z.enum(["Male", "Female", "Other"], {
       message: "Gender is required.",
@@ -351,7 +362,8 @@ export function toUpdateApiPayload(
     reportingManagerId,
     reportingChain: reportingManagerId ? [reportingManagerId] : [],
     maritalStatus,
-    spouseName: values.spouseName?.trim() || null,
+    spouseName:
+      maritalStatus === "Married" ? values.spouseName?.trim() || null : null,
   };
 
   if (values.password?.trim()) {

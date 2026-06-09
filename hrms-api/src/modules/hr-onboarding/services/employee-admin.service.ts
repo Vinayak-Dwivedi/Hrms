@@ -181,7 +181,10 @@ export async function approveOnboarding(params: {
       updatedAt: now,
     })
     .where(eq(employees.id, params.employeeId))
-    .returning();
+    .returning({
+      onboardingStatus: employees.onboardingStatus,
+      onboardingCompletedAt: employees.onboardingCompletedAt,
+    });
 
   writeAuditLogAsync(
     {

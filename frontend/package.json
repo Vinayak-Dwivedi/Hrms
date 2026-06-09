@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/lib/route-access.test.ts",
     "lint": "biome check",
     "format": "biome format --write"
   },
@@ -41,6 +42,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "tailwindcss": "^4",
+    "tsx": "^4.16.2",
     "typescript": "^5"
   },
   "ignoreScripts": [

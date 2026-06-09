@@ -53,6 +53,38 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
+  const pgCode =
+    err && typeof err === "object" && "code" in err
+      ? String((err as { code: unknown }).code)
+      : null;
+
+  if (pgCode === "23505") {
+    res.status(409).json({
+      error: {
+        code: "DUPLICATE_VALUE",
+        message:
+          "A record with the same PAN, Aadhaar, UAN, ESIC, or bank account already exists.",
+        requestId: req.requestId,
+      },
+    });
+    return;
+  }
+
+  if (pgCode === "22001") {
+    res.status(500).json({
+      error: {
+        code: "SCHEMA_NOT_READY",
+        message:
+          "Database schema is not ready for encrypted sensitive fields. Run: npm run db:migrate-sensitive-schema",
+        requestId: req.requestId,
+        ...(env.NODE_ENV !== "production" && err instanceof Error
+          ? { details: { name: err.name, message: err.message } }
+          : {}),
+      },
+    });
+    return;
+  }
+
   // Unknown — log full detail server-side, return generic 500 client-side.
   console.error(`[err] requestId=${req.requestId}`, err);
   res.status(500).json({
