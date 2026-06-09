@@ -144,7 +144,6 @@ export async function upsertProfile(
         .limit(1);
       currentOnboardingStatus = statusRow?.onboardingStatus ?? undefined;
     }
-
     const encryptedLegacy = encryptEmployeeLegacySensitive(
       {
         panNo: input.identity.panNumber,

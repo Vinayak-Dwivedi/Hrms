@@ -82,7 +82,6 @@ const TRACKED_COLUMNS = [
   "phone_verified",
 
   "phone_verified_at",
-
 ] as const;
 
 
@@ -210,7 +209,6 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
   const phoneOtpTableRows = normalizeExecuteRows(phoneOtpTableResult) as Array<{
     exists: boolean;
   }>;
-
   const employeeProbe = sensitiveByProbe.get("employee");
   const identityProbe = sensitiveByProbe.get("identity");
   const bankProbe = sensitiveByProbe.get("bank");
@@ -256,7 +254,6 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     phoneVerified: cols.has("phone_verified"),
 
     phoneVerificationOtps: phoneOtpTableRows[0]?.exists === true,
-
   };
 
   return cachedColumns;

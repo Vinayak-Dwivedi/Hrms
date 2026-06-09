@@ -114,7 +114,10 @@ const SETTINGS_SECTION: NavSection = {
       href: "/locations",
       requiredPermission: "admin.roles",
     },
+<<<<<<< HEAD
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
+=======
+>>>>>>> c631497fa74a88a1e1b16201ee01bce875fe1b74
   ],
 };
 
