@@ -7,6 +7,8 @@ import {
   branches,
   departments,
   designations,
+  employees,
+  employmentTypes,
   grades,
   holidays,
   leaveBalances,
@@ -49,12 +51,28 @@ meRouter.get("/", async (req, res, next) => {
       ? await db.select({ name: branches.name }).from(branches)
           .where(eq(branches.id, emp.branchId)).limit(1)
       : [];
+    const [employmentType] = emp.employmentTypeId
+      ? await db.select({ name: employmentTypes.name }).from(employmentTypes)
+          .where(eq(employmentTypes.id, emp.employmentTypeId)).limit(1)
+      : [];
+    const [manager] = emp.reportingManagerId
+      ? await db
+          .select({
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+            empId: employees.empId,
+          })
+          .from(employees)
+          .where(eq(employees.id, emp.reportingManagerId))
+          .limit(1)
+      : [];
 
     const initials = `${emp.firstName[0] ?? ""}${emp.lastName[0] ?? ""}`.toUpperCase();
     res.json({
       id: emp.id,
       empId: emp.empId,
       firstName: emp.firstName,
+      middleName: emp.middleName ?? null,
       lastName: emp.lastName,
       fullName: `${emp.firstName} ${emp.lastName}`,
       initials,
@@ -63,12 +81,74 @@ meRouter.get("/", async (req, res, next) => {
       personalEmail: emp.personalEmail,
       workEmail: emp.workEmail,
       phone: emp.phone,
+      gender: emp.gender,
+      dob: emp.dob,
       role: designation?.name ?? null,
       department: department?.name ?? null,
       grade: grade?.code ?? null,
       branch: branch?.name ?? null,
+      employmentType: employmentType?.name ?? null,
+      reportingManager: manager
+        ? `${manager.firstName} ${manager.lastName}`
+        : null,
+      reportingManagerEmpId: manager?.empId ?? null,
       joiningDate: emp.joiningDate,
+      currentAddress: emp.currentAddress ?? null,
+      permanentAddress: emp.permanentAddress ?? null,
+      emergencyContactName: emp.emergencyContactName ?? null,
+      emergencyContactPhone: emp.emergencyContactPhone ?? null,
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ── PATCH /api/me ─────────────────────────────────────────────────────────────
+// Self-service profile update. Employees may change only their own contact
+// details — phone, personal email, addresses, and emergency contact. All other
+// fields (org placement, reporting line, dates) are HR/admin-controlled and are
+// intentionally not accepted here.
+const updateMeSchema = z
+  .object({
+    phone: z.string().trim().regex(/^\+?[0-9]{7,15}$/, "Enter a valid phone number"),
+    personalEmail: z.string().trim().email().max(255),
+    currentAddress: z.string().trim().max(5000).optional(),
+    permanentAddress: z.string().trim().max(5000).optional(),
+    emergencyContactName: z.string().trim().max(200).optional(),
+    emergencyContactPhone: z.string().trim().max(20).optional(),
+  })
+  .strict();
+
+meRouter.patch("/", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const body = updateMeSchema.parse(req.body);
+
+    // emergency_contact_phone has a CHECK (NULL or ^\+?[0-9]{7,15}$); coerce
+    // empty → null and validate a provided value before it reaches the DB.
+    const emergencyPhone = body.emergencyContactPhone?.trim() || null;
+    if (emergencyPhone && !/^\+?[0-9]{7,15}$/.test(emergencyPhone)) {
+      throw new ApiError(
+        400,
+        "INVALID_EMERGENCY_PHONE",
+        "Emergency contact phone must be 7–15 digits.",
+      );
+    }
+
+    await db
+      .update(employees)
+      .set({
+        phone: body.phone,
+        personalEmail: body.personalEmail.toLowerCase(),
+        currentAddress: body.currentAddress?.trim() || null,
+        permanentAddress: body.permanentAddress?.trim() || null,
+        emergencyContactName: body.emergencyContactName?.trim() || null,
+        emergencyContactPhone: emergencyPhone,
+        updatedAt: new Date(),
+      })
+      .where(eq(employees.id, emp.id));
+
+    res.json({ ok: true });
   } catch (e) {
     next(e);
   }

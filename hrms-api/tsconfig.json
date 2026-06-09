@@ -19,7 +19,6 @@
     "isolatedModules": true,
     "declaration": false,
     "sourceMap": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
