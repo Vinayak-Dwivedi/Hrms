@@ -93,7 +93,11 @@ export async function getProfile(employeeId: number) {
   return {
     employeeId: emp.id,
     onboardingStatus: emp.onboardingStatus,
-    completedAt: emp.onboardingCompletedAt?.toISOString() ?? null,
+    // decryptEmployeeLegacyRow returns Record<string, unknown> — narrow at use.
+    completedAt:
+      emp.onboardingCompletedAt instanceof Date
+        ? emp.onboardingCompletedAt.toISOString()
+        : null,
     personal: {
       currentAddress: emp.currentAddress,
       permanentAddress: emp.permanentAddress,

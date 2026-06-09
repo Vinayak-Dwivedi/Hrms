@@ -90,36 +90,25 @@ let cachedColumns: ColumnSupport | null = null;
 
 
 
-function normalizeExecuteRows(
-
+// Generic so callers can declare the actual row shape (e.g. `<{ exists: boolean }>`
+// for an EXISTS query, `<{ probe: string; has_hash: boolean; value_is_text: boolean }>`
+// for the sensitive-column probe). Defaults to the column-name shape used by
+// information_schema.columns lookups so existing callsites stay short.
+function normalizeExecuteRows<T = { column_name: string }>(
   result: unknown,
-
-): Array<{ column_name: string }> {
-
+): Array<T> {
   if (Array.isArray(result)) {
-
-    return result as Array<{ column_name: string }>;
-
+    return result as Array<T>;
   }
-
   if (
-
     result &&
-
     typeof result === "object" &&
-
     "rows" in result &&
-
     Array.isArray((result as { rows: unknown }).rows)
-
   ) {
-
-    return (result as { rows: Array<{ column_name: string }> }).rows;
-
+    return (result as { rows: Array<T> }).rows;
   }
-
   return [];
-
 }
 
 
@@ -180,7 +169,11 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
   `);
 
   const sensitiveByProbe = new Map(
-    normalizeExecuteRows(sensitiveResult).map((r) => [
+    normalizeExecuteRows<{
+      probe: string;
+      has_hash: boolean;
+      value_is_text: boolean;
+    }>(sensitiveResult).map((r) => [
       r.probe,
       { hasHash: Boolean(r.has_hash), valueIsText: Boolean(r.value_is_text) },
     ]),
@@ -194,9 +187,7 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
         AND table_name = 'email_verification_otps'
     ) AS exists
   `);
-  const otpTableRows = normalizeExecuteRows(otpTableResult) as Array<{
-    exists: boolean;
-  }>;
+  const otpTableRows = normalizeExecuteRows<{ exists: boolean }>(otpTableResult);
 
   const phoneOtpTableResult = await db.execute<{ exists: boolean }>(sql`
     SELECT EXISTS (
@@ -206,9 +197,7 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
         AND table_name = 'phone_verification_otps'
     ) AS exists
   `);
-  const phoneOtpTableRows = normalizeExecuteRows(phoneOtpTableResult) as Array<{
-    exists: boolean;
-  }>;
+  const phoneOtpTableRows = normalizeExecuteRows<{ exists: boolean }>(phoneOtpTableResult);
   const employeeProbe = sensitiveByProbe.get("employee");
   const identityProbe = sensitiveByProbe.get("identity");
   const bankProbe = sensitiveByProbe.get("bank");

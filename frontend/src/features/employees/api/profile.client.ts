@@ -148,12 +148,14 @@ export function profilePageToEditable(
       me.emergencyContactName ?? onboardingValues.emergencyContactName,
     emergencyContactPhone:
       me.emergencyContactPhone ?? onboardingValues.emergencyContactPhone,
-    fatherName: onboardingValues.fatherName,
-    motherName: onboardingValues.motherName,
-    panNumber: onboardingValues.panNo,
-    aadhaarNumber: onboardingValues.aadhaarNo,
-    uanNumber: onboardingValues.uanNo,
-    esicNumber: onboardingValues.esicNo,
+    // OnboardingProfileValues marks these as optional (Zod `.optional()`);
+    // the form expects plain strings, so default missing values to "".
+    fatherName: onboardingValues.fatherName ?? "",
+    motherName: onboardingValues.motherName ?? "",
+    panNumber: onboardingValues.panNo ?? "",
+    aadhaarNumber: onboardingValues.aadhaarNo ?? "",
+    uanNumber: onboardingValues.uanNo ?? "",
+    esicNumber: onboardingValues.esicNo ?? "",
     academics:
       extended.academic.length > 0
         ? extended.academic.map((a) => ({

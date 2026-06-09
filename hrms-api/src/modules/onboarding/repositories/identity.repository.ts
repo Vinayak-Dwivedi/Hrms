@@ -69,23 +69,27 @@ export async function upsertIdentity(
 
   if (existing) {
     if (includeHashes) {
-      const [row] = await db
+      // Drizzle returns `never[]` when selectShape is dynamic — cast through
+      // a permissive row type so destructuring works.
+      const rows = (await db
         .update(employeeIdentityDetails)
         .set(values)
         .where(eq(employeeIdentityDetails.employeeId, employeeId))
-        .returning(selectShape as never);
-      return row ? decryptIdentityRow(row as Record<string, unknown>) : null;
+        .returning(selectShape as never)) as Array<Record<string, unknown>>;
+      const [row] = rows;
+      return row ? decryptIdentityRow(row) : null;
     }
     await updateIdentityWithoutHashes(employeeId, values);
     return getIdentityByEmployeeId(employeeId);
   }
 
   if (includeHashes) {
-    const [row] = await db
+    const rows = (await db
       .insert(employeeIdentityDetails)
       .values({ employeeId, ...values })
-      .returning(selectShape as never);
-    return row ? decryptIdentityRow(row as Record<string, unknown>) : null;
+      .returning(selectShape as never)) as Array<Record<string, unknown>>;
+    const [row] = rows;
+    return row ? decryptIdentityRow(row) : null;
   }
 
   await insertIdentityWithoutHashes(employeeId, values);

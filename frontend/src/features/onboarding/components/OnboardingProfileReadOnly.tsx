@@ -109,7 +109,10 @@ export default function OnboardingProfileReadOnly({ values }: Props) {
                     value={row.fieldOfStudy}
                   />
                 ) : null}
-                <ReadOnlyField label="Passing year" value={row.yearTo} />
+                <ReadOnlyField
+                  label="Passing year"
+                  value={typeof row.yearTo === "number" ? row.yearTo : null}
+                />
                 <ReadOnlyField
                   label="Grade / %"
                   value={row.gradeOrPercentage}
@@ -120,9 +123,9 @@ export default function OnboardingProfileReadOnly({ values }: Props) {
         })}
       </EmployeeFormSection>
 
-      {values.professional.length > 0 ? (
+      {(values.professional ?? []).length > 0 ? (
         <EmployeeFormSection title="Professional Experience">
-          {values.professional.map((row, index) => (
+          {(values.professional ?? []).map((row, index) => (
             <div
               key={`professional-readonly-${index}-${row.id ?? row.companyName}`}
               className="col-span-full rounded-lg border border-gray-200 bg-gray-50/50 p-4"

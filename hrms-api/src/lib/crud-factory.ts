@@ -130,10 +130,16 @@ export function createCrudRouter(
         throw new ApiError(400, "EMPTY_BODY", "Body contains no recognised columns.");
       }
       try {
-        const [row] = await db
+        // Drizzle types the result as `never[]` when selectShape is dynamic;
+        // cast to a permissive row type so destructuring works.
+        const rows = (await db
           .insert(table)
           .values(values as never)
-          .returning(selectShape as never);
+          .returning(selectShape as never)) as Array<Record<string, unknown>>;
+        const row = rows[0];
+        if (!row) {
+          throw new ApiError(500, "INSERT_NO_ROW", "Insert returned no row.");
+        }
         res.status(201).json({ data: omitColumns(bigintSafe(row), excluded) });
       } catch (e) {
         throw new ApiError(400, "INSERT_FAILED", (e as Error).message);
@@ -156,11 +162,12 @@ export function createCrudRouter(
         throw new ApiError(400, "EMPTY_BODY", "Body contains no updatable columns.");
       }
       try {
-        const [row] = await db
+        const rows = (await db
           .update(table)
           .set(values as never)
           .where(sql`${sql.identifier(idCol.name)} = ${id}`)
-          .returning(selectShape as never);
+          .returning(selectShape as never)) as Array<Record<string, unknown>>;
+        const [row] = rows;
         if (!row) {
           throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);
         }
@@ -177,10 +184,11 @@ export function createCrudRouter(
   router.delete("/:id", async (req, res, next) => {
     try {
       const id = req.params.id;
-      const [row] = await db
+      const rows = (await db
         .delete(table)
         .where(sql`${sql.identifier(idCol.name)} = ${id}`)
-        .returning(selectShape as never);
+        .returning(selectShape as never)) as Array<Record<string, unknown>>;
+      const [row] = rows;
       if (!row) {
         throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);
       }

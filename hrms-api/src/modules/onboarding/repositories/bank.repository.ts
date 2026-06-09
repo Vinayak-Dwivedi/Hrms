@@ -103,10 +103,12 @@ export async function syncBankDetails(
         await updateBankDetailWithoutHashes(item.id, employeeId, encrypted);
       }
     } else if (includeHashes) {
-      await db.insert(employeeBankDetails).values({
-        employeeId,
-        ...encrypted,
-      });
+      // encryptBankSensitive's return type doesn't statically expose its
+      // fields to drizzle's typed insert; the runtime shape has all the
+      // required columns. Cast to escape the narrow check.
+      await db
+        .insert(employeeBankDetails)
+        .values({ employeeId, ...encrypted } as never);
     } else {
       await insertBankDetailWithoutHashes(employeeId, encrypted);
     }
