@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, LogOut } from "lucide-react";
+import { Bell, ChevronDown, LogOut, UserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Employee } from "@/lib/dashboard";
@@ -193,6 +193,18 @@ export default function AppHeader({
                     {identity?.role ?? rootLabelFor(role)}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push("/profile");
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium text-gray-700 hover:bg-gray-50 text-left cursor-pointer border-b border-gray-100"
+                >
+                  <UserRound size={14} />
+                  My Profile
+                </button>
                 <button
                   type="button"
                   role="menuitem"

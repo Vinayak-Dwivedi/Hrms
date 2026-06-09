@@ -9,8 +9,12 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
+  Eye,
+  Paperclip,
+  Pencil,
   RotateCcw,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -1001,6 +1005,374 @@ function RegApprovalsTable({
   );
 }
 
+// ── Resignation approvals table (frontend-only / mock data) ───────────────────
+
+export interface ResignationRequest {
+  id: number;
+  firstName: string;
+  lastName: string;
+  empId: string;
+  lwd: string; // Last Working Day (ISO)
+  reason: string; // short resignation reason / category
+  detailedRemark: string;
+  attachment: string | null; // filename when present, null otherwise
+  noticeBuyout: boolean; // employee requested to buy out notice period
+  appliedOn: string; // ISO
+  status: "Pending" | "Approved" | "Rejected";
+}
+
+// Dummy data with a mix of statuses. No API yet — wired entirely on the client.
+const MOCK_RESIGNATIONS: ResignationRequest[] = [
+  {
+    id: 1,
+    firstName: "Rahul",
+    lastName: "Mehta",
+    empId: "ILD-2847",
+    lwd: "2026-07-31",
+    reason: "Better Opportunity",
+    detailedRemark:
+      "I have accepted an offer that aligns better with my long-term career goals. I'm committed to a clean handover of all ongoing projects before my last working day.",
+    attachment: "resignation-letter-rahul.pdf",
+    noticeBuyout: false,
+    appliedOn: "2026-06-02",
+    status: "Pending",
+  },
+  {
+    id: 2,
+    firstName: "Priya",
+    lastName: "Sharma",
+    empId: "ILD-1042",
+    lwd: "2026-06-20",
+    reason: "Relocation",
+    detailedRemark:
+      "Relocating to another city for family reasons and requesting an early release with notice buyout.",
+    attachment: "relocation-proof.pdf",
+    noticeBuyout: true,
+    appliedOn: "2026-05-28",
+    status: "Approved",
+  },
+  {
+    id: 3,
+    firstName: "Aarav",
+    lastName: "Singh",
+    empId: "ILD-3310",
+    lwd: "2026-08-15",
+    reason: "Higher Studies",
+    detailedRemark:
+      "Admitted to a full-time master's programme starting this autumn; resigning to pursue further education.",
+    attachment: null,
+    noticeBuyout: false,
+    appliedOn: "2026-06-05",
+    status: "Pending",
+  },
+  {
+    id: 4,
+    firstName: "Kavya",
+    lastName: "Bhatt",
+    empId: "ILD-2901",
+    lwd: "2026-06-10",
+    reason: "Personal Reasons",
+    detailedRemark: "Stepping away for personal reasons. Prefer not to elaborate further.",
+    attachment: null,
+    noticeBuyout: true,
+    appliedOn: "2026-05-15",
+    status: "Rejected",
+  },
+  {
+    id: 5,
+    firstName: "Rohan",
+    lastName: "Thapa",
+    empId: "ILD-3155",
+    lwd: "2026-07-10",
+    reason: "Career Change",
+    detailedRemark:
+      "Transitioning into a different domain and have completed the relevant certification. Happy to support knowledge transfer.",
+    attachment: "career-transition-note.pdf",
+    noticeBuyout: false,
+    appliedOn: "2026-06-01",
+    status: "Pending",
+  },
+  {
+    id: 6,
+    firstName: "Ishaan",
+    lastName: "Pant",
+    empId: "ILD-2788",
+    lwd: "2026-06-30",
+    reason: "Health Issues",
+    detailedRemark:
+      "Taking an extended break to focus on health and recovery as advised by my physician.",
+    attachment: "medical-advice.pdf",
+    noticeBuyout: true,
+    appliedOn: "2026-05-22",
+    status: "Approved",
+  },
+  {
+    id: 7,
+    firstName: "Vikram",
+    lastName: "Negi",
+    empId: "ILD-3402",
+    lwd: "2026-08-01",
+    reason: "Compensation",
+    detailedRemark:
+      "Received a significantly better compensation package elsewhere. Open to discussing a counter-offer before processing.",
+    attachment: null,
+    noticeBuyout: false,
+    appliedOn: "2026-06-06",
+    status: "Pending",
+  },
+  {
+    id: 8,
+    firstName: "Neha",
+    lastName: "Kapoor",
+    empId: "ILD-1599",
+    lwd: "2026-07-05",
+    reason: "Work-Life Balance",
+    detailedRemark:
+      "Looking for a role with better work-life balance closer to home. Grateful for the experience here.",
+    attachment: "resignation-neha.pdf",
+    noticeBuyout: false,
+    appliedOn: "2026-05-30",
+    status: "Rejected",
+  },
+  {
+    id: 9,
+    firstName: "Sanya",
+    lastName: "Rao",
+    empId: "ILD-3520",
+    lwd: "2026-09-01",
+    reason: "Better Opportunity",
+    detailedRemark:
+      "Joining a product company in a senior role. Will ensure all documentation is up to date before leaving.",
+    attachment: null,
+    noticeBuyout: true,
+    appliedOn: "2026-06-07",
+    status: "Pending",
+  },
+  {
+    id: 10,
+    firstName: "Arjun",
+    lastName: "Verma",
+    empId: "ILD-2233",
+    lwd: "2026-06-25",
+    reason: "Relocation",
+    detailedRemark: "Moving abroad with family; requesting early relieving where possible.",
+    attachment: "visa-approval.pdf",
+    noticeBuyout: true,
+    appliedOn: "2026-05-18",
+    status: "Approved",
+  },
+];
+
+type ResignationSortKey =
+  | "employee"
+  | "empId"
+  | "lwd"
+  | "reason"
+  | "detailedRemark"
+  | "attachment"
+  | "noticeBuyout"
+  | "appliedOn"
+  | "status";
+
+const RESIGNATION_COLUMNS: {
+  key: ResignationSortKey;
+  label: string;
+  sortable: boolean;
+}[] = [
+  { key: "employee", label: "Employee", sortable: true },
+  { key: "empId", label: "ID", sortable: true },
+  { key: "lwd", label: "LWD", sortable: true },
+  { key: "reason", label: "Reason", sortable: true },
+  { key: "detailedRemark", label: "Detailed Remark", sortable: false },
+  { key: "attachment", label: "Attachment", sortable: false },
+  { key: "noticeBuyout", label: "Notice Buyout", sortable: true },
+  { key: "appliedOn", label: "Applied On", sortable: true },
+  { key: "status", label: "Status", sortable: true },
+];
+
+function resignationSortValue(
+  req: ResignationRequest,
+  key: ResignationSortKey,
+): string | number {
+  switch (key) {
+    case "employee":
+      return `${req.firstName} ${req.lastName}`.toLowerCase();
+    case "empId":
+      return req.empId.toLowerCase();
+    case "lwd":
+      return new Date(req.lwd).getTime();
+    case "reason":
+      return req.reason.toLowerCase();
+    case "detailedRemark":
+      return req.detailedRemark.toLowerCase();
+    case "attachment":
+      return req.attachment ? 1 : 0;
+    case "noticeBuyout":
+      return req.noticeBuyout ? 1 : 0;
+    case "appliedOn":
+      return new Date(req.appliedOn).getTime();
+    case "status":
+      return req.status.toLowerCase();
+  }
+}
+
+function BuyoutPill({ value }: { value: boolean }) {
+  return value ? (
+    <Pill label="Yes" bg="#fef3c7" color="#b45309" />
+  ) : (
+    <Pill label="No" bg="#f3f4f6" color="#6b7280" />
+  );
+}
+
+function ResignationApprovalsTable({
+  rows,
+  sort,
+  onSort,
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  rows: ResignationRequest[];
+  sort: { key: ResignationSortKey; dir: SortDir } | null;
+  onSort: (key: ResignationSortKey) => void;
+  onView: (req: ResignationRequest) => void;
+  onEdit: (req: ResignationRequest) => void;
+  onDelete: (req: ResignationRequest) => void;
+}) {
+  return (
+    <TableShell>
+      <SortHeader columns={RESIGNATION_COLUMNS} sort={sort} onSort={onSort} />
+      <tbody>
+        {rows.length === 0 ? (
+          <tr>
+            <td
+              colSpan={RESIGNATION_COLUMNS.length + 1}
+              style={{
+                ...cellStyle,
+                textAlign: "center",
+                color: "#9ca3af",
+                padding: "40px",
+              }}
+            >
+              No requests found.
+            </td>
+          </tr>
+        ) : (
+          rows.map((req) => {
+            const reasonStyle = pillFor(req.reason);
+            return (
+              <tr key={req.id} className="hover:bg-[#fafbfc] transition-colors">
+                <td style={cellStyle}>
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                      style={{ background: colorFor(req.empId) }}
+                    >
+                      {initials(req.firstName, req.lastName)}
+                    </div>
+                    <span className="font-semibold text-gray-900">
+                      {req.firstName} {req.lastName}
+                    </span>
+                  </div>
+                </td>
+                <td
+                  style={{
+                    ...cellStyle,
+                    whiteSpace: "nowrap",
+                    color: "#6b7280",
+                  }}
+                >
+                  {req.empId}
+                </td>
+                <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
+                  {fmtDate(req.lwd)}
+                </td>
+                <td style={cellStyle}>
+                  <Pill
+                    label={req.reason}
+                    bg={reasonStyle.bg}
+                    color={reasonStyle.color}
+                  />
+                </td>
+                <td style={{ ...cellStyle, maxWidth: 240 }}>
+                  <span
+                    className="block truncate"
+                    style={{ maxWidth: 240 }}
+                    title={req.detailedRemark}
+                  >
+                    {req.detailedRemark}
+                  </span>
+                </td>
+                <td style={cellStyle}>
+                  {req.attachment ? (
+                    <a
+                      href="#"
+                      onClick={(e) => e.preventDefault()}
+                      title={req.attachment}
+                      className="inline-flex items-center gap-1.5"
+                      style={{
+                        color: "#2563eb",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        textDecoration: "none",
+                      }}
+                    >
+                      <Paperclip size={15} />
+                      View
+                    </a>
+                  ) : (
+                    <span style={{ color: "#cbd5e1" }}>—</span>
+                  )}
+                </td>
+                <td style={cellStyle}>
+                  <BuyoutPill value={req.noticeBuyout} />
+                </td>
+                <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
+                  {fmtDate(req.appliedOn)}
+                </td>
+                <td style={cellStyle}>
+                  <StatusPill status={req.status} />
+                </td>
+                <td style={cellStyle}>
+                  <div className="flex items-center gap-2">
+                    <IconAction
+                      title="View"
+                      disabled={false}
+                      onClick={() => onView(req)}
+                      icon={<Eye size={16} />}
+                      border="#bfdbfe"
+                      color="#2563eb"
+                      hoverBg="#eff6ff"
+                    />
+                    <IconAction
+                      title="Edit"
+                      disabled={false}
+                      onClick={() => onEdit(req)}
+                      icon={<Pencil size={15} />}
+                      border="#e5e7eb"
+                      color="#6b7280"
+                      hoverBg="#f9fafb"
+                    />
+                    <IconAction
+                      title="Delete"
+                      disabled={false}
+                      onClick={() => onDelete(req)}
+                      icon={<Trash2 size={16} />}
+                      border="#fca5a5"
+                      color="#dc2626"
+                      hoverBg="#fef2f2"
+                    />
+                  </div>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </TableShell>
+  );
+}
+
 // ── Pagination footer (shared) ────────────────────────────────────────────────
 
 function Pagination({
@@ -1174,7 +1546,7 @@ function SubTabs<K extends string>({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type MainTab = "leave" | "regularisation";
+type MainTab = "leave" | "regularisation" | "resignation";
 type LeaveSubTab = "all" | "pending" | "approved" | "rejected" | "forwarded";
 type RegSubTab = "all" | "pending" | "approved" | "rejected";
 
@@ -1186,6 +1558,7 @@ const LEAVE_STATUS_OPTIONS = [
   "Cancelled",
 ];
 const REG_STATUS_OPTIONS = ["Pending", "Approved", "Rejected"];
+const RESIGNATION_STATUS_OPTIONS = ["Pending", "Approved", "Rejected"];
 
 function applySort<T, K extends string>(
   rows: T[],
@@ -1236,6 +1609,19 @@ export default function Approvals() {
   } | null>({ key: "appliedOn", dir: "desc" });
   const [regPage, setRegPage] = useState(1);
   const [regRowsPerPage, setRegRowsPerPage] = useState(10);
+
+  // ── Resignation state (frontend-only, mock data) ──
+  const [resignSubTab, setResignSubTab] = useState<RegSubTab>("pending");
+  const [resignations, setResignations] =
+    useState<ResignationRequest[]>(MOCK_RESIGNATIONS);
+  const [resignFilters, setResignFilters] =
+    useState<ApprovalFilters>(EMPTY_FILTERS);
+  const [resignSort, setResignSort] = useState<{
+    key: ResignationSortKey;
+    dir: SortDir;
+  } | null>({ key: "appliedOn", dir: "desc" });
+  const [resignPage, setResignPage] = useState(1);
+  const [resignRowsPerPage, setResignRowsPerPage] = useState(10);
 
   async function refreshLeaves() {
     setLeaveLoading(true);
@@ -1436,6 +1822,78 @@ export default function Approvals() {
     setRegPage(1);
   }, [regFilters, regSubTab, regRowsPerPage]);
 
+  // ── Resignation: reason options + filter/sort pipeline (frontend-only) ──
+  const resignPending = resignations.filter(
+    (r) => r.status === "Pending",
+  ).length;
+
+  const resignReasonOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of resignations) set.add(r.reason);
+    return Array.from(set, (v) => ({ value: v, label: v })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [resignations]);
+
+  const filteredResign = useMemo(() => {
+    const q = resignFilters.search.trim().toLowerCase();
+    const start = resignFilters.startDate
+      ? new Date(resignFilters.startDate)
+      : null;
+    const end = resignFilters.endDate ? new Date(resignFilters.endDate) : null;
+
+    const out = resignations.filter((r) => {
+      if (resignSubTab !== "all") {
+        const cap = resignSubTab.charAt(0).toUpperCase() + resignSubTab.slice(1);
+        if (r.status !== cap) return false;
+      }
+      if (resignFilters.status && r.status !== resignFilters.status)
+        return false;
+      if (resignFilters.type && r.reason !== resignFilters.type) return false;
+      if (q) {
+        const hay = `${r.firstName} ${r.lastName} ${r.empId}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (start && new Date(r.lwd) < start) return false;
+      if (end && new Date(r.lwd) > end) return false;
+      return true;
+    });
+    return applySort(out, resignSort, resignationSortValue);
+  }, [resignations, resignSubTab, resignFilters, resignSort]);
+
+  const resignPageCount = Math.max(
+    1,
+    Math.ceil(filteredResign.length / resignRowsPerPage),
+  );
+  const resignCurrentPage = Math.min(resignPage, resignPageCount);
+  const pagedResign = filteredResign.slice(
+    (resignCurrentPage - 1) * resignRowsPerPage,
+    resignCurrentPage * resignRowsPerPage,
+  );
+
+  useEffect(() => {
+    setResignPage(1);
+  }, [resignFilters, resignSubTab, resignRowsPerPage]);
+
+  function handleResignSort(key: ResignationSortKey) {
+    setResignSort((prev) =>
+      prev?.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+  }
+
+  function viewResignation(req: ResignationRequest) {
+    toast.info(`Viewing resignation for ${req.firstName} ${req.lastName}`);
+  }
+  function editResignation(req: ResignationRequest) {
+    toast.info(`Edit resignation for ${req.firstName} ${req.lastName}`);
+  }
+  function deleteResignation(req: ResignationRequest) {
+    setResignations((prev) => prev.filter((r) => r.id !== req.id));
+    toast.success("Resignation request removed");
+  }
+
   function handleLeaveSort(key: LeaveSortKey) {
     setLeaveSort((prev) =>
       prev?.key === key
@@ -1469,6 +1927,12 @@ export default function Approvals() {
     { key: "approved", label: "Approved" },
     { key: "rejected", label: "Rejected" },
   ];
+  const RESIGN_SUB: { key: RegSubTab; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "pending", label: "Pending" },
+    { key: "approved", label: "Approved" },
+    { key: "rejected", label: "Rejected" },
+  ];
 
   return (
     <div className="space-y-0">
@@ -1477,6 +1941,7 @@ export default function Approvals() {
           {[
             { key: "leave" as MainTab, label: "Leave Approvals" },
             { key: "regularisation" as MainTab, label: "Regularisation" },
+            { key: "resignation" as MainTab, label: "Resignation" },
           ].map((t) => (
             <button
               key={t.key}
@@ -1630,6 +2095,44 @@ export default function Approvals() {
           onClose={() => setRegRejectingId(null)}
           onConfirm={(remarks) => rejectReg(regRejectingReq.id, remarks)}
         />
+      )}
+
+      {mainTab === "resignation" && (
+        <div className="pt-4 space-y-4">
+          <SubTabs
+            tabs={RESIGN_SUB}
+            active={resignSubTab}
+            onSelect={setResignSubTab}
+            badgeKey="pending"
+            badgeCount={resignPending}
+          />
+
+          <FilterToolbar
+            filters={resignFilters}
+            onChange={setResignFilters}
+            onReset={() => setResignFilters(EMPTY_FILTERS)}
+            searchPlaceholder="Search by employee name or ID..."
+            typeLabel="Reason"
+            typeOptions={resignReasonOptions}
+            statusOptions={RESIGNATION_STATUS_OPTIONS}
+          />
+
+          <ResignationApprovalsTable
+            rows={pagedResign}
+            sort={resignSort}
+            onSort={handleResignSort}
+            onView={viewResignation}
+            onEdit={editResignation}
+            onDelete={deleteResignation}
+          />
+          <Pagination
+            total={filteredResign.length}
+            page={resignCurrentPage}
+            rowsPerPage={resignRowsPerPage}
+            onPage={setResignPage}
+            onRowsPerPage={setResignRowsPerPage}
+          />
+        </div>
       )}
     </div>
   );

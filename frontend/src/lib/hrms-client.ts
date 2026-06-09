@@ -111,6 +111,17 @@ interface MeResponse {
   grade: string | null;
   branch: string | null;
   joiningDate: string;
+  // Added by the extended /api/me — present for the profile page.
+  middleName?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  employmentType?: string | null;
+  reportingManager?: string | null;
+  reportingManagerEmpId?: string | null;
+  currentAddress?: string | null;
+  permanentAddress?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
 }
 
 export async function fetchCurrentEmployee(): Promise<UIEmployee> {
@@ -127,6 +138,85 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     workEmail: me.workEmail,
     phone: me.phone,
   };
+}
+
+// ── My Profile (view/edit) ────────────────────────────────────────────────────
+
+export interface MyProfile {
+  id: number;
+  empId: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  fullName: string;
+  initials: string;
+  avatarUrl: string | null;
+  email: string;
+  personalEmail: string;
+  workEmail: string | null;
+  phone: string;
+  gender: string | null;
+  dob: string | null;
+  designation: string | null;
+  department: string | null;
+  grade: string | null;
+  branch: string | null;
+  employmentType: string | null;
+  reportingManager: string | null;
+  joiningDate: string;
+  currentAddress: string | null;
+  permanentAddress: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+}
+
+export async function fetchMyProfile(): Promise<MyProfile> {
+  const me = await jsonFetch<MeResponse>("/me");
+  return {
+    id: me.id,
+    empId: me.empId,
+    firstName: me.firstName,
+    middleName: me.middleName ?? null,
+    lastName: me.lastName,
+    fullName: me.fullName,
+    initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
+    avatarUrl: me.avatarUrl ?? null,
+    email: me.email,
+    personalEmail: me.personalEmail,
+    workEmail: me.workEmail,
+    phone: me.phone,
+    gender: me.gender ?? null,
+    dob: me.dob ?? null,
+    designation: me.role ?? null,
+    department: me.department ?? null,
+    grade: me.grade ?? null,
+    branch: me.branch ?? null,
+    employmentType: me.employmentType ?? null,
+    reportingManager: me.reportingManager ?? null,
+    joiningDate: me.joiningDate,
+    currentAddress: me.currentAddress ?? null,
+    permanentAddress: me.permanentAddress ?? null,
+    emergencyContactName: me.emergencyContactName ?? null,
+    emergencyContactPhone: me.emergencyContactPhone ?? null,
+  };
+}
+
+export interface UpdateMyProfileInput {
+  phone: string;
+  personalEmail: string;
+  currentAddress: string;
+  permanentAddress: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+}
+
+export async function updateMyProfile(
+  input: UpdateMyProfileInput,
+): Promise<void> {
+  await jsonFetch<{ ok: boolean }>("/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 // ────────────────────── attendance / punch card ─────────────────────
