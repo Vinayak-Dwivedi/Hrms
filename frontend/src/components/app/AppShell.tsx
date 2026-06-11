@@ -100,7 +100,7 @@ const USER_MGMT_SECTION: NavSection = {
   ],
 };
 
-const SETTINGS_HREFS = ["/locations", "/leave-policy"];
+const SETTINGS_HREFS = ["/locations", "/leave-policy", "/offboarding"];
 
 const SETTINGS_SECTION: NavSection = {
   title: "SETTINGS",
@@ -115,6 +115,12 @@ const SETTINGS_SECTION: NavSection = {
       requiredPermission: "admin.roles",
     },
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
+    {
+      icon: LogOut,
+      label: "Offboarding",
+      href: "/offboarding",
+      requiredPermission: "admin.roles",
+    },
   ],
 };
 

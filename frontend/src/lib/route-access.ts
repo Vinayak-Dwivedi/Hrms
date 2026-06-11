@@ -34,6 +34,9 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   if (pathname === "/locations" || pathname.startsWith("/locations/")) {
     return ["admin.roles"];
   }
+  if (pathname === "/offboarding" || pathname.startsWith("/offboarding/")) {
+    return ["admin.roles"];
+  }
   if (pathname.startsWith("/hr/org-setup")) return ["onboarding.manage"];
   if (pathname === "/hr/dashboard" || pathname.startsWith("/hr/dashboard/")) {
     return ["onboarding.view"];
