@@ -30,23 +30,16 @@ export default function LeavePolicyPage() {
     const curIdx = TAB_ORDER.indexOf(tab);
     const nextIdx = TAB_ORDER.indexOf(next);
     setDirection(nextIdx > curIdx ? "forward" : "backward");
+
+
+    
     setTab(next);
   }
 
   return (
     <div className="flex flex-col gap-6 pb-10">
-      {/* Page header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
-            Leave Policy
-          </h1>
-          <p className="text-[13px] text-gray-500 mt-1">
-            Configure compensatory off rules and the approval workflow for the
-            organisation.
-          </p>
-        </div>
-      </div>
+
+
 
       {/* Tab header */}
       <TabHeader active={tab} onChange={switchTab} />

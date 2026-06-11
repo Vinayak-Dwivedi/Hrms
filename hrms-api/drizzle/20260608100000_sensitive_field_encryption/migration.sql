@@ -33,6 +33,7 @@ ALTER TABLE "employee_identity_details" ADD COLUMN IF NOT EXISTS "esic_number_ha
 CREATE UNIQUE INDEX IF NOT EXISTS "employee_identity_details_pan_number_hash_key" ON "employee_identity_details" ("pan_number_hash");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "employee_identity_details_aadhaar_number_hash_key" ON "employee_identity_details" ("aadhaar_number_hash");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "employee_identity_details_uan_number_hash_key" ON "employee_identity_details" ("uan_number_hash");--> statement-breakpoint
+ALTER TABLE "employee_bank_details" DROP CONSTRAINT IF EXISTS "employee_bank_details_employee_account_uq";--> statement-breakpoint
 DROP INDEX IF EXISTS "employee_bank_details_employee_account_uq";--> statement-breakpoint
 ALTER TABLE "employee_bank_details" ALTER COLUMN "account_number" TYPE text USING "account_number"::text;--> statement-breakpoint
 ALTER TABLE "employee_bank_details" ADD COLUMN IF NOT EXISTS "account_number_hash" text;--> statement-breakpoint
