@@ -5,6 +5,13 @@ import {
   documentTypeSchema,
 } from "@/modules/onboarding/schemas/document.schema";
 import { ApiError } from "@/middleware/error";
+import { userHasAnyPermission } from "@/middleware/require-permission";
+
+const HR_DOCUMENT_ACCESS = [
+  "onboarding.verify_documents",
+  "onboarding.manage",
+  "employees.view",
+];
 
 export async function uploadDocument(
   req: Request,
@@ -37,12 +44,14 @@ export async function getDocument(
 ) {
   try {
     const { id } = documentIdParamSchema.parse(req.params);
-    const isAdmin = req.user?.role === "admin";
+    const crossEmployeeAccess = req.user
+      ? await userHasAnyPermission(req.user.role, HR_DOCUMENT_ACCESS)
+      : false;
     const { stream, mimeType, originalFilename } =
       await documentService.getDocumentStream({
         employeeId: req.employee!.id,
         documentId: id,
-        isAdmin,
+        isAdmin: crossEmployeeAccess,
       });
     res.setHeader("Content-Type", mimeType);
     res.setHeader(
@@ -62,11 +71,13 @@ export async function deleteDocument(
 ) {
   try {
     const { id } = documentIdParamSchema.parse(req.params);
-    const isAdmin = req.user?.role === "admin";
+    const crossEmployeeAccess = req.user
+      ? await userHasAnyPermission(req.user.role, HR_DOCUMENT_ACCESS)
+      : false;
     const result = await documentService.deleteDocument({
       employeeId: req.employee!.id,
       documentId: id,
-      isAdmin,
+      isAdmin: crossEmployeeAccess,
       onboardingCompleted: req.employee!.onboardingStatus === "COMPLETED",
       actorUserId: req.user?.id,
     });

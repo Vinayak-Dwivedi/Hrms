@@ -22,7 +22,13 @@ interface Props {
   documents: OnboardingDocumentRow[];
   completing: boolean;
   pendingDocuments: string[];
+  submitButtonLabel?: string;
   onComplete: () => void;
+  onEditProfile?: () => void;
+  onEditDocuments?: () => void;
+  fetchDocument?: (
+    documentId: string,
+  ) => Promise<{ blob: Blob; mimeType: string; filename: string }>;
 }
 
 const STATUS_CLASS: Record<DocStatus, string> = {
@@ -37,7 +43,11 @@ export default function OnboardingReviewStep({
   documents,
   completing,
   pendingDocuments,
+  submitButtonLabel = "Complete Onboarding",
   onComplete,
+  onEditProfile,
+  onEditDocuments,
+  fetchDocument,
 }: Props) {
   const router = useRouter();
 
@@ -61,7 +71,9 @@ export default function OnboardingReviewStep({
           <button
             type="button"
             onClick={() =>
-              router.replace("/employee/onboarding/profile?step=profile")
+              onEditProfile
+                ? onEditProfile()
+                : router.replace("/employee/onboarding/profile?step=profile")
             }
             className={onboardingBtnOutlineClass}
           >
@@ -70,7 +82,9 @@ export default function OnboardingReviewStep({
           <button
             type="button"
             onClick={() =>
-              router.replace("/employee/onboarding/profile?step=documents")
+              onEditDocuments
+                ? onEditDocuments()
+                : router.replace("/employee/onboarding/profile?step=documents")
             }
             className={onboardingBtnOutlineClass}
           >
@@ -137,6 +151,7 @@ export default function OnboardingReviewStep({
                         documentId={row.id}
                         documentType={docType}
                         alt={row.originalFilename ?? docType}
+                        fetchDocument={fetchDocument}
                       />
                     ) : (
                       <p className="text-sm text-gray-400 m-0 py-4 text-center border border-dashed border-gray-200 rounded-lg">
@@ -163,7 +178,7 @@ export default function OnboardingReviewStep({
         onClick={onComplete}
         className={onboardingBtnPrimaryClass}
       >
-        {completing ? "Submitting…" : "Complete Onboarding"}
+        {completing ? "Submitting…" : submitButtonLabel}
       </button>
     </div>
   );

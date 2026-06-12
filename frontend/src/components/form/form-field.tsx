@@ -3,6 +3,7 @@
 import type { AnyFieldApi } from "@tanstack/react-form";
 import { useStore } from "@tanstack/react-form";
 import { format } from "date-fns";
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -87,7 +88,9 @@ type TextFieldProps = BaseFieldProps &
   Omit<
     React.ComponentProps<typeof Input>,
     "name" | "value" | "onChange" | "onBlur" | "id"
-  >;
+  > & {
+    normalizeValue?: (value: string) => string;
+  };
 
 export function TextField({
   field,
@@ -95,6 +98,7 @@ export function TextField({
   description,
   controlClassName,
   loginCredential = false,
+  normalizeValue,
   type = "text",
   required,
   ...inputProps
@@ -115,11 +119,14 @@ export function TextField({
       <Input
         {...inputProps}
         aria-invalid={invalid || undefined}
-        className={cn(controlClassName)}
+        className={cn("!rounded-sm !min-h-0", controlClassName)}
         id={field.name}
         name={field.name}
         onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.value)}
+        onChange={(event) => {
+          const next = event.target.value;
+          field.handleChange(normalizeValue ? normalizeValue(next) : next);
+        }}
         required={required}
         type={type}
         value={value ?? ""}
@@ -176,9 +183,87 @@ type SelectFieldProps = BaseFieldProps & {
   placeholder?: string;
   emptyOptionLabel?: string;
   disabled?: boolean;
+  onValueChange?: (value: string) => void;
 };
 
 const SELECT_EMPTY_SENTINEL = "__empty__";
+
+/** Native HTML select — matches list/filter dropdown styling across HRMS. */
+export function NativeSelectField({
+  description,
+  disabled,
+  emptyOptionLabel,
+  field,
+  label,
+  loginCredential = false,
+  onValueChange,
+  options,
+  placeholder,
+  controlClassName,
+}: SelectFieldProps) {
+  const errors = useFieldErrors(field);
+  const value = useStore(field.store, (state) => state.value) as
+    | string
+    | undefined;
+  const invalid = errors.length > 0;
+  const hasValue = value !== undefined && value !== "";
+  const placeholderLabel = emptyOptionLabel ?? placeholder;
+
+  return (
+    <Field data-invalid={invalid || undefined}>
+      <FormFieldLabel
+        htmlFor={field.name}
+        label={label}
+        loginCredential={loginCredential}
+      />
+      <div className="relative">
+        <select
+          aria-invalid={invalid || undefined}
+          className={cn(
+            controlClassName,
+            "w-full",
+            !hasValue && placeholderLabel ? "text-gray-400" : "text-gray-800",
+            disabled && "cursor-not-allowed opacity-60",
+          )}
+          disabled={disabled}
+          id={field.name}
+          name={field.name}
+          onBlur={field.handleBlur}
+          onChange={(event) => {
+            const next = event.target.value;
+            field.handleChange(next);
+            onValueChange?.(next);
+          }}
+          value={value ?? ""}
+        >
+          {placeholderLabel ? (
+            <option className="text-gray-800" value="">
+              {placeholderLabel}
+            </option>
+          ) : null}
+          {options.map((option) => (
+            <option
+              className="text-gray-800"
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500",
+            disabled && "opacity-50",
+          )}
+        />
+      </div>
+      {description ? <FieldDescription>{description}</FieldDescription> : null}
+      <FieldError className={fieldErrorClassName} errors={errors} />
+    </Field>
+  );
+}
 
 export function SelectField({
   description,
@@ -187,6 +272,7 @@ export function SelectField({
   field,
   label,
   loginCredential = false,
+  onValueChange,
   options,
   placeholder,
   controlClassName,
@@ -217,8 +303,10 @@ export function SelectField({
           if (!open) field.handleBlur();
         }}
         onValueChange={(next) => {
-          field.handleChange(next === SELECT_EMPTY_SENTINEL ? "" : next);
+          const value = next === SELECT_EMPTY_SENTINEL ? "" : next;
+          field.handleChange(value);
           field.handleBlur();
+          onValueChange?.(value);
         }}
         value={selectValue}
       >
@@ -296,7 +384,10 @@ export function DateField({
         <PopoverTrigger asChild>
           <Button
             aria-invalid={invalid || undefined}
-            className={cn("w-full justify-start bg-white font-normal", controlClassName)}
+            className={cn(
+              "w-full justify-start bg-white font-normal !rounded-sm !min-h-0",
+              controlClassName,
+            )}
             id={field.name}
             onBlur={field.handleBlur}
             type="button"

@@ -4,6 +4,7 @@
 # Local backups of the pre-split per-service histories. Keep out of git; the
 # bundles are large and only useful as a recovery archive on the laptop.
 /.git-backups/
+/uploads/
 
 # Tooling
 .claude/
@@ -22,3 +23,4 @@ Thumbs.db
 # Never commit private keys
 *.pem
 *.key
+

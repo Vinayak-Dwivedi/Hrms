@@ -1,10 +1,7 @@
 "use client";
 
 import {
-  BarChart3,
-  BookOpen,
   Briefcase,
-  Building2,
   Calendar as CalendarIcon,
   CheckSquare,
   ChevronDown,
@@ -13,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  Network,
   Receipt,
   Settings,
   Shield,
@@ -21,19 +19,28 @@ import {
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/app/AppLogo";
 import AppHeader from "@/components/app/AppHeader";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
 import {
-  fetchCurrentEmployee,
-  fetchCurrentManager,
+  fetchHeaderIdentity,
   fetchLeaveApprovals,
+  identityFromAuthUser,
 } from "@/lib/hrms-client";
 import type { Employee } from "@/lib/dashboard";
 import { useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
+import {
+  formatEntryId,
+  isNavActive,
+  isSettingsPath,
+  isUserMgmtPath,
+  navLinkClassName,
+  resolveActiveEntryId,
+} from "@/lib/nav-active";
 
 // ─── nav model ──────────────────────────────────────────────────────────────
 type NavEntry = {
@@ -53,14 +60,6 @@ type NavSection = {
   collapsedIcon?: LucideIcon;
 };
 
-const USER_MGMT_HREFS = [
-  "/employees",
-  "/departments",
-  "/add-employee",
-  "/add-permission",
-  "/user-roles",
-];
-
 const USER_MGMT_SECTION: NavSection = {
   title: "USER MANAGEMENT",
   sectionKey: "user-management",
@@ -74,9 +73,9 @@ const USER_MGMT_SECTION: NavSection = {
       requiredPermission: "employees.view",
     },
     {
-      icon: Building2,
-      label: "Department",
-      href: "/departments",
+      icon: Network,
+      label: "Hierarchy",
+      href: "/departments/hierarchy",
       requiredPermission: "employees.view",
     },
     {
@@ -172,175 +171,75 @@ function filterNavSections(
     .filter((section) => section.entries.length > 0);
 }
 
-// Single source of truth for what each role sees. Sections render in order.
-function buildNav(role: Role): NavSection[] {
-  if (role === "manager") {
-    return [
+/** Nav sections filtered by DB-backed permissions (see role_permissions). */
+const ALL_NAV_SECTIONS: NavSection[] = [
+  {
+    title: "PERSONAL",
+    entries: [
+      { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
       {
-        title: "PERSONAL",
-        entries: [
-          {
-            icon: Briefcase,
-            label: "Dashboard",
-            href: "/manager/dashboard",
-            requiredPermission: "leave.approve",
-          },
-          {
-            icon: Clock,
-            label: "My Attendance",
-            href: "/manager/attendance",
-            requiredPermission: "attendance.view",
-          },
-          {
-            icon: CalendarIcon,
-            label: "Leave",
-            href: "/manager/leave",
-            requiredPermission: "leave.view",
-          },
-        ],
+        icon: Clock,
+        label: "Attendance",
+        href: "/attendance",
+        requiredPermission: "attendance.view",
       },
       {
-        title: "MY TEAM",
-        entries: [
-          {
-            icon: LayoutDashboard,
-            label: "Team Dashboard",
-            href: "/manager/team-dashboard",
-            requiredPermission: "leave.approve",
-          },
-          {
-            icon: Clock,
-            label: "Team Attendance",
-            href: "/manager/team-attendance-report",
-            requiredPermission: "leave.approve",
-          },
-          {
-            icon: CheckSquare,
-            label: "Approvals",
-            href: "/manager/approvals",
-            badgeKey: "pendingApprovals",
-            requiredPermission: "leave.approve",
-          },
-        ],
-      },
-      USER_MGMT_SECTION,
-      SETTINGS_SECTION,
-    ];
-  }
-
-  if (role === "admin") {
-    return [
-      {
-        title: "PERSONAL",
-        entries: [
-          { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
-          {
-            icon: Clock,
-            label: "My Attendance",
-            href: "/attendance",
-            requiredPermission: "attendance.view",
-          },
-          {
-            icon: CalendarIcon,
-            label: "Leave",
-            href: "/leave",
-            requiredPermission: "leave.view",
-          },
-        ],
+        icon: CalendarIcon,
+        label: "Leave",
+        href: "/leave",
+        also: ["/leave/new"],
+        requiredPermission: "leave.view",
       },
       {
-        title: "ADMINISTRATION",
-        entries: [
-          {
-            icon: Users,
-            label: "Employees",
-            href: "/employees",
-            requiredPermission: "employees.view",
-          },
-          {
-            icon: CheckSquare,
-            label: "Approvals",
-            href: "/manager/approvals",
-            badgeKey: "pendingApprovals",
-            requiredPermission: "leave.approve",
-          },
-          {
-            icon: LayoutDashboard,
-            label: "Org Dashboard",
-            href: "/dashboard",
-          },
-          { icon: BarChart3, label: "Reports", href: "/dashboard" },
-        ],
+        icon: FileText,
+        label: "My Requests",
+        href: "/requests",
+        requiredPermission: "leave.view",
       },
-      USER_MGMT_SECTION,
-      SETTINGS_SECTION,
-    ];
-  }
+      // {
+      //   icon: Receipt,
+      //   label: "My Payslips",
+      //   href: "/payslips",
+      //   requiredPermission: "payroll.view",
+      // },
+      // {
+      //   icon: Users,
+      //   label: "Directory",
+      //   href: "/directory",
+      //   requiredPermission: "employees.view",
+      // },
+    ],
+  },
+  {
+    title: "MY TEAM",
+    entries: [
+      {
+        icon: LayoutDashboard,
+        label: "Team Dashboard",
+        href: "/manager/team-dashboard",
+        requiredPermission: "leave.approve",
+      },
+      {
+        icon: Clock,
+        label: "Team Attendance",
+        href: "/manager/team-attendance-report",
+        requiredPermission: "leave.approve",
+      },
+      {
+        icon: CheckSquare,
+        label: "Approvals",
+        href: "/manager/approvals",
+        badgeKey: "pendingApprovals",
+        requiredPermission: "leave.approve",
+      },
+    ],
+  },
+  USER_MGMT_SECTION,
+  SETTINGS_SECTION,
+];
 
-  return [
-    {
-      title: "PERSONAL",
-      entries: [
-        { icon: Briefcase, label: "Dashboard", href: "/dashboard" },
-        {
-          icon: Clock,
-          label: "Attendance",
-          href: "/attendance",
-          requiredPermission: "attendance.view",
-        },
-        {
-          icon: CalendarIcon,
-          label: "Leave",
-          href: "/leave",
-          also: ["/leave/new"],
-          requiredPermission: "leave.view",
-        },
-        {
-          icon: FileText,
-          label: "My Requests",
-          href: "/requests",
-          requiredPermission: "leave.view",
-        },
-        {
-          icon: Receipt,
-          label: "My Payslips",
-          href: "/payslips",
-          requiredPermission: "payroll.view",
-        },
-        {
-          icon: Users,
-          label: "Directory",
-          href: "/directory",
-          requiredPermission: "employees.view",
-        },
-        { icon: BookOpen, label: "L&D Portal", href: "/lnd" },
-        { icon: FileText, label: "Company Policies", href: "/policies" },
-      ],
-    },
-    USER_MGMT_SECTION,
-    SETTINGS_SECTION,
-  ];
-}
-
-function isNavActive(entry: NavEntry, pathname: string): boolean {
-  if (pathname === entry.href) return true;
-  if (pathname.startsWith(`${entry.href}/`)) return true;
-  if (entry.also?.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return true;
-  }
-  return false;
-}
-
-function isUserMgmtPath(pathname: string): boolean {
-  return USER_MGMT_HREFS.some(
-    (href) => pathname === href || pathname.startsWith(`${href}/`),
-  );
-}
-
-function isSettingsPath(pathname: string): boolean {
-  return SETTINGS_HREFS.some(
-    (href) => pathname === href || pathname.startsWith(`${href}/`),
-  );
+function buildNav(): NavSection[] {
+  return ALL_NAV_SECTIONS;
 }
 
 function defaultSectionOpen(sectionKey: string, pathname: string): boolean {
@@ -370,26 +269,14 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/requests": "My Requests",
   "/payslips": "My Payslips",
   "/directory": "Directory",
-  "/lnd": "L&D Portal",
-  "/policies": "Company Policies",
   "/holidays": "Holidays",
-  "/manager/dashboard": "HRMS Dashboard",
-  "/manager/attendance": "My Attendance",
-  "/manager/leave": "Leave",
   "/manager/team-dashboard": "Team Dashboard",
   "/manager/team-attendance-report": "Team Attendance",
   "/manager/approvals": "Approvals",
-  "/admin/dashboard": "Dashboard",
-  "/admin/attendance": "My Attendance",
-  "/admin/leave": "Leave",
-  "/admin/employees": "Employees",
-  "/admin/approvals": "Approvals",
-  "/admin/org": "Org Dashboard",
-  "/admin/reports": "Reports",
+  "/departments/hierarchy": "Departments / Hierarchy",
   "/add-employee": "Add Employee",
   "/add-permission": "Add Permission",
   "/user-roles": "User Roles",
-  "/departments": "Department",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
   "/employees": "Employees",
@@ -400,6 +287,7 @@ function breadcrumbFor(pathname: string): string {
   const fromTable = BREADCRUMB_LABELS[pathname];
   if (fromTable) return fromTable;
   if (/^\/employees\/\d+\/edit$/.test(pathname)) return "Edit Employee";
+  if (/^\/employees\/\d+\/onboarding$/.test(pathname)) return "Employee Onboarding";
   if (/^\/employees\/\d+$/.test(pathname)) return "View Employee";
   const derived = pathname
     .split("/")
@@ -469,9 +357,11 @@ export default function AppShell({
   role?: Role;
 }) {
   const pathname = usePathname();
-  const { hasAnyPermission } = useAuth();
+  const { hasAnyPermission, hasPermission, user } = useAuth();
 
-  const [identity, setIdentity] = useState<Employee | null>(null);
+  const [identity, setIdentity] = useState<Employee | null>(() =>
+    identityFromAuthUser(user),
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -532,22 +422,20 @@ export default function AppShell({
   }
 
   useEffect(() => {
+    setIdentity(identityFromAuthUser(user));
+  }, [user]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const emp =
-          role === "manager"
-            ? await fetchCurrentManager()
-            : await fetchCurrentEmployee();
-        if (cancelled) return;
+      const emp = await fetchHeaderIdentity();
+      if (!cancelled && emp) {
         setIdentity(emp);
-      } catch {
-        /* page surfaces fetch errors itself */
       }
 
       // Pending-approvals badge: shown for any role with the
       // "pendingApprovals" badgeKey on a nav entry (manager + admin today).
-      if (role === "manager" || role === "admin") {
+      if (hasPermission("leave.approve")) {
         try {
           const approvals = await fetchLeaveApprovals("pending");
           if (cancelled) return;
@@ -560,9 +448,13 @@ export default function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [pathname, role]);
+  }, [pathname, role, hasPermission, user]);
 
-  const sections = filterNavSections(buildNav(role), hasAnyPermission);
+  const sections = filterNavSections(buildNav(), hasAnyPermission);
+  const activeEntryId = useMemo(
+    () => resolveActiveEntryId(sections, pathname),
+    [sections, pathname],
+  );
   const badgeFor = (key?: NavEntry["badgeKey"]): number | null => {
     if (key === "pendingApprovals") return pendingApprovals;
     return null;
@@ -665,25 +557,20 @@ export default function AppShell({
                 )}
 
                 {(!isCollapsible || isOpen) &&
-                  section.entries.map(({ icon: Icon, label, href, badgeKey, also }) => {
-                    const active = isNavActive(
-                      { icon: Icon, label, href, also },
-                      pathname,
-                    );
+                  section.entries.map(({ icon: Icon, label, href, badgeKey }) => {
+                    const active =
+                      formatEntryId(section.title, label) === activeEntryId;
                     const badge = badgeFor(badgeKey);
                     return (
-                      <a
+                      <Link
                         key={label}
                         href={href}
                         title={collapsed ? label : undefined}
-                        className={[
-                          "flex items-center rounded-xl text-[13px] font-medium no-underline gap-3",
-                          collapsed ? "py-2.5 justify-center" : "px-3 py-2.5",
-                          !collapsed && isCollapsible ? "ml-2" : "",
-                          active
-                            ? "text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
-                            : "text-gray-600 bg-transparent",
-                        ].join(" ")}
+                        aria-current={active ? "page" : undefined}
+                        className={navLinkClassName(active, {
+                          collapsed,
+                          nested: Boolean(isCollapsible),
+                        })}
                       >
                         <Icon size={16} />
                         {!collapsed && (
@@ -703,7 +590,7 @@ export default function AppShell({
                             )}
                           </>
                         )}
-                      </a>
+                      </Link>
                     );
                   })}
               </div>
@@ -723,7 +610,7 @@ export default function AppShell({
 
       {/* Main column */}
       <div className="flex-1 min-w-0">
-        <AppHeader role={role} identity={identity} />
+        <AppHeader role={role} identity={identity} sessionUser={user} />
         <main className="px-6 pb-6">{children}</main>
       </div>
     </div>

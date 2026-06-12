@@ -40,20 +40,22 @@ import type {
 } from "@/components/attendance/AttendanceCalendar";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
 import AttendanceTable from "@/components/attendance/AttendanceTable";
-import type {
-  DayAttendance,
-  LeaveRequest,
-  LeaveType,
-} from "@/lib/dashboard";
+import type { DayAttendance, LeaveType } from "@/lib/dashboard";
+import {
+  mergeHolidaysIntoDays,
+  mergeLeavesIntoDays,
+} from "@/lib/attendance-merge";
 import {
   fetchManagerLeaveBalances,
   fetchManagerLeaveRequests,
   fetchManagerMonthAttendance,
   fetchMonthAttendance,
+  fetchMonthHolidays,
   fetchMyLeaveBalances,
   fetchMyLeaveRequests,
   fetchMyRegularisationRequests,
   type MyRegularisationRow,
+  type UpcomingHoliday,
   submitLeaveRequest,
   submitRegularisationRequest,
 } from "@/lib/hrms-client";
@@ -92,50 +94,6 @@ function adaptersFor(role: Role): Adapters {
   };
 }
 
-// ─── helpers shared with the calendar ──────────────────────────────────────
-
-function ymd(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function mergeLeavesIntoDays(
-  attendance: DayAttendance[],
-  leaves: LeaveRequest[],
-  monthStart: Date,
-  monthEnd: Date,
-): DayAttendance[] {
-  const map = new Map<string, DayAttendance>(
-    attendance.map((d) => [d.date, d]),
-  );
-  // Pending first, Approved last → Approved wins on same-date conflicts.
-  // Rejected/Cancelled are dropped.
-  const ranked = [...leaves]
-    .filter((lr) => lr.status === "Pending" || lr.status === "Approved")
-    .sort(
-      (a, b) =>
-        (a.status === "Approved" ? 1 : 0) - (b.status === "Approved" ? 1 : 0),
-    );
-  for (const lr of ranked) {
-    const start = new Date(lr.startDate);
-    const end = new Date(lr.endDate);
-    const lower = start < monthStart ? monthStart : start;
-    const upper = end > monthEnd ? monthEnd : end;
-    const cur = new Date(lower);
-    while (cur <= upper) {
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) {
-        map.set(ymd(cur), {
-          date: ymd(cur),
-          status: lr.status === "Approved" ? "Leave" : "LeavePending",
-          leaveType: lr.leaveType,
-        });
-      }
-      cur.setDate(cur.getDate() + 1);
-    }
-  }
-  return Array.from(map.values());
-}
-
 // ─── component ──────────────────────────────────────────────────────────────
 
 export default function RoleAttendance({ role }: { role: Role }) {
@@ -146,6 +104,7 @@ export default function RoleAttendance({ role }: { role: Role }) {
   const initialMonth0 = today.getMonth();
 
   const [data, setData] = useState<DayAttendance[]>([]);
+  const [holidays, setHolidays] = useState<UpcomingHoliday[]>([]);
   const [balances, setBalances] = useState<LeaveType[]>([]);
   const [regHistory, setRegHistory] = useState<MyRegularisationRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -161,24 +120,28 @@ export default function RoleAttendance({ role }: { role: Role }) {
   ): Promise<DayAttendance[]> {
     const monthStart = new Date(year, month0, 1);
     const monthEnd = new Date(year, month0 + 1, 0);
-    const [days, leaves] = await Promise.all([
+    const [days, leaves, monthHolidays] = await Promise.all([
       adapters.fetchMonth(year, month0 + 1),
       adapters.fetchLeaveRequests(),
+      fetchMonthHolidays(year, month0 + 1),
     ]);
-    return mergeLeavesIntoDays(days, leaves, monthStart, monthEnd);
+    const withHolidays = mergeHolidaysIntoDays(days, monthHolidays);
+    return mergeLeavesIntoDays(withHolidays, leaves, monthStart, monthEnd);
   }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [merged, bal, regs] = await Promise.all([
+        const [merged, bal, regs, monthHolidays] = await Promise.all([
           refreshDays(initialYear, initialMonth0),
           adapters.fetchLeaveBalances(),
           fetchMyRegularisationRequests(adapters.regScope),
+          fetchMonthHolidays(initialYear, initialMonth0 + 1),
         ]);
         if (cancelled) return;
         setData(merged);
+        setHolidays(monthHolidays);
         setBalances(bal);
         setRegHistory(regs);
       } catch (e) {
@@ -197,8 +160,12 @@ export default function RoleAttendance({ role }: { role: Role }) {
     setCalYear(year);
     setCalMonth0(month0);
     try {
-      const merged = await refreshDays(year, month0);
+      const [merged, monthHolidays] = await Promise.all([
+        refreshDays(year, month0),
+        fetchMonthHolidays(year, month0 + 1),
+      ]);
       setData(merged);
+      setHolidays(monthHolidays);
     } catch (e) {
       setLoadError((e as Error).message);
     }
@@ -284,6 +251,7 @@ export default function RoleAttendance({ role }: { role: Role }) {
                 initialYear={calYear}
                 initialMonth={calMonth0}
                 leaveBalances={balances}
+                holidays={holidays}
                 onSubmitLeave={handleSubmitLeave}
                 onSubmitRegularisation={handleSubmitRegularisation}
                 onMonthChange={handleMonthChange}

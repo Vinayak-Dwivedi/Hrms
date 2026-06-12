@@ -2,6 +2,7 @@
 
 import {
   Briefcase,
+  Camera,
   FileText,
   GraduationCap,
   Info,
@@ -12,7 +13,6 @@ import {
   Phone,
   Plus,
   Shield,
-  Upload,
   User,
   X,
 } from "lucide-react";
@@ -29,7 +29,10 @@ import {
   type ProfileEditableState,
   type ProfileQualification,
 } from "../api/profile.client";
-import { EmployeeEmailRow, EmployeePhoneRow } from "./EmployeeEmailStatus";
+import {
+  EmailUnverifiedBadge,
+  EmailVerifiedBadge,
+} from "./EmployeeEmailStatus";
 import PersonalEmailVerificationDialog from "./PersonalEmailVerificationDialog";
 import PersonalPhoneVerificationDialog from "./PersonalPhoneVerificationDialog";
 import type { MyProfile } from "@/lib/hrms-client";
@@ -63,7 +66,7 @@ type NavItem = {
 
 const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
-    title: "Account",
+    title: "",
     items: [
       { id: "profile", label: "Basic Information", icon: User },
       { id: "contact", label: "Contact Details", icon: Phone },
@@ -155,16 +158,13 @@ function ProfileBadge({
 function ProfileSectionHeader({ tab }: { tab: ProfileTab }) {
   const meta = TAB_META[tab];
   return (
-    <div className="mb-6 pb-5 border-b border-gray-100">
+    <div className="mb-6 pb-0 border-b border-gray-100">
       <div className="flex flex-wrap items-center gap-2.5 mb-2">
         <h2 className="text-lg font-semibold text-gray-900 m-0 tracking-tight">
           {meta.title}
         </h2>
         <ProfileBadge variant={meta.hrManaged ? "hr" : "editable"} />
       </div>
-      <p className="text-sm text-gray-500 m-0 leading-relaxed max-w-2xl">
-        {meta.description}
-      </p>
     </div>
   );
 }
@@ -199,6 +199,47 @@ function ReadOnlyField({
         tabIndex={-1}
         value={value ?? "—"}
       />
+    </div>
+  );
+}
+
+const verifyLinkClass =
+  "mt-1.5 text-[11px] font-semibold text-[#FF014F] hover:text-[#be185d] bg-transparent border-0 p-0 cursor-pointer inline-block";
+
+function VerifiedReadOnlyField({
+  label,
+  value,
+  isVerified,
+  onVerify,
+  verifyLabel,
+}: {
+  label: string;
+  value: string | null | undefined;
+  isVerified: boolean;
+  onVerify?: () => void;
+  verifyLabel: string;
+}) {
+  if (!value?.trim()) return null;
+
+  return (
+    <div>
+      <label className={employeeFilterLabelClass}>
+        <span className="inline-flex items-center gap-2">
+          {label}
+          {isVerified ? <EmailVerifiedBadge /> : <EmailUnverifiedBadge />}
+        </span>
+      </label>
+      <input
+        className={readonlyInputClass}
+        readOnly
+        tabIndex={-1}
+        value={value}
+      />
+      {!isVerified && onVerify ? (
+        <button className={verifyLinkClass} onClick={onVerify} type="button">
+          {verifyLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -251,7 +292,7 @@ function EditableTextArea({
   span2?: boolean;
 }) {
   return (
-    <div className={span2 ? "md:col-span-2" : undefined}>
+    <div className={span2 ? FORM_GRID_FULL_ROW_CLASS : undefined}>
       <label className={employeeFilterLabelClass}>{label}</label>
       <textarea
         className={`${editableInputClass} min-h-[96px] resize-y`}
@@ -270,7 +311,12 @@ type StringFieldKey = {
     : never;
 }[keyof ProfileEditableState];
 
-const FORM_GRID_CLASS = "grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5";
+const FORM_PANEL_CLASS = "w-full";
+const FORM_GRID_CLASS =
+  "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-5";
+const PROFILE_GRID_CLASS =
+  "grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-5";
+const FORM_GRID_FULL_ROW_CLASS = "md:col-span-2 xl:col-span-3";
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
@@ -284,75 +330,17 @@ function fmtDate(iso: string | null): string {
 }
 
 function ProfileSidebar({
-  profile,
-  avatarSrc,
   activeTab,
   onTabChange,
   onRequestSeparation,
-  onVerifyPersonalEmail,
-  onVerifyPersonalPhone,
 }: {
-  profile: MyProfile;
-  avatarSrc: string | null;
   activeTab: ProfileTab;
   onTabChange: (tab: ProfileTab) => void;
   onRequestSeparation: () => void;
-  onVerifyPersonalEmail: () => void;
-  onVerifyPersonalPhone: () => void;
 }) {
   return (
     <aside className="w-full md:w-[272px] shrink-0 border-b md:border-b-0 md:border-r border-gray-100 bg-white flex flex-col">
-      <div className="px-5 pt-6 pb-5 border-b border-gray-100">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-sm font-semibold shrink-0 ring-2 ring-white shadow-sm">
-            {avatarSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={profile.fullName}
-                className="w-full h-full object-cover"
-                src={avatarSrc}
-              />
-            ) : (
-              profile.initials
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate m-0">
-              {profile.fullName}
-            </p>
-            <p className="text-xs text-gray-500 truncate m-0 mt-0.5">
-              {profile.designation ?? "Employee"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <span className="inline-flex px-2 py-0.5 rounded bg-gray-100 text-[11px] font-medium text-gray-600 tracking-wide">
-            {profile.empId}
-          </span>
-          {profile.department ? (
-            <span className="text-[11px] text-gray-400 truncate">
-              {profile.department}
-            </span>
-          ) : null}
-        </div>
-        <EmployeeEmailRow
-          email={profile.personalEmail}
-          isVerified={profile.personalEmailVerified ?? false}
-          onVerify={onVerifyPersonalEmail}
-          variant="personal"
-        />
-        <EmployeeEmailRow
-          email={profile.workEmail ?? profile.email}
-          variant="official"
-        />
-        <EmployeePhoneRow
-          isVerified={profile.phoneVerified ?? false}
-          onVerify={onVerifyPersonalPhone}
-          phone={profile.phone}
-        />
-      </div>
-
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+      <nav className="flex-1 px-3 pt-5 pb-4 space-y-5 overflow-y-auto">
         {NAV_GROUPS.map((group) => (
           <div key={group.title}>
             <p
@@ -628,54 +616,58 @@ export default function ProfileForm() {
         <div className="flex flex-col md:flex-row min-h-[620px]">
           <ProfileSidebar
             activeTab={activeTab}
-            avatarSrc={avatarSrc}
             onRequestSeparation={() => setExitOpen(true)}
             onTabChange={setActiveTab}
-            onVerifyPersonalEmail={() => {
-              if (!sendingEmailOtp) void handleVerifyPersonalEmail();
-            }}
-            onVerifyPersonalPhone={() => {
-              if (!sendingPhoneOtp) void handleVerifyPersonalPhone();
-            }}
-            profile={profile}
           />
 
           <div className="flex-1 flex flex-col min-w-0 bg-white">
-            <div className="flex-1 px-8 py-7 overflow-y-auto">
+            <div className="flex-1 px-8 py-5 overflow-y-auto">
               <ProfileSectionHeader tab={activeTab} />
 
               {activeTab === "profile" && (
-                <div className="max-w-3xl">
-                  <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-5 mb-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-xl font-semibold shrink-0 ring-4 ring-white shadow-md">
+                <div className={FORM_PANEL_CLASS}>
+                  <div className="rounded-lg border border-gray-100 bg-gradient-to-br from-gray-50/80 to-[#fff1f2]/40 p-4 mb-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <button
+                        aria-label="Upload profile photo"
+                        className="relative w-24 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-xl font-semibold shrink-0 ring-2 ring-white shadow-md group cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffb9ce] focus-visible:ring-offset-2"
+                        onClick={() => fileRef.current?.click()}
+                        type="button"
+                      >
                         {avatarSrc ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             alt={profile.fullName}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                             src={avatarSrc}
                           />
                         ) : (
                           profile.initials
                         )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 m-0">
-                          Profile Photo
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1 mb-3 leading-relaxed">
-                          Upload a professional headshot. Accepted formats: JPG,
-                          PNG. Maximum size 2&nbsp;MB.
-                        </p>
-                        <button
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer shadow-sm"
-                          onClick={() => fileRef.current?.click()}
-                          type="button"
-                        >
-                          <Upload className="w-4 h-4 text-gray-500" />
-                          Upload Image
-                        </button>
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                          <Camera className="w-6 h-6 text-white drop-shadow-sm" />
+                        </span>
+                        <span className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#FF014F] text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                          <Camera className="w-3.5 h-3.5" />
+                        </span>
+                      </button>
+                      <div className="flex-1 min-w-0 space-y-3">
+                        <div>
+                          <p className={`${employeeFilterLabelClass} mb-1`}>
+                            Employee ID
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 m-0">
+                            {profile.empId ?? "—"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className={`${employeeFilterLabelClass} mb-1`}>
+                            Full Name
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900 m-0">
+                            {profile.fullName ?? "—"}
+                          </p>
+                        </div>
                         <input
                           accept="image/png,image/jpeg,image/jpg"
                           className="hidden"
@@ -687,21 +679,51 @@ export default function ProfileForm() {
                     </div>
                   </div>
 
-                  <div className={FORM_GRID_CLASS}>
-                    <ReadOnlyField label="Employee ID" value={profile.empId} />
-                    <ReadOnlyField label="Full Name" value={profile.fullName} />
-                    <div className="md:col-span-2">
-                      <ReadOnlyField
-                        label="Work Email"
-                        value={profile.workEmail}
-                      />
-                    </div>
+                  <div className={PROFILE_GRID_CLASS}>
+                    <ReadOnlyField
+                      label="User Role"
+                      value={profile.authRoleLabel}
+                    />
+                    <ReadOnlyField
+                      label="User Type"
+                      value={profile.userTypeLabel}
+                    />
+                    <ReadOnlyField
+                      label="Designation"
+                      value={profile.designation}
+                    />
+                    <ReadOnlyField
+                      label="Work Email"
+                      value={profile.workEmail}
+                    />
+                    <VerifiedReadOnlyField
+                      isVerified={profile.personalEmailVerified ?? false}
+                      label="Personal Email"
+                      onVerify={
+                        !sendingEmailOtp
+                          ? () => void handleVerifyPersonalEmail()
+                          : undefined
+                      }
+                      value={profile.personalEmail}
+                      verifyLabel="Verify Email"
+                    />
+                    <VerifiedReadOnlyField
+                      isVerified={profile.phoneVerified ?? false}
+                      label="Phone Number"
+                      onVerify={
+                        !sendingPhoneOtp
+                          ? () => void handleVerifyPersonalPhone()
+                          : undefined
+                      }
+                      value={profile.phone}
+                      verifyLabel="Verify Mobile"
+                    />
                   </div>
                 </div>
               )}
 
               {activeTab === "contact" && (
-                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     helper="Used for urgent communication and emergency outreach."
                     label="Phone Number"
@@ -717,30 +739,27 @@ export default function ProfileForm() {
                     type="email"
                     value={form.personalEmail}
                   />
-                  <EditableTextArea
-                    label="Current Address"
-                    onChange={(v) => set("currentAddress", v)}
-                    placeholder="House / street / city / state / PIN"
-                    span2
-                    value={form.currentAddress}
-                  />
-                  <EditableTextArea
-                    label="Permanent Address"
-                    onChange={(v) => set("permanentAddress", v)}
-                    placeholder="House / street / city / state / PIN"
-                    span2
-                    value={form.permanentAddress}
-                  />
+                  <div
+                    className={`${FORM_GRID_FULL_ROW_CLASS} grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5`}
+                  >
+                    <EditableTextArea
+                      label="Current Address"
+                      onChange={(v) => set("currentAddress", v)}
+                      placeholder="House / street / city / state / PIN"
+                      value={form.currentAddress}
+                    />
+                    <EditableTextArea
+                      label="Permanent Address"
+                      onChange={(v) => set("permanentAddress", v)}
+                      placeholder="House / street / city / state / PIN"
+                      value={form.permanentAddress}
+                    />
+                  </div>
                 </div>
               )}
 
               {activeTab === "employment" && (
-                <div className="max-w-3xl">
-                  <InfoBanner>
-                    Employment details are managed by HR and cannot be modified
-                    from this page. Contact HR for updates to your role,
-                    department, or reporting manager.
-                  </InfoBanner>
+                <div className={FORM_PANEL_CLASS}>
                   <div className={FORM_GRID_CLASS}>
                     <ReadOnlyField
                       label="Date of Joining"
@@ -760,7 +779,7 @@ export default function ProfileForm() {
                     />
                     <ReadOnlyField label="Grade" value={profile.grade} />
                     <ReadOnlyField label="Branch" value={profile.branch} />
-                    <div className="md:col-span-2">
+                    <div className={FORM_GRID_FULL_ROW_CLASS}>
                       <ReadOnlyField
                         label="Reporting Manager"
                         value={profile.reportingManager}
@@ -771,7 +790,7 @@ export default function ProfileForm() {
               )}
 
               {activeTab === "emergency" && (
-                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Contact Name"
                     onChange={(v) => set("emergencyContactName", v)}
@@ -790,7 +809,7 @@ export default function ProfileForm() {
               )}
 
               {activeTab === "personal" && (
-                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Father's Name"
                     onChange={(v) => set("fatherName", v)}
@@ -831,7 +850,7 @@ export default function ProfileForm() {
               )}
 
               {activeTab === "academics" && (
-                <div className="max-w-3xl space-y-4">
+                <div className={`${FORM_PANEL_CLASS} space-y-4`}>
                   {form.academics.map((a, i) => (
                     <div
                       className="rounded-lg border border-gray-100 bg-gray-50/30 overflow-hidden"
@@ -909,7 +928,7 @@ export default function ProfileForm() {
               )}
 
               {activeTab === "bank" && (
-                <div className={`max-w-3xl ${FORM_GRID_CLASS}`}>
+                <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Account Number"
                     onChange={(v) => set("accountNumber", v)}

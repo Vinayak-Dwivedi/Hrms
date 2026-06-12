@@ -10,6 +10,7 @@ import * as profileService from "@/modules/onboarding/services/employee-profile.
 import { HR_REQUIRED_VERIFIED_DOCUMENTS } from "@/modules/hr-onboarding/constants";
 import * as employeeAdminRepo from "@/modules/hr-onboarding/repositories/employee-admin.repository";
 import * as tokenHistoryRepo from "@/modules/hr-onboarding/repositories/token-history.repository";
+import * as bankOnboarding from "@/modules/hr-onboarding/services/bank-onboarding.service";
 import * as documentVerification from "@/modules/hr-onboarding/services/document-verification.service";
 import { ensureInvitationStatusFresh } from "@/modules/hr-onboarding/services/onboarding-status.service";
 import { ApiError } from "@/middleware/error";
@@ -19,10 +20,11 @@ type AuditCtx = { ipAddress?: string | null; userAgent?: string | null };
 export async function listEmployees(params: {
   search?: string;
   departmentId?: number;
+  employeeStatus?: string;
   onboardingStatus?: string;
   limit: number;
   offset: number;
-  sort?: "createdAt" | "joiningDate" | "lastName";
+  sort?: "id" | "createdAt" | "joiningDate" | "lastName";
 }) {
   return employeeAdminRepo.listEmployeesAdmin(params);
 }
@@ -66,13 +68,13 @@ export async function getOnboardingTimeline(employeeId: number) {
   if (support.onboardingSubmittedAt) {
     timelineSelect.onboardingSubmittedAt = employees.onboardingSubmittedAt;
   }
-  if (support.onboardingStatus) {
+  if (support.onboardingReview) {
     timelineSelect.onboardingReviewedAt = employees.onboardingReviewedAt;
     timelineSelect.onboardingReviewedBy = employees.onboardingReviewedBy;
     timelineSelect.onboardingReviewNotes = employees.onboardingReviewNotes;
   }
 
-  const [full, tokens, documents] = await Promise.all([
+  const [full, tokens, documents, bankState] = await Promise.all([
     db
       .select(timelineSelect as {
         id: typeof employees.id;
@@ -93,6 +95,7 @@ export async function getOnboardingTimeline(employeeId: number) {
       .then((rows) => rows[0]),
     tokenHistoryRepo.listTokenHistory(employeeId).catch(() => []),
     documentVerification.listEmployeeDocuments(employeeId).catch(() => []),
+    bankOnboarding.getBankOnboardingState(employeeId).catch(() => null),
   ]);
   const submittedAt =
     full && "onboardingSubmittedAt" in full && full.onboardingSubmittedAt
@@ -114,6 +117,10 @@ export async function getOnboardingTimeline(employeeId: number) {
     completedAt: emp.onboardingCompletedAt?.toISOString() ?? null,
     tokenHistory: tokens,
     documents,
+    bankApprovedAt: bankState?.bankApprovedAt ?? null,
+    bankApprovedBy: bankState?.bankApprovedBy ?? null,
+    bankValid: bankState?.bankValid ?? false,
+    bank: bankState?.bank ?? [],
   };
 }
 
@@ -156,6 +163,7 @@ export async function approveOnboarding(params: {
     throw new ApiError(400, "ALREADY_COMPLETED", "Onboarding already completed.");
   }
 
+  const support = await getEmployeeColumnSupport();
   const docs = await documentVerification.listEmployeeDocuments(params.employeeId);
   const missingVerified = HR_REQUIRED_VERIFIED_DOCUMENTS.filter((type) => {
     const row = docs.find((d) => d.documentType === type);
@@ -169,22 +177,52 @@ export async function approveOnboarding(params: {
     );
   }
 
+  if (support.onboardingBankApproval) {
+    const [bankApproval] = await db
+      .select({
+        onboardingBankApprovedAt: employees.onboardingBankApprovedAt,
+      })
+      .from(employees)
+      .where(eq(employees.id, params.employeeId))
+      .limit(1);
+    if (!bankApproval?.onboardingBankApprovedAt) {
+      throw new ApiError(
+        400,
+        "BANK_NOT_APPROVED",
+        "Bank account details must be added and approved before completing onboarding.",
+      );
+    }
+  }
+
   const now = new Date();
+  const completePatch: Record<string, unknown> = {
+    updatedAt: now,
+  };
+  if (support.onboardingStatus) {
+    completePatch.onboardingStatus = "COMPLETED";
+  }
+  if (support.onboardingCompletedAt) {
+    completePatch.onboardingCompletedAt = now;
+  }
+  if (support.onboardingReview) {
+    completePatch.onboardingReviewedBy = params.reviewerEmployeeId;
+    completePatch.onboardingReviewedAt = now;
+    completePatch.onboardingReviewNotes = params.notes?.trim() || null;
+  }
+
+  const returning: Record<string, unknown> = {};
+  if (support.onboardingStatus) {
+    returning.onboardingStatus = employees.onboardingStatus;
+  }
+  if (support.onboardingCompletedAt) {
+    returning.onboardingCompletedAt = employees.onboardingCompletedAt;
+  }
+
   const [updated] = await db
     .update(employees)
-    .set({
-      onboardingStatus: "COMPLETED",
-      onboardingCompletedAt: now,
-      onboardingReviewedBy: params.reviewerEmployeeId,
-      onboardingReviewedAt: now,
-      onboardingReviewNotes: params.notes?.trim() || null,
-      updatedAt: now,
-    })
+    .set(completePatch as Partial<typeof employees.$inferInsert>)
     .where(eq(employees.id, params.employeeId))
-    .returning({
-      onboardingStatus: employees.onboardingStatus,
-      onboardingCompletedAt: employees.onboardingCompletedAt,
-    });
+    .returning(returning as Record<string, typeof employees.id>);
 
   writeAuditLogAsync(
     {

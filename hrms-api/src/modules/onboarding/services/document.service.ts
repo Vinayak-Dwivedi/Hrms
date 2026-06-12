@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { employees } from "@/db/schema/hrms";
+import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import {
   deletePrivateFile,
   openPrivateFileStream,
@@ -18,6 +19,8 @@ export async function uploadDocument(params: {
   buffer: Buffer;
   declaredMime: string;
   actorUserId?: string;
+  /** HR/admin on-behalf uploads are trusted and skip manual verification. */
+  autoVerify?: { reviewerEmployeeId?: number };
 }) {
   const existing = await documentRepo.listDocumentsByEmployeeAndType(
     params.employeeId,
@@ -35,6 +38,8 @@ export async function uploadDocument(params: {
     declaredMime: params.declaredMime,
   });
 
+  const reviewerEmployeeId = params.autoVerify?.reviewerEmployeeId;
+  const trusted = reviewerEmployeeId != null;
   const row = await documentRepo.insertDocument({
     employeeId: params.employeeId,
     documentType: params.documentType,
@@ -43,12 +48,17 @@ export async function uploadDocument(params: {
     mimeType: saved.mimeType,
     sizeBytes: saved.sizeBytes,
     storagePath: saved.storagePath,
+    status: trusted ? "Verified" : "Uploaded",
+    verifiedBy: trusted ? reviewerEmployeeId : null,
   });
 
-  await db
-    .update(employees)
-    .set({ onboardingStatus: "IN_PROGRESS", updatedAt: new Date() })
-    .where(eq(employees.id, params.employeeId));
+  const employeeSupport = await getEmployeeColumnSupport();
+  if (employeeSupport.onboardingStatus) {
+    await db
+      .update(employees)
+      .set({ onboardingStatus: "IN_PROGRESS", updatedAt: new Date() })
+      .where(eq(employees.id, params.employeeId));
+  }
 
   writeAuditLogAsync({
     actorUserId: params.actorUserId,
@@ -58,8 +68,24 @@ export async function uploadDocument(params: {
     metadata: {
       employeeId: params.employeeId,
       documentType: params.documentType,
+      autoVerified: trusted,
     },
   });
+
+  if (trusted) {
+    writeAuditLogAsync({
+      actorUserId: params.actorUserId,
+      actorEmployeeId: reviewerEmployeeId ?? null,
+      action: "DOCUMENT_VERIFIED",
+      entityType: "document",
+      entityId: row.id,
+      metadata: {
+        employeeId: params.employeeId,
+        documentType: params.documentType,
+        onBehalfUpload: true,
+      },
+    });
+  }
 
   return row;
 }

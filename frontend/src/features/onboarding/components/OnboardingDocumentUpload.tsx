@@ -33,6 +33,8 @@ interface DocRow {
 interface Props {
   documents: DocRow[];
   onUploaded: () => void;
+  onUpload?: (documentType: OnboardingDocumentType, file: File) => Promise<void>;
+  onDelete?: (documentId: string, documentType: string) => Promise<void>;
 }
 
 const STATUS_CLASS: Record<DocStatus, string> = {
@@ -48,6 +50,8 @@ const FILE_ACCEPT =
 export default function OnboardingDocumentUpload({
   documents,
   onUploaded,
+  onUpload,
+  onDelete,
 }: Props) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -66,7 +70,11 @@ export default function OnboardingDocumentUpload({
     setError(null);
     setUploading(documentType);
     try {
-      await uploadOnboardingDocument(documentType, file);
+      if (onUpload) {
+        await onUpload(documentType, file);
+      } else {
+        await uploadOnboardingDocument(documentType, file);
+      }
       onUploaded();
     } catch (e) {
       const err = e as { message?: string };
@@ -82,7 +90,11 @@ export default function OnboardingDocumentUpload({
     setError(null);
     setDeleting(documentId);
     try {
-      await deleteOnboardingDocument(documentId);
+      if (onDelete) {
+        await onDelete(documentId, documentType);
+      } else {
+        await deleteOnboardingDocument(documentId);
+      }
       onUploaded();
     } catch (e) {
       const err = e as { message?: string };

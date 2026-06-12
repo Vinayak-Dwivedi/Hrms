@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { env } from "@/env";
+import { extractDbErrorMessage, extractPostgresError, mapDbErrorToApiError } from "@/lib/db-error";
 
 export class ApiError extends Error {
   status: number;
@@ -53,24 +54,21 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  const pgCode =
-    err && typeof err === "object" && "code" in err
-      ? String((err as { code: unknown }).code)
-      : null;
+  const pg = extractPostgresError(err);
 
-  if (pgCode === "23505") {
-    res.status(409).json({
+  if (pg?.code === "23505") {
+    const apiErr = mapDbErrorToApiError(err);
+    res.status(apiErr.status).json({
       error: {
-        code: "DUPLICATE_VALUE",
-        message:
-          "A record with the same PAN, Aadhaar, UAN, ESIC, or bank account already exists.",
+        code: apiErr.code,
+        message: apiErr.message,
         requestId: req.requestId,
       },
     });
     return;
   }
 
-  if (pgCode === "22001") {
+  if (pg?.code === "22001") {
     res.status(500).json({
       error: {
         code: "SCHEMA_NOT_READY",
@@ -79,6 +77,65 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
         requestId: req.requestId,
         ...(env.NODE_ENV !== "production" && err instanceof Error
           ? { details: { name: err.name, message: err.message } }
+          : {}),
+      },
+    });
+    return;
+  }
+
+  if (pg?.code === "23514" && /doc_verified_at_requires_by/i.test(extractDbErrorMessage(err))) {
+    res.status(400).json({
+      error: {
+        code: "INVALID_DOCUMENT_VERIFICATION",
+        message:
+          "Document could not be marked verified without a reviewer. Upload again or verify manually.",
+        requestId: req.requestId,
+      },
+    });
+    return;
+  }
+
+  if (
+    pg?.code === "42703" &&
+    /employee_documents.*rejected_|rejected_by|rejection_reason/i.test(
+      extractDbErrorMessage(err),
+    )
+  ) {
+    res.status(503).json({
+      error: {
+        code: "SCHEMA_NOT_READY",
+        message:
+          "Document rejection columns are missing. Run: npm run db:migrate-onboarding-pending",
+        requestId: req.requestId,
+      },
+    });
+    return;
+  }
+
+  if (pg?.code === "42703" && /onboarding_bank_approved/i.test(extractDbErrorMessage(err))) {
+    res.status(503).json({
+      error: {
+        code: "SCHEMA_NOT_READY",
+        message:
+          "Database schema is missing onboarding bank approval columns. Run: npm run db:migrate-onboarding-bank-approval",
+        requestId: req.requestId,
+      },
+    });
+    return;
+  }
+
+  if (pg?.code === "42P01") {
+    const pgMessage = extractDbErrorMessage(err);
+    const isOrgHierarchy = /org_hierarchy/i.test(pgMessage);
+    res.status(503).json({
+      error: {
+        code: "SCHEMA_NOT_READY",
+        message: isOrgHierarchy
+          ? "Org hierarchy tables are missing. Run: npm run db:migrate-org-hierarchy"
+          : "Required database tables are missing. Contact your administrator.",
+        requestId: req.requestId,
+        ...(env.NODE_ENV !== "production"
+          ? { details: { postgresMessage: pgMessage } }
           : {}),
       },
     });

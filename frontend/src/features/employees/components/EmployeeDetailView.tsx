@@ -1,6 +1,7 @@
 "use client";
 
 import { Mail, Pencil } from "lucide-react";
+import Link from "next/link";
 import {
   formatEmployeeDisplayName,
   getOnboardingInvitationStatus,
@@ -19,6 +20,7 @@ interface Props {
   grades: LookupItem[];
   managerLabel: string;
   variant?: "page" | "modal";
+  onboardingHref?: string;
   onEdit?: () => void;
   onResendInvitation?: () => void;
   resendingInvitation?: boolean;
@@ -67,6 +69,7 @@ export default function EmployeeDetailView({
   grades,
   managerLabel,
   variant = "page",
+  onboardingHref,
   onEdit,
   onResendInvitation,
   resendingInvitation = false,
@@ -99,6 +102,14 @@ export default function EmployeeDetailView({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {onboardingHref && (
+            <Link
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-pink-200 bg-pink-50 text-pink-800 hover:bg-pink-100 no-underline transition-colors"
+              href={onboardingHref}
+            >
+              Onboarding
+            </Link>
+          )}
           {onResendInvitation && employee.employeeStatus === "Active" && (
             <button
               type="button"
@@ -110,17 +121,26 @@ export default function EmployeeDetailView({
               {resendingInvitation ? "Sending…" : "Resend invitation"}
             </button>
           )}
-          {onEdit && (
-          <button
-            aria-label="Edit employee"
-            className={employeeEditIconBtnClass}
-            onClick={onEdit}
-            title="Edit"
-            type="button"
-          >
-            <Pencil className={employeeIconPen} />
-          </button>
-          )}
+          {isModal && onEdit ? (
+            <button
+              aria-label="Edit employee"
+              className={employeeEditIconBtnClass}
+              onClick={onEdit}
+              title="Edit"
+              type="button"
+            >
+              <Pencil className={employeeIconPen} />
+            </button>
+          ) : !isModal ? (
+            <Link
+              aria-label="Edit employee"
+              className={employeeEditIconBtnClass}
+              href={`/employees/${employee.id}/edit`}
+              title="Edit"
+            >
+              <Pencil className={employeeIconPen} />
+            </Link>
+          ) : null}
         </div>
       </div>
 

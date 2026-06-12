@@ -2,6 +2,7 @@
 
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
+import { employeeFormSectionsGridClass } from "@/features/employees/employee-theme";
 import {
   isHigherEdQualification,
   isSchoolQualification,
@@ -14,6 +15,7 @@ import type { OnboardingProfileValues } from "../schemas/onboarding.schema";
 
 interface Props {
   values: OnboardingProfileValues;
+  layout?: "stack" | "grid";
 }
 
 function ReadOnlyField({
@@ -38,19 +40,24 @@ function ReadOnlyField({
   );
 }
 
-export default function OnboardingProfileReadOnly({ values }: Props) {
+export default function OnboardingProfileReadOnly({
+  values,
+  layout = "stack",
+}: Props) {
   return (
-    <div className="space-y-6">
+    <div
+      className={
+        layout === "grid" ? employeeFormSectionsGridClass : "space-y-6"
+      }
+    >
       <EmployeeFormSection title="Address">
         <ReadOnlyField
           label="Current Address"
           value={values.currentAddress}
-          span={2}
         />
         <ReadOnlyField
           label="Permanent Address"
           value={values.permanentAddress}
-          span={2}
         />
       </EmployeeFormSection>
 
@@ -60,6 +67,8 @@ export default function OnboardingProfileReadOnly({ values }: Props) {
       </EmployeeFormSection>
 
       <EmployeeFormSection title="Personal & Compliance">
+        <ReadOnlyField label="Marital Status" value={values.maritalStatus} />
+        <ReadOnlyField label="Spouse Name" value={values.spouseName} />
         <ReadOnlyField label="Father's Name" value={values.fatherName} />
         <ReadOnlyField label="Mother's Name" value={values.motherName} />
         <ReadOnlyField label="Blood Group" value={values.bloodGroup} />
@@ -151,21 +160,6 @@ export default function OnboardingProfileReadOnly({ values }: Props) {
         </EmployeeFormSection>
       ) : null}
 
-      <EmployeeFormSection title="Bank Details">
-        {values.bank.map((row, index) => (
-          <div key={`bank-readonly-${index}`} className="contents">
-            <ReadOnlyField label="Account Number" value={row.accountNumber} />
-            <ReadOnlyField label="Account Name" value={row.accountName} />
-            <ReadOnlyField label="Bank Name" value={row.bankName} />
-            <ReadOnlyField label="Branch" value={row.branchName} />
-            <ReadOnlyField label="IFSC Code" value={row.ifscCode} />
-            <ReadOnlyField
-              label="Primary account"
-              value={row.isPrimary ? "Yes" : "No"}
-            />
-          </div>
-        ))}
-      </EmployeeFormSection>
     </div>
   );
 }

@@ -23,13 +23,11 @@ export function EmailUnverifiedBadge() {
 export function EmailVerifiedBadge() {
   return (
     <span
-      className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+      className="inline-flex shrink-0 items-center justify-center w-4 h-4 rounded-full bg-emerald-50 border border-emerald-200"
       title="Verified"
+      aria-label="Verified"
     >
       <Check className="w-2.5 h-2.5 text-emerald-600" strokeWidth={3} aria-hidden />
-      <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">
-        Verified
-      </span>
     </span>
   );
 }
@@ -88,12 +86,12 @@ export function EmployeeEmailRow({
           <EmailUnverifiedBadge />
         ) : null}
       </div>
-      {variant === "personal" && isVerified === false && onVerify ? (
+      {variant === "personal" && isVerified !== undefined && isVerified === false && onVerify ? (
         <button className={verifyLinkClass} onClick={onVerify} type="button">
           Verify Email
         </button>
       ) : null}
-      {variant === "personal" && isVerified === false && !onVerify && verifyHref ? (
+      {variant === "personal" && isVerified !== undefined && isVerified === false && !onVerify && verifyHref ? (
         <Link className={verifyLinkClass} href={verifyHref}>
           Verify Email
         </Link>
@@ -135,12 +133,12 @@ export function EmployeePhoneRow({
           <EmailUnverifiedBadge />
         ) : null}
       </div>
-      {isVerified === false && onVerify ? (
+      {isVerified !== undefined && isVerified === false && onVerify ? (
         <button className={verifyLinkClass} onClick={onVerify} type="button">
           Verify Mobile
         </button>
       ) : null}
-      {isVerified === false && !onVerify && verifyHref ? (
+      {isVerified !== undefined && isVerified === false && !onVerify && verifyHref ? (
         <Link className={verifyLinkClass} href={verifyHref}>
           Verify Mobile
         </Link>
@@ -162,6 +160,8 @@ export function EmployeeEmailSummary({
   phoneVerifyHref,
   className,
   rowClassName,
+  showPersonalEmail = true,
+  showVerification = true,
 }: {
   personalEmail?: string | null;
   workEmail?: string | null;
@@ -175,17 +175,21 @@ export function EmployeeEmailSummary({
   phoneVerifyHref?: string;
   className?: string;
   rowClassName?: string;
+  showPersonalEmail?: boolean;
+  showVerification?: boolean;
 }) {
   return (
     <div className={cn("min-w-0", className)}>
-      <EmployeeEmailRow
-        className={rowClassName}
-        email={personalEmail}
-        isVerified={personalEmailVerified ?? false}
-        onVerify={onVerifyPersonalEmail}
-        variant="personal"
-        verifyHref={onVerifyPersonalEmail ? undefined : verifyHref}
-      />
+      {showPersonalEmail ? (
+        <EmployeeEmailRow
+          className={rowClassName}
+          email={personalEmail}
+          isVerified={showVerification ? (personalEmailVerified ?? false) : undefined}
+          onVerify={onVerifyPersonalEmail}
+          variant="personal"
+          verifyHref={onVerifyPersonalEmail ? undefined : verifyHref}
+        />
+      ) : null}
       <EmployeeEmailRow
         className={rowClassName}
         email={workEmail ?? fallbackEmail}
@@ -193,7 +197,7 @@ export function EmployeeEmailSummary({
       />
       <EmployeePhoneRow
         className={rowClassName}
-        isVerified={phoneVerified ?? false}
+        isVerified={showVerification ? (phoneVerified ?? false) : undefined}
         onVerify={onVerifyPhone}
         phone={phone}
         verifyHref={onVerifyPhone ? undefined : phoneVerifyHref ?? verifyHref}

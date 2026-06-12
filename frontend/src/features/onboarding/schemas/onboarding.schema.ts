@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { phoneFieldSchema } from "@/features/employees/schemas/employee.schema";
 import {
   QUAL_CLASS_10,
   QUAL_CLASS_12,
@@ -8,7 +9,6 @@ import {
   indianAadhaarSchema,
   indianBankAccountSchema,
   indianIfscSchema,
-  indianMobileSchema,
   indianPanSchema,
   isValidIndianEsic,
   isValidIndianUan,
@@ -101,14 +101,19 @@ const optionalEsicSchema = z
     message: "ESIC number must be 10 or 17 digits.",
   });
 
-export const onboardingProfileSchema = z.object({
+export const onboardingProfileSchema = z
+  .object({
   currentAddress: z.string().trim().min(1, "Current address is required."),
   permanentAddress: z.string().trim().min(1, "Permanent address is required."),
   emergencyContactName: z
     .string()
     .trim()
     .min(1, "Emergency contact name is required."),
-  emergencyContactPhone: indianMobileSchema,
+  emergencyContactPhone: phoneFieldSchema,
+  maritalStatus: z.enum(["Single", "Married"], {
+    message: "Marital status is required.",
+  }),
+  spouseName: z.string().trim().max(200).optional(),
   fatherName: z.string().trim().max(200).optional(),
   motherName: z.string().trim().max(200).optional(),
   bloodGroup: z.string().trim().max(5).optional(),
@@ -138,13 +143,16 @@ export const onboardingProfileSchema = z.object({
       }
     }),
   professional: z.array(professionalDetailSchema).default([]),
-  bank: z
-    .array(bankDetailSchema)
-    .min(1, "Add at least one bank account.")
-    .refine((rows) => rows.some((r) => r.isPrimary === true), {
-      message: "Mark one bank account as primary.",
-    }),
-});
+})
+  .superRefine((data, ctx) => {
+    if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Spouse name is required when marital status is Married.",
+        path: ["spouseName"],
+      });
+    }
+  });
 
 // z.input — this type drives form defaultValues / state. The academic schema
 // transforms `qualificationOther` to `undefined` on output; using z.infer
@@ -154,6 +162,74 @@ export type OnboardingProfileValues = z.input<typeof onboardingProfileSchema>;
 export type AcademicDetailValues = z.input<typeof academicDetailSchema>;
 export type ProfessionalDetailValues = z.infer<typeof professionalDetailSchema>;
 export type BankDetailValues = z.infer<typeof bankDetailSchema>;
+
+export const onboardingBankFormSchema = z.object({
+  bank: z
+    .array(bankDetailSchema)
+    .min(1, "Add at least one bank account.")
+    .refine((rows) => rows.some((r) => r.isPrimary === true), {
+      message: "Mark one bank account as primary.",
+    }),
+});
+
+export type OnboardingBankFormValues = z.input<typeof onboardingBankFormSchema>;
+
+export function onboardingProfileIssueToFieldKey(
+  path: (string | number)[],
+): string {
+  if (path[0] === "academic" && path.length >= 3) {
+    return `academic.${path[1]}.${path[2]}`;
+  }
+  return String(path[0] ?? "form");
+}
+
+export function onboardingBankIssueToFieldKey(
+  path: (string | number)[],
+): string {
+  if (path[0] === "bank" && path.length >= 3) {
+    return `bank.${path[1]}.${path[2]}`;
+  }
+  return path.map(String).join(".");
+}
+
+function collectSchemaErrors<T>(
+  schema: z.ZodType<T>,
+  values: T,
+  toFieldKey: (path: (string | number)[]) => string,
+): Record<string, string> {
+  const parsed = schema.safeParse(values);
+  if (parsed.success) return {};
+
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of parsed.error.issues) {
+    const path = issue.path.filter(
+      (p): p is string | number => typeof p !== "symbol",
+    );
+    const key = toFieldKey(path);
+    if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+  }
+  return fieldErrors;
+}
+
+export function collectOnboardingProfileErrors(
+  values: OnboardingProfileValues,
+): Record<string, string> {
+  return collectSchemaErrors(
+    onboardingProfileSchema,
+    values,
+    onboardingProfileIssueToFieldKey,
+  );
+}
+
+export function collectOnboardingBankErrors(
+  values: OnboardingBankFormValues,
+): Record<string, string> {
+  return collectSchemaErrors(
+    onboardingBankFormSchema,
+    values,
+    onboardingBankIssueToFieldKey,
+  );
+}
 
 export {
   EDUCATIONAL_DOCUMENT_TYPES,

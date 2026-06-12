@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import RoleDashboard from "@/components/dashboard/RoleDashboard";
-
-export default function ManagerDashboardPage() {
-  return <RoleDashboard role="manager" />;
+export default function ManagerDashboardRedirect() {
+  redirect("/dashboard");
 }

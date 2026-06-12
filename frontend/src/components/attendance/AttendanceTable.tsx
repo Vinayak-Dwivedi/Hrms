@@ -131,15 +131,12 @@ export default function AttendanceTable({
   const rows = useMemo(() => {
     return eachDayInMonth(year, month0).map((d) => {
       const k = ymd(d);
-      const dow = d.getDay();
-      const isWeekend = dow === 0 || dow === 6;
       const rec = recordsByDate.get(k);
 
       let status: AttendanceStatus;
       if (rec) status = rec.status;
-      else if (isWeekend) status = "Weekend";
       else if (k > todayKey) status = "Future";
-      else status = "Absent"; // unmarked past weekday counts as absent
+      else status = "Absent";
 
       return {
         date: d,
@@ -172,8 +169,6 @@ export default function AttendanceTable({
   const payableDays = presentCount + leaveCount + holidayCount;
   const onDutyDays = presentCount;
   const paidLeaveDays = leaveCount;
-  const totalShiftMinutes = (presentCount + leaveCount + holidayCount) * 9 * 60;
-
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}

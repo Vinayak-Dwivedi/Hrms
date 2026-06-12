@@ -1,3 +1,8 @@
+import {
+  ONBOARDING_PANEL_ACCESS_PERMISSIONS,
+  ONBOARDING_PERMISSIONS,
+} from "@/features/onboarding/constants/permissions";
+
 export type AuthSession = {
   role: string;
   permissions: string[];
@@ -6,18 +11,14 @@ export type AuthSession = {
 export function hasPermission(
   permissions: string[],
   code: string,
-  role?: string,
 ): boolean {
-  if (role === "admin") return true;
   return permissions.includes(code);
 }
 
 export function hasAnyPermission(
   permissions: string[],
   codes: string[],
-  role?: string,
 ): boolean {
-  if (role === "admin") return true;
   return codes.some((c) => permissions.includes(c));
 }
 
@@ -54,7 +55,7 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   }
   if (pathname.startsWith("/hr/org-setup")) return ["onboarding.manage"];
   if (pathname === "/hr/dashboard" || pathname.startsWith("/hr/dashboard/")) {
-    return ["onboarding.view"];
+    return [ONBOARDING_PERMISSIONS.VIEW];
   }
   if (pathname === "/hr/attendance" || pathname.startsWith("/hr/attendance/")) {
     return ["attendance.view"];
@@ -89,52 +90,22 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   ) {
     return ["employees.view"];
   }
+  if (/^\/employees\/\d+\/onboarding$/.test(pathname)) {
+    return [...ONBOARDING_PANEL_ACCESS_PERMISSIONS];
+  }
   if (pathname === "/employees" || /^\/employees\/\d+$/.test(pathname)) {
     return ["employees.view"];
   }
   return null;
 }
 
-function passesZoneGuard(pathname: string, session: AuthSession): boolean {
-  if (session.role === "admin") return true;
-
-  if (pathname.startsWith("/hr/")) {
-    return (
-      session.role === "hr" ||
-      hasPermission(session.permissions, "onboarding.view", session.role)
-    );
-  }
-
-  if (pathname.startsWith("/manager/")) {
-    return hasAnyPermission(
-      session.permissions,
-      ["leave.approve", "attendance.view"],
-      session.role,
-    );
-  }
-
-  return true;
-}
-
 export function canAccessRoute(pathname: string, session: AuthSession): boolean {
-  if (session.role === "admin") return true;
-
-  if (!passesZoneGuard(pathname, session)) return false;
-
   const required = requiredPermissionsForRoute(pathname);
   if (required === null) return true;
 
-  return hasAnyPermission(session.permissions, required, session.role);
+  return hasAnyPermission(session.permissions, required);
 }
 
-export function defaultHomeForUser(role: string, permissions: string[]): string {
-  if (role === "hr") return "/hr/dashboard";
-  if (role === "admin") return "/dashboard";
-  if (hasPermission(permissions, "leave.approve", role)) {
-    return "/manager/dashboard";
-  }
-  if (hasPermission(permissions, "onboarding.view", role) && role !== "manager") {
-    return "/hr/dashboard";
-  }
+export function defaultHomeForUser(_role: string, permissions: string[]): string {
   return "/dashboard";
 }

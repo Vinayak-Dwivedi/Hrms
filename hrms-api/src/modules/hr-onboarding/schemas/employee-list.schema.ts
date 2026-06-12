@@ -3,12 +3,15 @@ import { z } from "zod";
 export const employeeListQuerySchema = z.object({
   search: z.string().optional(),
   departmentId: z.coerce.number().int().positive().optional(),
+  employeeStatus: z
+    .enum(["Active", "Inactive", "Probation", "Notice", "Exited"])
+    .optional(),
   onboardingStatus: z
     .enum(["PENDING", "INVITATION_SENT", "IN_PROGRESS", "COMPLETED", "EXPIRED"])
     .optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   offset: z.coerce.number().int().min(0).default(0),
-  sort: z.enum(["createdAt", "joiningDate", "lastName"]).optional(),
+  sort: z.enum(["id", "createdAt", "joiningDate", "lastName"]).default("id"),
 });
 
 export const employeeIdParamSchema = z.object({

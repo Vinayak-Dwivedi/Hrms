@@ -2,6 +2,7 @@
 // shape the UI components already expect (see src/lib/dashboard.ts), so
 // pages can swap mock arrays for the API response with minimal changes.
 
+import { mapAuthError, type AuthErrorBody } from "./auth-errors";
 import type {
   AttendanceRecord as UIAttendanceRecord,
   DayAttendance,
@@ -79,8 +80,10 @@ export async function signIn(
     body: JSON.stringify({ loginId, password }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(body?.error?.message ?? `Sign-in failed (${res.status})`);
+    const body = (await res
+      .json()
+      .catch(() => ({ error: { message: res.statusText } }))) as AuthErrorBody;
+    throw new Error(mapAuthError(body, res.status));
   }
   const data = (await res.json()) as { user: LoggedInUser };
   return data.user;
@@ -135,7 +138,14 @@ interface MeResponse {
   phone: string;
   phoneVerified?: boolean;
   phoneVerifiedAt?: string | null;
+  /** Job title from HR (designation). Legacy field name kept for dashboard subtitle. */
   role: string | null;
+  designation?: string | null;
+  authRole: string;
+  authRoleLabel: string;
+  userTypeId: number;
+  userType: string;
+  userTypeLabel: string;
   department: string | null;
   grade: string | null;
   branch: string | null;
@@ -153,12 +163,34 @@ interface MeResponse {
   emergencyContactPhone?: string | null;
 }
 
+export function identityFromAuthUser(user: LoggedInUser): UIEmployee {
+  const name = user.name?.trim() || user.email;
+  const parts = name.split(/\s+/).filter(Boolean);
+  const initials =
+    parts.length >= 2
+      ? `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase()
+      : name.slice(0, 2).toUpperCase() || "··";
+
+  return {
+    id: user.id,
+    name,
+    role: user.role,
+    initials,
+    employeeId: "",
+    avatarUrl: null,
+    email: user.email,
+    personalEmail: user.email,
+    workEmail: null,
+    phone: "",
+  };
+}
+
 export async function fetchCurrentEmployee(): Promise<UIEmployee> {
   const me = await jsonFetch<MeResponse>("/me");
   return {
     id: String(me.id),
     name: me.fullName,
-    role: me.role ?? "Employee",
+    role: me.designation ?? me.role ?? me.authRoleLabel ?? "Employee",
     initials: me.initials || me.empId.slice(0, 2).toUpperCase(),
     employeeId: me.empId,
     avatarUrl: resolveApiAssetUrl(me.avatarUrl),
@@ -169,6 +201,19 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     phone: me.phone,
     phoneVerified: me.phoneVerified ?? false,
   };
+}
+
+/** Header profile: employee record first, then manager endpoint if needed. */
+export async function fetchHeaderIdentity(): Promise<UIEmployee | null> {
+  try {
+    return await fetchCurrentEmployee();
+  } catch {
+    try {
+      return await fetchCurrentManager();
+    } catch {
+      return null;
+    }
+  }
 }
 
 // ── My Profile (view/edit) ────────────────────────────────────────────────────
@@ -193,6 +238,10 @@ export interface MyProfile {
   gender: string | null;
   dob: string | null;
   designation: string | null;
+  authRole: string;
+  authRoleLabel: string;
+  userType: string;
+  userTypeLabel: string;
   department: string | null;
   grade: string | null;
   branch: string | null;
@@ -226,7 +275,11 @@ export async function fetchMyProfile(): Promise<MyProfile> {
     phoneVerifiedAt: me.phoneVerifiedAt ?? null,
     gender: me.gender ?? null,
     dob: me.dob ?? null,
-    designation: me.role ?? null,
+    designation: me.designation ?? me.role ?? null,
+    authRole: me.authRole ?? "employee",
+    authRoleLabel: me.authRoleLabel ?? "Employee",
+    userType: me.userType ?? "employee",
+    userTypeLabel: me.userTypeLabel ?? "Employee",
     department: me.department ?? null,
     grade: me.grade ?? null,
     branch: me.branch ?? null,
@@ -560,6 +613,16 @@ export async function fetchUpcomingHolidays(
 ): Promise<UpcomingHoliday[]> {
   const data = await jsonFetch<{ holidays: UpcomingHoliday[] }>(
     `/me/holidays?upcoming=true&limit=${limit}`,
+  );
+  return data.holidays;
+}
+
+export async function fetchMonthHolidays(
+  year: number,
+  month1: number,
+): Promise<UpcomingHoliday[]> {
+  const data = await jsonFetch<{ holidays: UpcomingHoliday[] }>(
+    `/me/holidays?year=${year}&month=${month1}&limit=50`,
   );
   return data.holidays;
 }

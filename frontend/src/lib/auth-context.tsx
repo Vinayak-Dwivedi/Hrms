@@ -61,19 +61,13 @@ export function AuthProvider({
   }, [router, redirectToLogin]);
 
   const hasPermissionFn = useCallback(
-    (code: string) => {
-      if (user?.role === "admin") return true;
-      return permissions.includes(code);
-    },
-    [user, permissions],
+    (code: string) => permissions.includes(code),
+    [permissions],
   );
 
   const hasAnyPermissionFn = useCallback(
-    (codes: string[]) => {
-      if (user?.role === "admin") return true;
-      return codes.some((c) => permissions.includes(c));
-    },
-    [user, permissions],
+    (codes: string[]) => codes.some((c) => permissions.includes(c)),
+    [permissions],
   );
 
   if (isLoading) {

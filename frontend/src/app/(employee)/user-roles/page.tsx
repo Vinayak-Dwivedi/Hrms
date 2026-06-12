@@ -14,13 +14,13 @@ import {
 import {
   employeeBtnSmClass,
   employeeCardClass,
-  employeeErrorBannerClass,
-  employeeFilterLabelClass,
-  employeeIconSm,
   employeeIconXs,
-  employeeInputClass,
-  employeeLoadingClass,
-  employeeSelectClass,
+  employeeListErrorBannerClass,
+  employeeListFilterLabelClass,
+  employeeListInputClass,
+  employeeListLoadingClass,
+  employeeListResetBtnClass,
+  employeeListSelectClass,
 } from "@/features/employees/employee-theme";
 
 const ALL_STATUS = "All";
@@ -114,12 +114,12 @@ export default function UserRolesPage() {
       <div className={`${employeeCardClass} p-5 mb-6`}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="role-search">
+            <label className={employeeListFilterLabelClass} htmlFor="role-search">
               Search
             </label>
             <div className="relative">
               <input
-                className={`${employeeInputClass} pl-10`}
+                className={`${employeeListInputClass} pl-8`}
                 id="role-search"
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search roles..."
@@ -127,17 +127,17 @@ export default function UserRolesPage() {
                 value={search}
               />
               <Search
-                className={`${employeeIconSm} text-gray-400 absolute left-3 top-1/2 -translate-y-1/2`}
+                className={`${employeeIconXs} text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2`}
               />
             </div>
           </div>
 
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="role-status">
+            <label className={employeeListFilterLabelClass} htmlFor="role-status">
               Status
             </label>
             <select
-              className={employeeSelectClass}
+              className={employeeListSelectClass}
               id="role-status"
               onChange={(e) => setStatusFilter(e.target.value)}
               value={statusFilter}
@@ -151,11 +151,11 @@ export default function UserRolesPage() {
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
           <button
-            className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm transition-colors bg-transparent border-0 cursor-pointer"
+            className={employeeListResetBtnClass}
             onClick={resetFilters}
             type="button"
           >
-            <RotateCcw className={employeeIconSm} />
+            <RotateCcw className={employeeIconXs} />
             Reset Filters
           </button>
           <button className={employeeBtnSmClass} onClick={openAdd} type="button">
@@ -166,13 +166,13 @@ export default function UserRolesPage() {
       </div>
 
       {loadError && (
-        <div className={employeeErrorBannerClass}>
+        <div className={employeeListErrorBannerClass}>
           Failed to load roles: {loadError}
         </div>
       )}
 
       {loading ? (
-        <div className={employeeLoadingClass}>Loading roles…</div>
+        <div className={employeeListLoadingClass}>Loading roles…</div>
       ) : (
         <RolesTable
           key={`${search}-${statusFilter}`}

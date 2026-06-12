@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import RoleAttendance from "@/components/attendance/RoleAttendance";
-
-export default function ManagerAttendancePage() {
-  return <RoleAttendance role="manager" />;
+export default function ManagerAttendanceRedirect() {
+  redirect("/attendance");
 }

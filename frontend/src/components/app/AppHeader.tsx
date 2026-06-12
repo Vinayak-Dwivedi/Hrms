@@ -4,7 +4,7 @@ import { Bell, ChevronDown, LogOut, UserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Employee } from "@/lib/dashboard";
-import { signOut } from "@/lib/hrms-client";
+import { signOut, type LoggedInUser } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
 
 // Universal app header — breadcrumb on the left, notifications + user menu on
@@ -21,12 +21,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/requests": "My Requests",
   "/payslips": "My Payslips",
   "/directory": "Directory",
-  "/lnd": "L&D Portal",
-  "/policies": "Company Policies",
   "/holidays": "Holidays",
-  "/manager/dashboard": "Dashboard",
-  "/manager/attendance": "My Attendance",
-  "/manager/leave": "Leave",
   "/manager/team-dashboard": "Team Dashboard",
   "/manager/team-attendance-report": "Team Attendance",
   "/manager/approvals": "Approvals",
@@ -39,6 +34,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/admin/reports": "Reports",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
+  "/departments/hierarchy": "Departments / Hierarchy",
 };
 
 function breadcrumbFor(pathname: string): string {
@@ -97,20 +93,20 @@ function HeaderAvatar({
 export default function AppHeader({
   role,
   identity,
+  sessionUser,
 }: {
   role: Role;
   identity: Employee | null;
+  sessionUser: LoggedInUser;
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close the dropdown on outside-click or Escape. Confirm modal handles its
-  // own dismissal via the backdrop / Cancel button.
+  // Close the dropdown on outside-click or Escape.
   useEffect(() => {
     if (!menuOpen) return;
     function onClick(e: MouseEvent) {
@@ -127,18 +123,33 @@ export default function AppHeader({
     };
   }, [menuOpen]);
 
-  async function confirmLogout() {
+  async function handleLogout() {
+    setMenuOpen(false);
     setLoggingOut(true);
     try {
       await signOut();
       router.push("/login");
     } finally {
       setLoggingOut(false);
-      setConfirmOpen(false);
     }
   }
 
-  const initials = identity?.initials ?? "··";
+  const displayName =
+    identity?.name?.trim() ||
+    sessionUser.name?.trim() ||
+    sessionUser.email ||
+    "—";
+  const initials =
+    identity?.initials ??
+    (displayName !== "—"
+      ? displayName
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((p) => p[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()
+      : "··");
   const crumb = breadcrumbFor(pathname);
 
   return (
@@ -171,7 +182,7 @@ export default function AppHeader({
                 src={identity?.avatarUrl}
               />
               <span className="text-sm font-semibold text-gray-700">
-                {identity?.name ?? "—"}
+                {displayName}
               </span>
               <ChevronDown
                 size={14}
@@ -189,7 +200,7 @@ export default function AppHeader({
               >
                 <div className="px-3 py-2.5 border-b border-gray-100">
                   <p className="text-[12px] font-semibold text-gray-900 truncate">
-                    {identity?.name ?? "—"}
+                    {displayName}
                   </p>
                   <p className="text-[11px] text-gray-400 truncate">
                     {identity?.role ?? rootLabelFor(role)}
@@ -210,61 +221,18 @@ export default function AppHeader({
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setConfirmOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium text-[#dc2626] hover:bg-[#fef2f2] text-left cursor-pointer"
+                  disabled={loggingOut}
+                  onClick={() => void handleLogout()}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium text-[#dc2626] hover:bg-[#fef2f2] text-left cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut size={14} />
-                  Log out
+                  {loggingOut ? "Logging out…" : "Log out"}
                 </button>
               </div>
             )}
           </div>
         </div>
       </header>
-
-      {/* ── Logout confirmation modal ─────────────────────────────────── */}
-      {confirmOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !loggingOut) {
-              setConfirmOpen(false);
-            }
-          }}
-        >
-          <div className="w-full max-w-[340px] rounded-2xl bg-white shadow-2xl overflow-hidden">
-            <div className="px-5 pt-6 pb-4 flex flex-col items-center text-center">
-              <h3 className="text-[17px] font-bold text-gray-900">
-                Log out ?
-              </h3>
-              <p className="text-[12px] text-gray-500 mt-1 max-w-[260px] leading-relaxed">
-                You'll need to sign in again to access your account.
-              </p>
-            </div>
-            <div className="px-4 pb-4 flex gap-2.5">
-              <button
-                type="button"
-                onClick={() => setConfirmOpen(false)}
-                disabled={loggingOut}
-                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmLogout}
-                disabled={loggingOut}
-                className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {loggingOut ? "Logging out…" : "Yes, log out"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

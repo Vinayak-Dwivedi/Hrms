@@ -1,10 +1,12 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { Briefcase, Contact, KeyRound, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { FormValidationRevealProvider } from "@/components/form/form-validation-context";
 import {
   DateField,
   SelectField,
@@ -25,23 +27,33 @@ import {
   updateEmployee,
 } from "../api/employees.client";
 import {
+  createUpdateEmployeeFieldValidators,
   detailToFormValues,
+  formatEmployeeValidationErrors,
+  maxDateOfBirthForAdult,
+  PASSWORD_MIN_MESSAGE,
+  sanitizePhoneInput,
   toUpdateApiPayload,
   updateEmployeeFormSchema,
+  zodFormFieldErrors,
 } from "../schemas/employee.schema";
 import {
-  employeeBtnClass,
   employeeCardClass,
-  employeeErrorBannerClass,
+  employeeFormSectionsGridClass,
+  employeeListBtnClass,
+  employeeListBtnOutlineClass,
+  employeeListErrorBannerClass,
+  employeeListFormControlClass,
+  employeeListFormFieldsClass,
+  employeeListWarnBannerClass,
   employeeLoadingClass,
-  employeeWarnBannerClass,
-  employeeFormControlClass,
-  employeeFormSectionsStackClass,
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
 
-const employeeFieldControl = { controlClassName: employeeFormControlClass };
+const employeeFieldControl = { controlClassName: employeeListFormControlClass };
+const maxDob = maxDateOfBirthForAdult();
+const maxDobDate = new Date(`${maxDob}T23:59:59`);
 
 interface Props {
   employee: EmployeeDetail;
@@ -58,6 +70,7 @@ export default function EditEmployeeForm({
 }: Props) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [revealErrors, setRevealErrors] = useState(false);
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
@@ -94,12 +107,27 @@ export default function EditEmployeeForm({
     };
   }, [employee.id]);
 
+  const fieldValidators = useMemo(
+    () => createUpdateEmployeeFieldValidators(),
+    [],
+  );
+
   const form = useForm({
     defaultValues: detailToFormValues(employee),
+    validators: {
+      onChange: zodFormFieldErrors(updateEmployeeFormSchema),
+      onBlur: zodFormFieldErrors(updateEmployeeFormSchema),
+      onSubmit: zodFormFieldErrors(updateEmployeeFormSchema),
+    },
+    onSubmitInvalid: () => {
+      setRevealErrors(true);
+      setSubmitError("Please fix the highlighted fields before submitting.");
+    },
     onSubmit: async ({ value }) => {
       setSubmitError(null);
       const parsed = updateEmployeeFormSchema.safeParse(value);
       if (!parsed.success) {
+        setRevealErrors(true);
         setSubmitError(
           parsed.error.issues.map((i) => i.message).join(" ") ||
             "Please fix the form errors.",
@@ -119,7 +147,7 @@ export default function EditEmployeeForm({
         // toUpdateApiPayload accepts the raw form input (string IDs etc.)
         // and does its own coercion to the API's typed payload. parsed.data
         // is only used above for validation/error surfacing.
-        await updateEmployee(employee.id, toUpdateApiPayload(value));
+        await updateEmployee(employee.id, toUpdateApiPayload(parsed.data));
         toast.success("Employee updated successfully.");
         if (onSuccess) {
           onSuccess();
@@ -128,12 +156,11 @@ export default function EditEmployeeForm({
         }
       } catch (e) {
         if (e instanceof EmployeeApiError) {
-          if (e.status === 422 && Array.isArray(e.details)) {
-            const messages = (e.details as { message?: string }[])
-              .map((d) => d.message)
-              .filter(Boolean)
-              .join(" ");
-            setSubmitError(messages || e.message);
+          if (e.status === 422) {
+            setRevealErrors(true);
+            setSubmitError(
+              formatEmployeeValidationErrors(e.details) ?? e.message,
+            );
             return;
           }
           setSubmitError(e.message);
@@ -149,32 +176,31 @@ export default function EditEmployeeForm({
   }
 
   return (
+    <FormValidationRevealProvider reveal={revealErrors}>
     <form
       className={embedded ? "flex flex-col" : `${employeeCardClass} overflow-hidden`}
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
         void form.handleSubmit();
       }}
     >
-      <div className="p-6">
+      <div className="p-5">
       {lookupsError && (
-        <div className={employeeWarnBannerClass}>
+        <div className={employeeListWarnBannerClass}>
           Some dropdown options failed to load: {lookupsError}
         </div>
       )}
 
       {submitError && (
-        <div className={employeeErrorBannerClass}>{submitError}</div>
+        <div className={employeeListErrorBannerClass}>{submitError}</div>
       )}
 
-      <div className={employeeFormSectionsStackClass}>
-        <EmployeeFormSection
-          description="Primary identifiers and employment status."
-          title="Basic Information"
-        >
+      <div className={employeeFormSectionsGridClass}>
+        <EmployeeFormSection compact icon={User} title="Basic Information">
           <EmployeeFormField>
-            <form.Field name="empId">
+            <form.Field name="empId" validators={fieldValidators.empId}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="Employee ID" />
               )}
@@ -182,7 +208,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="firstName">
+            <form.Field name="firstName" validators={fieldValidators.firstName}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="First name" />
               )}
@@ -190,7 +216,10 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="employeeStatus">
+            <form.Field
+              name="employeeStatus"
+              validators={fieldValidators.employeeStatus}
+            >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -209,7 +238,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="middleName">
+            <form.Field name="middleName" validators={fieldValidators.middleName}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -222,7 +251,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="lastName">
+            <form.Field name="lastName" validators={fieldValidators.lastName}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="Last name" />
               )}
@@ -231,12 +260,16 @@ export default function EditEmployeeForm({
         </EmployeeFormSection>
 
         <EmployeeFormSection
-          dense
-          description="Contact and demographic details for the employee profile."
+          bodyClassName={`px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`}
+          compact
+          icon={Contact}
           title="Personal Details"
         >
           <EmployeeFormField>
-            <form.Field name="personalEmail">
+            <form.Field
+              name="personalEmail"
+              validators={fieldValidators.personalEmail}
+            >
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -249,7 +282,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="workEmail">
+            <form.Field name="workEmail" validators={fieldValidators.workEmail}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -262,7 +295,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="phone">
+            <form.Field name="phone" validators={fieldValidators.phone}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -271,7 +304,9 @@ export default function EditEmployeeForm({
                   inputMode="numeric"
                   label="Phone"
                   maxLength={10}
+                  normalizeValue={sanitizePhoneInput}
                   placeholder="9999900000"
+                  pattern="[0-9]{10}"
                   type="tel"
                 />
               )}
@@ -279,15 +314,20 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="dob">
+            <form.Field name="dob" validators={fieldValidators.dob}>
               {(field) => (
-                <DateField {...employeeFieldControl} field={field} label="Date of birth" />
+                <DateField
+                  {...employeeFieldControl}
+                  disabled={(date) => date > maxDobDate}
+                  field={field}
+                  label="Date of birth"
+                />
               )}
             </form.Field>
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="gender">
+            <form.Field name="gender" validators={fieldValidators.gender}>
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -303,53 +343,34 @@ export default function EditEmployeeForm({
             </form.Field>
           </EmployeeFormField>
 
-          <EmployeeFormField>
-            <form.Field name="maritalStatus">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Marital status"
-                  options={[
-                    { value: "Single", label: "Single" },
-                    { value: "Married", label: "Married" },
-                  ]}
-                  placeholder="Select status"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="spouseName">
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Spouse name"
-                  placeholder="Required if married"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
         </EmployeeFormSection>
 
-        <EmployeeFormSection
-          dense
-          description="Job placement, reporting structure, and org hierarchy."
-          title="Employment Details"
-        >
+        <EmployeeFormSection compact dense icon={Briefcase} title="Employment Details">
           <EmployeeFormField>
-            <form.Field name="joiningDate">
+            <form.Field
+              name="joiningDate"
+              validators={fieldValidators.joiningDate}
+            >
               {(field) => (
-                <DateField {...employeeFieldControl} field={field} label="Joining date" />
+                <DateField
+                  {...employeeFieldControl}
+                  disabled={(date) => {
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999);
+                    return date > today;
+                  }}
+                  field={field}
+                  label="Joining date"
+                />
               )}
             </form.Field>
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="departmentId">
+            <form.Field
+              name="departmentId"
+              validators={fieldValidators.departmentId}
+            >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -364,7 +385,10 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="designationId">
+            <form.Field
+              name="designationId"
+              validators={fieldValidators.designationId}
+            >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -379,7 +403,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="gradeId">
+            <form.Field name="gradeId" validators={fieldValidators.gradeId}>
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -394,7 +418,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="branchId">
+            <form.Field name="branchId" validators={fieldValidators.branchId}>
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -409,7 +433,10 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="reportingManagerId">
+            <form.Field
+              name="reportingManagerId"
+              validators={fieldValidators.reportingManagerId}
+            >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -424,16 +451,14 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
         </EmployeeFormSection>
 
-        <EmployeeFormSection
-          description="Leave blank to keep the current login password."
-          title="Account & Access"
-        >
+        <EmployeeFormSection compact icon={KeyRound} title="Account & Access">
           <EmployeeFormField>
             <form.Field name="password">
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
-                  description="Minimum 8 characters."
+                  autoComplete="new-password"
+                  description={PASSWORD_MIN_MESSAGE}
                   field={field}
                   label="New password"
                   type="password"
@@ -447,6 +472,7 @@ export default function EditEmployeeForm({
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
+                  autoComplete="new-password"
                   field={field}
                   label="Confirm new password"
                   type="password"
@@ -458,10 +484,10 @@ export default function EditEmployeeForm({
       </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+      <div className="flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border-t border-gray-100">
         {onCancel ? (
           <button
-            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors cursor-pointer"
+            className={employeeListBtnOutlineClass}
             onClick={onCancel}
             type="button"
           >
@@ -469,7 +495,7 @@ export default function EditEmployeeForm({
           </button>
         ) : (
           <Link
-            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm no-underline transition-colors"
+            className={employeeListBtnOutlineClass}
             href={`/employees/${employee.id}`}
           >
             Cancel
@@ -478,7 +504,7 @@ export default function EditEmployeeForm({
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
           {([canSubmit, isSubmitting]) => (
             <button
-              className={`${employeeBtnClass} disabled:opacity-60`}
+              className={`${employeeListBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
               disabled={!canSubmit || isSubmitting}
               type="submit"
             >
@@ -488,5 +514,6 @@ export default function EditEmployeeForm({
         </form.Subscribe>
       </div>
     </form>
+    </FormValidationRevealProvider>
   );
 }

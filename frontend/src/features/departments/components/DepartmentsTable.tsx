@@ -6,8 +6,16 @@ import type { DepartmentListItem } from "../api/departments.client";
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
-  employeeIconMd,
-  employeeIconPen,
+  employeeIconSm,
+  employeeListPaginationBtnActiveClass,
+  employeeListPaginationBtnClass,
+  employeeListPaginationBtnInactiveClass,
+  employeeListTableCellClass,
+  employeeListTableEmptyClass,
+  employeeListTableFooterClass,
+  employeeListTableHeadClass,
+  employeeListTableRowClass,
+  employeeListTableSummaryClass,
   employeeViewIconBtnClass,
 } from "@/features/employees/employee-theme";
 
@@ -45,46 +53,39 @@ export default function DepartmentsTable({
         <table className="w-full min-w-[800px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-nowrap">
-              {["Name", "Manager", "Branch", "Headcount", "Action"].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {["Name", "Manager", "Branch", "Headcount", "Action"].map((h) => (
+                <th key={h} className={employeeListTableHeadClass}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {pageRows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-6 py-10 text-center text-sm text-gray-400"
-                >
+                <td colSpan={5} className={employeeListTableEmptyClass}>
                   No departments found.
                 </td>
               </tr>
             ) : (
               pageRows.map((dept) => (
-                <tr
-                  key={dept.id}
-                  className="hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                >
-                  <td className="px-6 py-4 font-medium">{dept.name}</td>
-                  <td className="px-6 py-4">
+                <tr key={dept.id} className={employeeListTableRowClass}>
+                  <td className={`${employeeListTableCellClass} font-medium`}>
+                    {dept.name}
+                  </td>
+                  <td className={employeeListTableCellClass}>
                     {dept.managerId != null
                       ? (managerNames.get(dept.managerId) ?? "—")
                       : "—"}
                   </td>
-                  <td className="px-6 py-4">{dept.locationArea ?? "—"}</td>
-                  <td className="px-6 py-4">
+                  <td className={employeeListTableCellClass}>
+                    {dept.locationArea ?? "—"}
+                  </td>
+                  <td className={employeeListTableCellClass}>
                     {dept.headcount === 0 ? "—" : dept.headcount}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-4">
+                  <td className={employeeListTableCellClass}>
+                    <div className="flex items-center gap-3">
                       <button
                         aria-label={`View ${dept.name}`}
                         className={employeeViewIconBtnClass}
@@ -92,7 +93,7 @@ export default function DepartmentsTable({
                         title="View"
                         type="button"
                       >
-                        <Eye className={employeeIconMd} />
+                        <Eye className={employeeIconSm} />
                       </button>
                       <button
                         aria-label={`Edit ${dept.name}`}
@@ -101,7 +102,7 @@ export default function DepartmentsTable({
                         title="Edit"
                         type="button"
                       >
-                        <Pencil className={employeeIconPen} />
+                        <Pencil className={employeeIconSm} />
                       </button>
                     </div>
                   </td>
@@ -113,15 +114,15 @@ export default function DepartmentsTable({
       </div>
 
       {departments.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
-          <p className="text-sm text-gray-500 m-0">
+        <div className={employeeListTableFooterClass}>
+          <p className={employeeListTableSummaryClass}>
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
             <span className="font-medium">{departments.length}</span> results
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -133,12 +134,11 @@ export default function DepartmentsTable({
               .map((p) => (
                 <button
                   key={p}
-                  className={[
-                    "px-4 py-2 text-sm rounded-lg transition-colors border",
+                  className={
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
-                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
-                  ].join(" ")}
+                      ? employeeListPaginationBtnActiveClass
+                      : employeeListPaginationBtnInactiveClass
+                  }
                   onClick={() => setPage(p)}
                   type="button"
                 >
@@ -146,7 +146,7 @@ export default function DepartmentsTable({
                 </button>
               ))}
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

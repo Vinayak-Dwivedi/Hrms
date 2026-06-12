@@ -5,6 +5,13 @@ import {
   rejectDocumentSchema,
 } from "@/modules/hr-onboarding/schemas/document-verify.schema";
 import * as docVerification from "@/modules/hr-onboarding/services/document-verification.service";
+import { userHasAnyPermission } from "@/middleware/require-permission";
+
+const HR_DOCUMENT_ACCESS = [
+  "onboarding.verify_documents",
+  "onboarding.manage",
+  "employees.view",
+];
 
 export async function verifyDocument(
   req: Request,
@@ -62,12 +69,15 @@ export async function downloadDocument(
     } catch {
       // admin without employee row
     }
-    const isAdmin = req.user?.role === "admin";
+    const crossEmployeeAccess = await userHasAnyPermission(
+      req.user!.role,
+      HR_DOCUMENT_ACCESS,
+    );
     const { stream, mimeType, originalFilename } =
       await docVerification.downloadDocumentAsHr({
         documentId: id,
         hrEmployeeId,
-        isAdmin,
+        isAdmin: crossEmployeeAccess,
       });
     res.setHeader("Content-Type", mimeType);
     res.setHeader(

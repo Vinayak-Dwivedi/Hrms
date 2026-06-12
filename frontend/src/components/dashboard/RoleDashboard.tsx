@@ -13,6 +13,7 @@ import {
   History,
   LayoutDashboard,
   RefreshCw,
+  UserRound,
   Users,
 } from "lucide-react";
 
@@ -46,6 +47,7 @@ function SlackIcon({
     </svg>
   );
 }
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type {
   AttendanceRecord,
@@ -76,8 +78,6 @@ import {
   type UpcomingHoliday,
   type WeekAttendance,
   type WeekChartPoint,
-  punchIn,
-  punchOut,
 } from "@/lib/hrms-client";
 import { getMyResolvedPolicy } from "@/features/leave-policy/api/leave-policies.client";
 import {
@@ -118,6 +118,7 @@ const AVATAR_SIZE_CLASS: Record<number, string> = {
 const RING_WRAP_CLASS: Record<number, string> = {
   72: "w-[72px] h-[72px]",
   84: "w-[84px] h-[84px]",
+  96: "w-[96px] h-[96px]",
   100: "w-[100px] h-[100px]",
 };
 
@@ -190,7 +191,7 @@ function Ring({
 
   return (
     <div
-      className={cn("relative shrink-0", RING_WRAP_CLASS[size])}
+      className={cn("relative mx-auto shrink-0", RING_WRAP_CLASS[size])}
       style={
         RING_WRAP_CLASS[size] ? undefined : { width: size, height: size }
       }
@@ -199,7 +200,7 @@ function Ring({
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        className="block"
+        className="mx-auto block"
       >
         <circle
           cx={size / 2}
@@ -223,7 +224,7 @@ function Ring({
       </svg>
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <span
-          className="font-bold text-gray-900 leading-none tabular-nums text-center"
+          className="block w-full text-center font-bold text-gray-900 leading-none tabular-nums"
           style={{ fontSize: centerFontSize }}
         >
           {used}/{total}
@@ -473,8 +474,8 @@ const STATUS_PILL: Record<StatusKey, { bg: string; text: string }> = {
 };
 
 // ─── role-specific routing for view-all/quick-link hrefs ────────────────────
-function leaveHref(role: Role): string {
-  return role === "manager" ? "/manager/leave" : "/leave";
+function leaveHref(_role: Role): string {
+  return "/leave";
 }
 function approvalsHref(): string {
   return "/manager/approvals";
@@ -504,7 +505,7 @@ function quickLinksFor(role: Role): QuickLink[] {
         label: "Team Dashboard",
         href: "/manager/team-dashboard",
       },
-      { icon: History, label: "Punch History", href: "/manager/attendance" },
+      { icon: History, label: "Punch History", href: "/attendance" },
       { icon: Users, label: "Company Directory", href: "/directory" },
       { icon: CalendarIcon, label: "Apply Leave", href: "/leave/new" },
       { icon: FileText, label: "My Requests", href: "/requests" },
@@ -512,11 +513,9 @@ function quickLinksFor(role: Role): QuickLink[] {
   }
   if (role === "admin") {
     return [
-      { icon: Users, label: "Employees", href: "/admin/employees" },
-      { icon: CheckSquare, label: "Approvals", href: "/admin/approvals" },
-      { icon: LayoutDashboard, label: "Org Dashboard", href: "/admin/org" },
-      { icon: FileText, label: "Reports", href: "/admin/reports" },
-      { icon: GraduationCap, label: "L&D Portal", href: "/lnd" },
+      { icon: Users, label: "Employees", href: "/employees" },
+      { icon: CheckSquare, label: "Approvals", href: "/manager/approvals" },
+      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
       { icon: Users, label: "Directory", href: "/directory" },
     ];
   }
@@ -903,23 +902,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
     };
   }, [winMenuOpen]);
 
-  async function handlePunchToggle() {
-    if (punchBusy || !attendance) return;
-    setPunchBusy(true);
-    setLoadError(null);
-    try {
-      // Punch endpoints live on /me regardless of role — both employee and
-      // manager are employees and own a punch record.
-      const next = attendance.punchIn ? await punchOut() : await punchIn();
-      setAttendance(next);
-      void loadWeek(weekAnchorRef.current);
-    } catch (e) {
-      setLoadError((e as Error).message);
-    } finally {
-      setPunchBusy(false);
-    }
-  }
-
   const totalLeaves = (balances ?? []).reduce((s, l) => s + l.total, 0);
   const usedLeaves = (balances ?? []).reduce((s, l) => s + l.used, 0);
   const balLeaves = totalLeaves - usedLeaves;
@@ -1033,29 +1015,23 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
       {/* Row 1 — Profile | Leave Balance | Upcoming Holidays */}
       <div className={dashboardGridClass}>
-        {/* My Attendance */}
+        {/* My Profile */}
         <div className={cn(gradientCardClass, "min-h-0")}>
           <div className="flex items-center justify-between gap-2 mb-3">
             <h3 className="text-sm font-semibold text-gray-900 m-0">
-              My Attendance
+              My Profile
             </h3>
-            <button
-              type="button"
-              onClick={handlePunchToggle}
-              disabled={punchBusy || !attendance}
+            <Link
+              aria-label="My Profile"
               className={cn(
                 employeeBtnSmClass,
-                punchBusy || !attendance
-                  ? "opacity-60 cursor-not-allowed"
-                  : undefined,
+                "inline-flex items-center justify-center px-2.5 py-2",
               )}
+              href="/profile"
+              title="My Profile"
             >
-              {punchBusy
-                ? "…"
-                : attendance?.punchIn
-                  ? "Punch Out"
-                  : "Punch In"}
-            </button>
+              <UserRound size={16} />
+            </Link>
           </div>
 
           <div className="flex items-start gap-3">
@@ -1071,32 +1047,20 @@ export default function RoleDashboard({ role }: { role: Role }) {
               <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">
                 {identity?.role ?? ""}
               </p>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                {identity?.employeeId && (
-                  <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
-                    {identity.employeeId}
-                  </span>
-                )}
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600">
-                  <span
-                    className={cn(
-                      "rounded-full w-1.5 h-1.5",
-                      attendance?.punchIn ? "bg-green-500" : "bg-gray-400",
-                    )}
-                  />
-                  {attendance?.punchIn ? "Checked In" : "Checked Out"}
+              {identity?.employeeId && (
+                <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                  {identity.employeeId}
                 </span>
-              </div>
+              )}
               <div className="flex flex-col gap-1.5 mt-2 min-w-0">
                 <EmployeeEmailSummary
                   className="space-y-1"
                   fallbackEmail={identity?.email}
-                  personalEmail={identity?.personalEmail}
-                  personalEmailVerified={identity?.personalEmailVerified}
                   phone={identity?.phone}
                   phoneVerified={identity?.phoneVerified}
                   phoneVerifyHref="/profile"
                   rowClassName="mt-0"
+                  showPersonalEmail={false}
                   verifyHref="/profile"
                   workEmail={identity?.workEmail}
                 />
@@ -1152,36 +1116,38 @@ export default function RoleDashboard({ role }: { role: Role }) {
               View all →
             </a>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              {
-                key: "used",
-                label: "Used Leaves",
-                used: usedLeaves,
-                total: totalLeaves,
-                days: usedLeaves,
-              },
-              {
-                key: "balance",
-                label: "Balance Leaves",
-                used: balLeaves,
-                total: totalLeaves,
-                days: balLeaves,
-              },
-            ].map((item) => (
-              <div
-                key={item.key}
-                className="flex flex-col items-center text-center"
-              >
-                <Ring used={item.used} total={item.total} size={96} />
-                <p className="text-[11px] font-semibold text-gray-800 mt-2 leading-tight">
-                  {item.label}
-                </p>
-                <p className="text-[13px] mt-0.5 text-gray-400">
-                  {formatDayCount(item.days)}
-                </p>
-              </div>
-            ))}
+          <div className="flex flex-1 items-center justify-center">
+            <div className="grid w-full grid-cols-2 gap-3 justify-items-center">
+              {[
+                {
+                  key: "used",
+                  label: "Used Leaves",
+                  used: usedLeaves,
+                  total: totalLeaves,
+                  days: usedLeaves,
+                },
+                {
+                  key: "balance",
+                  label: "Balance Leaves",
+                  used: balLeaves,
+                  total: totalLeaves,
+                  days: balLeaves,
+                },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="flex w-full max-w-[140px] flex-col items-center justify-center text-center"
+                >
+                  <Ring used={item.used} total={item.total} size={96} />
+                  <p className="mt-2 text-sm font-semibold leading-tight text-gray-800">
+                    {item.label}
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-gray-400">
+                    {formatDayCount(item.days)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Resolved Comp-Off policy strip — only shown when a policy is

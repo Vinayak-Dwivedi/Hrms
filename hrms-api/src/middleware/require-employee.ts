@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { employees } from "@/db/schema/hrms";
+import { assertEmployeeMayAuthenticate } from "@/lib/employee-auth";
 import { loadCurrentEmployee } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
 
@@ -36,6 +37,7 @@ export async function requireEmployee(
         new ApiError(401, "UNAUTHENTICATED", "Authentication is required."),
       );
     }
+    await assertEmployeeMayAuthenticate(req.user.id);
     const base = await loadCurrentEmployee(req.user.id);
     const [full] = await db
       .select({

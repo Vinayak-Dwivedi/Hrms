@@ -41,6 +41,8 @@ export type EmployeeProfile = {
     motherName: string | null;
     bloodGroup: string | null;
     nationality: string | null;
+    maritalStatus: "Single" | "Married" | null;
+    spouseName: string | null;
   };
   identity: {
     panNumber: string | null;
@@ -155,7 +157,7 @@ export function fetchEmployeeProfile(): Promise<EmployeeProfile> {
   return authJsonFetch<EmployeeProfile>("/api/employee/profile");
 }
 
-function toProfilePayload(values: OnboardingProfileValues) {
+export function toProfilePayload(values: OnboardingProfileValues) {
   return {
     personal: {
       currentAddress: values.currentAddress,
@@ -166,6 +168,11 @@ function toProfilePayload(values: OnboardingProfileValues) {
       motherName: values.motherName || null,
       bloodGroup: values.bloodGroup || null,
       nationality: values.nationality || "Indian",
+      maritalStatus: values.maritalStatus,
+      spouseName:
+        values.maritalStatus === "Married"
+          ? values.spouseName?.trim() || null
+          : null,
     },
     identity: {
       panNumber: values.panNo,
@@ -194,15 +201,6 @@ function toProfilePayload(values: OnboardingProfileValues) {
       isCurrent: p.isCurrent ?? false,
       responsibilities: p.responsibilities || null,
     })),
-    bank: values.bank.map((b) => ({
-      id: b.id,
-      accountNumber: b.accountNumber,
-      accountName: b.accountName,
-      bankName: b.bankName,
-      branchName: b.branchName,
-      ifscCode: b.ifscCode,
-      isPrimary: b.isPrimary ?? false,
-    })),
   };
 }
 
@@ -227,8 +225,7 @@ export async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
       !!profile.personal.currentAddress &&
       !!profile.identity.panNumber &&
       !!profile.identity.aadhaarNumber &&
-      profile.academic.length > 0 &&
-      profile.bank.length > 0,
+      profile.academic.length > 0,
     pendingDocuments,
     documents: profile.documents,
     onboardingStatus: profile.onboardingStatus,
@@ -244,8 +241,7 @@ export async function updateOnboardingProfile(
       !!profile.personal.currentAddress &&
       !!profile.identity.panNumber &&
       !!profile.identity.aadhaarNumber &&
-      profile.academic.length > 0 &&
-      profile.bank.length > 0,
+      profile.academic.length > 0,
   };
 }
 
@@ -347,6 +343,8 @@ export function profileToFormValues(
     emergencyContactPhone: profile.personal.emergencyContactPhone ?? "",
     fatherName: profile.personal.fatherName ?? "",
     motherName: profile.personal.motherName ?? "",
+    maritalStatus: profile.personal.maritalStatus ?? "Single",
+    spouseName: profile.personal.spouseName ?? "",
     bloodGroup: profile.personal.bloodGroup ?? "",
     nationality: profile.personal.nationality ?? "Indian",
     panNo: profile.identity.panNumber ?? "",
@@ -379,26 +377,5 @@ export function profileToFormValues(
       isCurrent: p.isCurrent,
       responsibilities: p.responsibilities ?? "",
     })),
-    bank:
-      profile.bank.length > 0
-        ? profile.bank.map((b) => ({
-            id: b.id,
-            accountNumber: b.accountNumber,
-            accountName: b.accountName,
-            bankName: b.bankName,
-            branchName: b.branchName,
-            ifscCode: b.ifscCode,
-            isPrimary: b.isPrimary,
-          }))
-        : [
-            {
-              accountNumber: "",
-              accountName: "",
-              bankName: "",
-              branchName: "",
-              ifscCode: "",
-              isPrimary: true,
-            },
-          ],
   };
 }

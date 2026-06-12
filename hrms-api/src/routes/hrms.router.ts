@@ -21,6 +21,7 @@ import { createCrudRouter } from "@/lib/crud-factory";
 import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
 import { requirePermission } from "@/middleware/require-permission";
 import { hrOnboardingRoutes } from "@/modules/hr-onboarding/routes/onboarding.routes";
+import { orgHierarchyRoutes } from "@/modules/org-hierarchy/routes/org-hierarchy.routes";
 import { employeesRouter } from "@/routes/employees.router";
 import { rolesRouter } from "@/routes/roles.router";
 
@@ -37,6 +38,7 @@ const adminPermissionsAccess = requirePermission("admin.permissions");
 export const hrmsRouter: Router = Router();
 
 hrmsRouter.use("/onboarding", hrOnboardingRoutes);
+hrmsRouter.use("/org-hierarchy", orgSetupAccess, orgHierarchyRoutes);
 
 hrmsRouter.use("/branches",                  orgSetupAccess, createCrudRouter("branch", branches));
 hrmsRouter.use("/locations",                 orgSetupAccess, createCrudRouter("location", locations));

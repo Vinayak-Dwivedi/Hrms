@@ -161,6 +161,8 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "LEAVE_APPROVED_BY_HR",
   "LEAVE_REJECTED_BY_HR",
   "LEAVE_CANCELLED",
+  "ONBOARDING_PROFILE_UPDATED_ON_BEHALF",
+  "ONBOARDING_SUBMITTED_ON_BEHALF",
 ]);
 export const documentStatusEnum = pgEnum("document_status_enum", [
   "Pending",
@@ -186,6 +188,10 @@ export const perfLabelEnum = pgEnum("perf_label_enum", [
   "Good",
   "Excellent",
   "Needs Attention",
+]);
+export const orgHierarchyStatusEnum = pgEnum("org_hierarchy_status_enum", [
+  "Active",
+  "Inactive",
 ]);
 export const notifKindEnum = pgEnum("notif_kind_enum", [
   "leave",
@@ -337,6 +343,141 @@ export const subDepartments = pgTable("sub_departments", {
 });
 
 // ───────────────────────────────────────────────────────────────────────────
+// GROUP 1b — ORG HIERARCHY (parallel to flat org setup tables)
+// ───────────────────────────────────────────────────────────────────────────
+
+export const orgHierarchyDepartments = pgTable(
+  "org_hierarchy_departments",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id"),
+    name: varchar("name", { length: 100 }).notNull(),
+    code: varchar("code", { length: 20 }).notNull(),
+    status: orgHierarchyStatusEnum("status").notNull().default("Active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("org_hierarchy_dept_company_name_uq").on(
+      sql`COALESCE(${table.companyId}, -1)`,
+      table.name,
+    ),
+    uniqueIndex("org_hierarchy_dept_company_code_uq").on(
+      sql`COALESCE(${table.companyId}, -1)`,
+      table.code,
+    ),
+    index("idx_org_hierarchy_dept_company").on(table.companyId),
+  ],
+);
+
+export const orgHierarchyLevels = pgTable(
+  "org_hierarchy_levels",
+  {
+    id: serial("id").primaryKey(),
+    code: varchar("code", { length: 10 }).notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    sortOrder: smallint("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [uniqueIndex("org_hierarchy_levels_code_uq").on(table.code)],
+);
+
+export const orgHierarchySubDepartments = pgTable(
+  "org_hierarchy_sub_departments",
+  {
+    id: serial("id").primaryKey(),
+    departmentId: integer("department_id")
+      .notNull()
+      .references(() => orgHierarchyDepartments.id, { onDelete: "restrict" }),
+    companyId: integer("company_id"),
+    name: varchar("name", { length: 100 }).notNull(),
+    status: orgHierarchyStatusEnum("status").notNull().default("Active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("org_hierarchy_sub_dept_name_uq").on(
+      table.departmentId,
+      table.name,
+    ),
+    index("idx_org_hierarchy_sub_dept_dept").on(table.departmentId),
+  ],
+);
+
+export const orgHierarchyDesignations = pgTable(
+  "org_hierarchy_designations",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 150 }).notNull(),
+    code: varchar("code", { length: 20 }),
+    levelId: integer("level_id")
+      .notNull()
+      .references(() => orgHierarchyLevels.id, { onDelete: "restrict" }),
+    status: orgHierarchyStatusEnum("status").notNull().default("Active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("org_hierarchy_designations_name_uq").on(table.name),
+    uniqueIndex("org_hierarchy_designations_code_uq").on(table.code),
+    index("idx_org_hierarchy_designations_level").on(table.levelId),
+  ],
+);
+
+export const orgHierarchyStructure = pgTable(
+  "org_hierarchy_structure",
+  {
+    id: serial("id").primaryKey(),
+    departmentId: integer("department_id")
+      .notNull()
+      .references(() => orgHierarchyDepartments.id, { onDelete: "restrict" }),
+    subDepartmentId: integer("sub_department_id")
+      .notNull()
+      .references(() => orgHierarchySubDepartments.id, { onDelete: "restrict" }),
+    designationId: integer("designation_id")
+      .notNull()
+      .references(() => orgHierarchyDesignations.id, { onDelete: "restrict" }),
+    levelId: integer("level_id")
+      .notNull()
+      .references(() => orgHierarchyLevels.id, { onDelete: "restrict" }),
+    companyId: integer("company_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("org_hierarchy_structure_uq").on(
+      table.departmentId,
+      table.subDepartmentId,
+      table.designationId,
+    ),
+    index("idx_org_hierarchy_structure_dept").on(table.departmentId),
+    index("idx_org_hierarchy_structure_sub_dept").on(table.subDepartmentId),
+  ],
+);
+
+// ───────────────────────────────────────────────────────────────────────────
 // GROUP 2 — CORE EMPLOYEE
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -419,6 +560,10 @@ export const employees = pgTable(
       (): AnyPgColumn => employees.id,
       { onDelete: "set null" },
     ),
+    orgHierarchyStructureId: integer("org_hierarchy_structure_id").references(
+      () => orgHierarchyStructure.id,
+      { onDelete: "set null" },
+    ),
 
     joiningDate: date("joining_date").notNull(),
     dateOfExit: date("date_of_exit"),
@@ -453,6 +598,13 @@ export const employees = pgTable(
       withTimezone: true,
     }),
     onboardingReviewNotes: text("onboarding_review_notes"),
+    onboardingBankApprovedAt: timestamp("onboarding_bank_approved_at", {
+      withTimezone: true,
+    }),
+    onboardingBankApprovedBy: integer("onboarding_bank_approved_by").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -469,6 +621,7 @@ export const employees = pgTable(
     index("idx_emp_branch").on(table.branchId),
     index("idx_emp_emp_type").on(table.employmentTypeId),
     index("idx_emp_manager").on(table.reportingManagerId),
+    index("idx_emp_org_hierarchy_structure").on(table.orgHierarchyStructureId),
     index("idx_emp_status").on(table.employeeStatus),
     index("idx_emp_onboarding_token").on(table.onboardingToken),
     index("idx_emp_join_date").on(table.joiningDate),
@@ -1532,6 +1685,21 @@ export type EmploymentType = typeof employmentTypes.$inferSelect;
 export type NewEmploymentType = typeof employmentTypes.$inferInsert;
 export type Designation = typeof designations.$inferSelect;
 export type NewDesignation = typeof designations.$inferInsert;
+export type OrgHierarchyDepartment = typeof orgHierarchyDepartments.$inferSelect;
+export type NewOrgHierarchyDepartment =
+  typeof orgHierarchyDepartments.$inferInsert;
+export type OrgHierarchySubDepartment =
+  typeof orgHierarchySubDepartments.$inferSelect;
+export type NewOrgHierarchySubDepartment =
+  typeof orgHierarchySubDepartments.$inferInsert;
+export type OrgHierarchyLevel = typeof orgHierarchyLevels.$inferSelect;
+export type NewOrgHierarchyLevel = typeof orgHierarchyLevels.$inferInsert;
+export type OrgHierarchyDesignation =
+  typeof orgHierarchyDesignations.$inferSelect;
+export type NewOrgHierarchyDesignation =
+  typeof orgHierarchyDesignations.$inferInsert;
+export type OrgHierarchyStructure = typeof orgHierarchyStructure.$inferSelect;
+export type NewOrgHierarchyStructure = typeof orgHierarchyStructure.$inferInsert;
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
 export type BankAccount = typeof bankAccounts.$inferSelect;

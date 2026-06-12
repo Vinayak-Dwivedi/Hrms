@@ -1,21 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Router } from "express";
 import multer from "multer";
 import * as xlsx from "xlsx";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import { accounts, users } from "@/db/schema/auth";
-import { departments, designations, employees, roles } from "@/db/schema/hrms";
+import { departments, designations, employees, orgHierarchyStructure, roles } from "@/db/schema/hrms";
 import { generatePassword } from "@/lib/generate-password";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { hashPassword } from "@/lib/password";
-import { extractDbErrorMessage } from "@/lib/db-error";
+import { optionalPasswordFieldSchema } from "@/lib/password-policy";
+import { mapDbErrorToApiError } from "@/lib/db-error";
+import { rbacCodeToAuthRole } from "@/lib/auth-role";
+import { CREDENTIAL_PROVIDER } from "@/lib/auth-credentials";
+import { formatEmployeeFullName } from "@/lib/employee";
 import { userTypeIdFromAuthRole } from "@/lib/user-type";
 import * as employeeAdminCtrl from "@/modules/hr-onboarding/controllers/employee-admin.controller";
+import * as bankOnboardingCtrl from "@/modules/hr-onboarding/controllers/bank-onboarding.controller";
+import * as onBehalfCtrl from "@/modules/hr-onboarding/controllers/employee-on-behalf.controller";
+import { documentUpload } from "@/middleware/upload.middleware";
 import { employeeListQuerySchema } from "@/modules/hr-onboarding/schemas/employee-list.schema";
 import * as employeeAdmin from "@/modules/hr-onboarding/services/employee-admin.service";
 import * as invitationService from "@/modules/hr-onboarding/services/invitation.service";
+import { ONBOARDING_PERMISSIONS } from "@/modules/hr-onboarding/constants/permissions";
 import { requirePermission } from "@/middleware/require-permission";
 import { ApiError } from "@/middleware/error";
 
@@ -23,7 +31,13 @@ export const employeesRouter = Router();
 
 const viewEmployees = requirePermission("employees.view", "onboarding.view");
 const createEmployees = requirePermission("employees.create");
-const resendInvite = requirePermission("onboarding.resend_invitation");
+const editEmployees = requirePermission("employees.edit");
+const manageOnboarding = requirePermission(ONBOARDING_PERMISSIONS.MANAGE);
+const manageOnboardingBank = requirePermission(
+  ONBOARDING_PERMISSIONS.MANAGE_BANK,
+  ONBOARDING_PERMISSIONS.MANAGE,
+);
+const resendInvite = requirePermission(ONBOARDING_PERMISSIONS.RESEND_INVITATION);
 
 employeesRouter.get("/", viewEmployees, async (req, res, next) => {
   try {
@@ -36,6 +50,47 @@ employeesRouter.get("/", viewEmployees, async (req, res, next) => {
 });
 
 employeesRouter.get("/:id/onboarding", viewEmployees, employeeAdminCtrl.getEmployeeOnboarding);
+employeesRouter.get(
+  "/:id/onboarding/profile",
+  manageOnboarding,
+  onBehalfCtrl.getOnboardingProfile,
+);
+employeesRouter.put(
+  "/:id/onboarding/profile",
+  manageOnboarding,
+  onBehalfCtrl.putOnboardingProfile,
+);
+employeesRouter.post(
+  "/:id/onboarding/documents",
+  manageOnboarding,
+  documentUpload.single("file"),
+  onBehalfCtrl.uploadOnboardingDocument,
+);
+employeesRouter.delete(
+  "/:id/onboarding/documents/:documentId",
+  manageOnboarding,
+  onBehalfCtrl.deleteOnboardingDocument,
+);
+employeesRouter.post(
+  "/:id/onboarding/submit",
+  manageOnboarding,
+  onBehalfCtrl.submitOnboarding,
+);
+employeesRouter.get(
+  "/:id/onboarding/bank",
+  viewEmployees,
+  bankOnboardingCtrl.getOnboardingBank,
+);
+employeesRouter.put(
+  "/:id/onboarding/bank",
+  manageOnboardingBank,
+  bankOnboardingCtrl.putOnboardingBank,
+);
+employeesRouter.post(
+  "/:id/onboarding/bank/approve",
+  manageOnboardingBank,
+  bankOnboardingCtrl.approveOnboardingBank,
+);
 employeesRouter.get("/:id/documents", viewEmployees, employeeAdminCtrl.getEmployeeDocuments);
 
 employeesRouter.get("/:id", viewEmployees, async (req, res, next) => {
@@ -51,18 +106,8 @@ employeesRouter.get("/:id", viewEmployees, async (req, res, next) => {
   }
 });
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-});
-
 const PHONE_REGEX = /^[0-9]{10}$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
-const optionalId = z
-  .union([z.coerce.number().int().positive(), z.literal(""), z.null()])
-  .optional()
-  .transform((v) => (v === "" || v === null || v === undefined ? undefined : v));
 
 const optionalMiddleName = z
   .string()
@@ -71,6 +116,197 @@ const optionalMiddleName = z
   .optional()
   .nullable()
   .transform((v) => (v?.trim() ? v.trim() : null));
+
+const nullableId = z.union([z.number().int().positive(), z.null()]);
+
+const updateEmployeeSchema = z
+  .object({
+    empId: z.string().trim().min(1).max(20),
+    firstName: z.string().trim().min(1).max(100),
+    middleName: optionalMiddleName,
+    lastName: z.string().trim().min(1).max(100),
+    personalEmail: z.string().trim().email(),
+    workEmail: z.string().trim().email(),
+    phone: z
+      .string()
+      .trim()
+      .regex(PHONE_REGEX, "Phone must be exactly 10 digits."),
+    dob: z.string().regex(DATE_REGEX),
+    gender: z.enum(["Male", "Female", "Other"]),
+    joiningDate: z.string().regex(DATE_REGEX),
+    employeeStatus: z.enum([
+      "Active",
+      "Inactive",
+      "Probation",
+      "Notice",
+      "Exited",
+    ]),
+    departmentId: nullableId.optional(),
+    designationId: nullableId.optional(),
+    gradeId: nullableId.optional(),
+    branchId: nullableId.optional(),
+    reportingManagerId: nullableId.optional(),
+    reportingChain: z.array(z.number().int().positive()).optional(),
+    maritalStatus: z.enum(["Single", "Married"]).optional().nullable(),
+    spouseName: z.string().trim().max(200).optional().nullable(),
+    password: optionalPasswordFieldSchema,
+  })
+  .superRefine((data, ctx) => {
+    const dob = new Date(`${data.dob}T00:00:00`);
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 18);
+    if (dob > cutoff) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Employee must be at least 18 years old.",
+        path: ["dob"],
+      });
+    }
+    if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Spouse name is required when marital status is Married.",
+        path: ["spouseName"],
+      });
+    }
+  });
+
+employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    }
+
+    const body = updateEmployeeSchema.parse(req.body);
+    const { password, reportingChain, ...rest } = body;
+
+    if (
+      rest.reportingManagerId != null &&
+      rest.reportingManagerId === id
+    ) {
+      throw new ApiError(
+        400,
+        "INVALID_MANAGER",
+        "Employee cannot be their own reporting manager.",
+      );
+    }
+
+    if (rest.reportingManagerId) {
+      const [manager] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(eq(employees.id, rest.reportingManagerId))
+        .limit(1);
+      if (!manager) {
+        throw new ApiError(400, "INVALID_MANAGER", "Reporting manager not found.");
+      }
+    }
+
+    const nextReportingChain =
+      reportingChain ??
+      (rest.reportingManagerId ? [rest.reportingManagerId] : []);
+
+    const now = new Date();
+    const employeePatch = {
+      empId: rest.empId,
+      firstName: rest.firstName,
+      middleName: rest.middleName,
+      lastName: rest.lastName,
+      personalEmail: rest.personalEmail.toLowerCase(),
+      workEmail: rest.workEmail.toLowerCase(),
+      phone: rest.phone,
+      dob: rest.dob,
+      gender: rest.gender,
+      joiningDate: rest.joiningDate,
+      employeeStatus: rest.employeeStatus,
+      departmentId: rest.departmentId ?? null,
+      designationId: rest.designationId ?? null,
+      gradeId: rest.gradeId ?? null,
+      branchId: rest.branchId ?? null,
+      reportingManagerId: rest.reportingManagerId ?? null,
+      reportingChain: nextReportingChain,
+      maritalStatus: rest.maritalStatus ?? null,
+      spouseName:
+        rest.maritalStatus === "Married"
+          ? rest.spouseName?.trim() || null
+          : null,
+      updatedAt: now,
+    };
+
+    await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: employees.id, userId: employees.userId })
+        .from(employees)
+        .where(eq(employees.id, id))
+        .limit(1);
+      if (!existing) {
+        throw new ApiError(404, "NOT_FOUND", "Employee not found.");
+      }
+
+      await tx
+        .update(employees)
+        .set(employeePatch)
+        .where(eq(employees.id, id));
+
+      if (existing.userId) {
+        await tx
+          .update(users)
+          .set({
+            email: employeePatch.workEmail,
+            name: formatEmployeeFullName({
+              firstName: employeePatch.firstName,
+              middleName: employeePatch.middleName,
+              lastName: employeePatch.lastName,
+            }),
+            updatedAt: now,
+          })
+          .where(eq(users.id, existing.userId));
+      }
+
+      if (password) {
+        const passwordHash = await hashPassword(password);
+        await tx
+          .update(employees)
+          .set({ passwordHash, updatedAt: now })
+          .where(eq(employees.id, id));
+
+        if (existing.userId) {
+          await tx
+            .update(accounts)
+            .set({ password: passwordHash, updatedAt: now })
+            .where(
+              and(
+                eq(accounts.userId, existing.userId),
+                eq(accounts.providerId, CREDENTIAL_PROVIDER),
+              ),
+            );
+        }
+      }
+    });
+
+    const detail = await employeeAdmin.getEmployeeDetail(id);
+    res.json({
+      data: stripSensitiveEmployeeFields(detail as Record<string, unknown>),
+    });
+  } catch (e) {
+    if (e instanceof ApiError || e instanceof z.ZodError) {
+      next(e);
+      return;
+    }
+    next(mapDbErrorToApiError(e));
+  }
+});
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const optionalId = z
+  .union([z.coerce.number().int().positive(), z.literal(""), z.null()])
+  .optional()
+  .transform((v) => (v === "" || v === null || v === undefined ? undefined : v));
 
 function formatEmployeeFullName(parts: {
   firstName: string;
@@ -97,8 +333,9 @@ const createEmployeeSchema = z
     dob: z.string().regex(DATE_REGEX),
     gender: z.enum(["Male", "Female", "Other"]),
     joiningDate: z.string().regex(DATE_REGEX),
-    password: z.string().min(8).max(256).optional(),
+    password: optionalPasswordFieldSchema,
     roleId: z.coerce.number().int().positive(),
+    orgHierarchyStructureId: optionalId,
     departmentId: optionalId,
     designationId: optionalId,
     gradeId: optionalId,
@@ -136,43 +373,6 @@ function stripSensitiveEmployeeFields(row: Record<string, unknown>) {
   return rest;
 }
 
-function mapDbError(e: unknown): ApiError {
-  const msg = extractDbErrorMessage(e);
-  if (/unique|duplicate|23505/i.test(msg)) {
-    if (/emp_id|employees_emp_id/i.test(msg)) {
-      return new ApiError(409, "DUPLICATE_EMP_ID", "Employee ID already exists.");
-    }
-    if (/personal_email/i.test(msg)) {
-      return new ApiError(409, "DUPLICATE_EMAIL", "Personal email already exists.");
-    }
-    if (/work_email|users_email/i.test(msg)) {
-      return new ApiError(409, "DUPLICATE_EMAIL", "Work email already exists.");
-    }
-    if (/pan_no_hash|pan_number_hash/i.test(msg)) {
-      return new ApiError(409, "DUPLICATE_PAN", "PAN number already registered.");
-    }
-    if (/aadhaar_no_hash|aadhaar_number_hash/i.test(msg)) {
-      return new ApiError(
-        409,
-        "DUPLICATE_AADHAAR",
-        "Aadhaar number already registered.",
-      );
-    }
-    if (/uan_no_hash|uan_number_hash/i.test(msg)) {
-      return new ApiError(409, "DUPLICATE_UAN", "UAN already registered.");
-    }
-    return new ApiError(409, "DUPLICATE", "A record with this value already exists.");
-  }
-  return new ApiError(400, "INSERT_FAILED", msg);
-}
-
-/** Map RBAC role code to auth users.role for JWT / login routing. */
-function authRoleFromRbacCode(code: string): string {
-  if (code === "manager") return "manager";
-  if (code === "admin") return "admin";
-  return "user";
-}
-
 async function resolveAuthRole(roleId: number): Promise<string> {
   const [role] = await db
     .select({ code: roles.code, isActive: roles.isActive })
@@ -185,7 +385,7 @@ async function resolveAuthRole(roleId: number): Promise<string> {
   if (!role.isActive) {
     throw new ApiError(400, "INVALID_ROLE", "Selected role is inactive.");
   }
-  return authRoleFromRbacCode(role.code);
+  return rbacCodeToAuthRole(role.code);
 }
 
 type CreateEmployeeBody = z.infer<typeof createEmployeeSchema>;
@@ -211,7 +411,7 @@ function cellToString(val: string | number | undefined): string {
 
 function mapDbErrorToMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;
-  return mapDbError(e).message;
+  return mapDbErrorToApiError(e).message;
 }
 
 async function defaultEmployeeRoleId(): Promise<number> {
@@ -230,6 +430,22 @@ async function defaultEmployeeRoleId(): Promise<number> {
   return role.id;
 }
 
+async function resolveOrgHierarchyStructure(structureId: number) {
+  const [row] = await db
+    .select({ id: orgHierarchyStructure.id })
+    .from(orgHierarchyStructure)
+    .where(eq(orgHierarchyStructure.id, structureId))
+    .limit(1);
+  if (!row) {
+    throw new ApiError(
+      400,
+      "INVALID_ORG_ROLE",
+      "Selected org role is not defined in department hierarchy.",
+    );
+  }
+  return row;
+}
+
 async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendInvitation?: boolean }) {
   const workEmail = body.workEmail.toLowerCase();
   const personalEmail = body.personalEmail.toLowerCase();
@@ -237,6 +453,9 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
   const plainPassword = body.password ?? generatePassword();
   const passwordHash = await hashPassword(plainPassword);
   const authRole = await resolveAuthRole(body.roleId);
+  if (body.orgHierarchyStructureId) {
+    await resolveOrgHierarchyStructure(body.orgHierarchyStructureId);
+  }
 
   if (body.reportingManagerId) {
     const [manager] = await db
@@ -307,6 +526,7 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
         departmentId: body.departmentId,
         designationId: body.designationId,
         gradeId: body.gradeId,
+        orgHierarchyStructureId: body.orgHierarchyStructureId ?? null,
         branchId: body.branchId,
         reportingManagerId: body.reportingManagerId,
         reportingChain,
@@ -361,7 +581,7 @@ employeesRouter.post("/create", createEmployees, async (req, res, next) => {
       next(e);
       return;
     }
-    next(mapDbError(e));
+    next(mapDbErrorToApiError(e));
   }
 });
 

@@ -36,6 +36,12 @@ export type ColumnSupport = {
 
   onboardingCompletedAt: boolean;
 
+  /** employees.onboarding_bank_approved_at exists */
+  onboardingBankApproval: boolean;
+
+  /** employees.onboarding_reviewed_by exists */
+  onboardingReview: boolean;
+
   /** employees.pan_no_hash exists */
   employeeSensitiveHashes: boolean;
   /** employee_identity_details.pan_number_hash exists */
@@ -72,6 +78,10 @@ const TRACKED_COLUMNS = [
   "onboarding_token_used",
 
   "onboarding_completed_at",
+
+  "onboarding_bank_approved_at",
+
+  "onboarding_reviewed_by",
 
   "pan_no_hash",
 
@@ -228,6 +238,10 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
 
     onboardingCompletedAt: cols.has("onboarding_completed_at"),
 
+    onboardingBankApproval: cols.has("onboarding_bank_approved_at"),
+
+    onboardingReview: cols.has("onboarding_reviewed_by"),
+
     employeeSensitiveHashes,
     identitySensitiveHashes,
     bankSensitiveHashes,
@@ -283,12 +297,6 @@ export function inferOnboardingStatus(
 
 ): OnboardingPipelineStatus {
 
-  if (row.onboardingStatus) {
-
-    return row.onboardingStatus as OnboardingPipelineStatus;
-
-  }
-
   if (row.onboardingCompletedAt) return "COMPLETED";
 
   if (row.onboardingSubmittedAt) return "IN_PROGRESS";
@@ -308,6 +316,12 @@ export function inferOnboardingStatus(
     if (row.onboardingTokenUsed) return "IN_PROGRESS";
 
     return "INVITATION_SENT";
+
+  }
+
+  if (row.onboardingStatus) {
+
+    return row.onboardingStatus as OnboardingPipelineStatus;
 
   }
 
@@ -421,6 +435,28 @@ export function onboardingStatusWhere(
 
 ): SQL {
 
+  const hasOnboardingSignals =
+
+    support.onboardingSubmittedAt ||
+
+    support.onboardingToken ||
+
+    support.onboardingCompletedAt ||
+
+    support.onboardingTokenExpiry ||
+
+    support.onboardingTokenUsed;
+
+
+
+  if (hasOnboardingSignals) {
+
+    return sql`${inferredStatusSql(support)} = ${status}`;
+
+  }
+
+
+
   if (support.onboardingStatus) {
 
     return eq(
@@ -435,25 +471,7 @@ export function onboardingStatusWhere(
 
 
 
-  const hasOnboardingSignals =
-
-    support.onboardingSubmittedAt ||
-
-    support.onboardingToken ||
-
-    support.onboardingCompletedAt;
-
-
-
-  if (!hasOnboardingSignals) {
-
-    return status === "PENDING" ? sql`true` : sql`false`;
-
-  }
-
-
-
-  return sql`${inferredStatusSql(support)} = ${status}`;
+  return status === "PENDING" ? sql`true` : sql`false`;
 
 }
 
@@ -512,6 +530,8 @@ export function employeeListSelect(support: ColumnSupport) {
   if (support.middleName) fields.middleName = employees.middleName;
 
   if (support.onboardingStatus) fields.onboardingStatus = employees.onboardingStatus;
+
+  if (support.onboardingToken) fields.onboardingToken = employees.onboardingToken;
 
   if (support.onboardingSubmittedAt) {
 

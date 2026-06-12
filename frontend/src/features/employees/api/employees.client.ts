@@ -106,6 +106,7 @@ export type CreateEmployeePayload = {
   joiningDate: string;
   password?: string;
   roleId: number;
+  orgHierarchyStructureId?: number;
   departmentId?: number;
   subDepartmentId?: number | null;
   designationId?: number;
@@ -296,20 +297,26 @@ type GradeListResponse = { data: GradeRow[] };
 export type EmployeeListFilters = {
   search?: string;
   departmentId?: number;
+  employeeStatus?: EmployeeStatus;
   onboardingStatus?: OnboardingPipelineStatus;
   limit?: number;
   offset?: number;
+  sort?: "id" | "createdAt" | "joiningDate" | "lastName";
 };
 
 export async function fetchEmployees(
   filters: EmployeeListFilters = {},
 ): Promise<EmployeeListItem[]> {
   const params = new URLSearchParams();
+  params.set("sort", filters.sort ?? "id");
   params.set("limit", String(filters.limit ?? 500));
   if (filters.offset != null) params.set("offset", String(filters.offset));
   if (filters.search?.trim()) params.set("search", filters.search.trim());
   if (filters.departmentId != null) {
     params.set("departmentId", String(filters.departmentId));
+  }
+  if (filters.employeeStatus) {
+    params.set("employeeStatus", filters.employeeStatus);
   }
   if (filters.onboardingStatus) {
     params.set("onboardingStatus", filters.onboardingStatus);
