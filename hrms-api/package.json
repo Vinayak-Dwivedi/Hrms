@@ -20,6 +20,7 @@
     "db:studio": "drizzle-kit studio",
     "seed:users": "node scripts/seed-users.mjs",
     "seed:admin": "node scripts/seed-admin.mjs",
+    "seed:master": "node scripts/seed-master.mjs",
     "seed:hrms": "node scripts/seed-hrms-demo.mjs",
     "seed:holidays": "node scripts/seed-holidays.mjs",
     "seed:rbac": "node scripts/seed-rbac.mjs",

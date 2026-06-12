@@ -22,7 +22,7 @@ const USER_TYPE_LABELS: Record<number, string> = {
 
 /** Map JWT/auth `users.role` to legacy `users.user_type_id`. */
 export function userTypeIdFromAuthRole(authRole: string): number {
-  if (authRole === "admin") return USER_TYPE_IDS.admin;
+  if (authRole === "master" || authRole === "admin") return USER_TYPE_IDS.admin;
   if (authRole === "hr") return USER_TYPE_IDS.hr;
   if (authRole === "manager") return USER_TYPE_IDS.manager;
   return USER_TYPE_IDS.employee;
@@ -37,6 +37,7 @@ export function userTypeLabelFromId(userTypeId: number): string {
 }
 
 export function formatAuthRoleLabel(authRole: string): string {
+  if (authRole === "master") return "Master";
   if (authRole === "admin") return "Administrator";
   if (authRole === "hr") return "HR";
   if (authRole === "manager") return "Manager";

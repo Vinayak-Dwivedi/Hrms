@@ -1,34 +1,36 @@
--- Idempotent admin user for HRMS full portal access.
--- Email: admin@iotindia.ai   Password: 12345678
+-- Idempotent master bootstrap user for HRMS full portal access.
+-- Email: admin@iotindia.ai   Password: 123456   Role: master
 --
--- Prerequisites: migrations applied; run `npm run seed:rbac` for non-admin roles.
+-- Prefer: npm run seed:master  (or node scripts/seed-master.mjs)
+--
+-- Prerequisites: migrations applied; run `npm run seed:rbac` for non-master roles.
 --
 -- Regenerate bcrypt hash (cost 10):
---   node -e "import('bcryptjs').then(b=>b.default.hash('12345678',10).then(console.log))"
+--   node -e "import('bcryptjs').then(b=>b.default.hash('123456',10).then(console.log))"
 --
--- Embedded hash for password "12345678":
---   $2a$10$BE8NPJ3iAexH1ACJw89r0.R.3oCGfcFiH/LMTKHPW/HeqR65di426
+-- Embedded hash for password "123456":
+--   $2a$10$kP/65TpDD9D0bkFj1A7/zOQMYVSj4Tp7rJWmc.hKnehl.092.DjQG
 
 BEGIN;
 
--- ── Auth user (role = admin → full portal access) ─────────────────────────────
+-- ── Auth user (role = master → full portal access) ────────────────────────────
 -- If `user_type_id` is missing on your DB, comment this block and use the
 -- fallback INSERT at the bottom of this file instead.
 
 INSERT INTO users (id, name, email, email_verified, role, user_type_id, created_at, updated_at)
 VALUES (
   'a0000000-0000-4000-8000-000000000001',
-  'HR Admin',
+  'Master Admin',
   'admin@iotindia.ai',
   true,
-  'admin',
+  'master',
   1,
   now(),
   now()
 )
 ON CONFLICT (email) DO UPDATE SET
   name = EXCLUDED.name,
-  role = 'admin',
+  role = 'master',
   user_type_id = 1,
   email_verified = true,
   updated_at = now();
@@ -41,7 +43,7 @@ SELECT
   u.id,
   'credential',
   u.id,
-  '$2a$10$BE8NPJ3iAexH1ACJw89r0.R.3oCGfcFiH/LMTKHPW/HeqR65di426',
+  '$2a$10$kP/65TpDD9D0bkFj1A7/zOQMYVSj4Tp7rJWmc.hKnehl.092.DjQG',
   now(),
   now()
 FROM users u
@@ -58,7 +60,7 @@ INSERT INTO employees (
 )
 SELECT
   'IOT-0001',
-  'HR',
+  'Master',
   'Admin',
   'admin@iotindia.ai',
   'admin@iotindia.ai',
@@ -101,16 +103,16 @@ COMMIT;
 -- INSERT INTO users (id, name, email, email_verified, role, created_at, updated_at)
 -- VALUES (
 --   'a0000000-0000-4000-8000-000000000001',
---   'HR Admin',
+--   'Master Admin',
 --   'admin@iotindia.ai',
 --   true,
---   'admin',
+--   'master',
 --   now(),
 --   now()
 -- )
 -- ON CONFLICT (email) DO UPDATE SET
 --   name = EXCLUDED.name,
---   role = 'admin',
+--   role = 'master',
 --   email_verified = true,
 --   updated_at = now();
 -- -- then re-run the accounts + employees sections above

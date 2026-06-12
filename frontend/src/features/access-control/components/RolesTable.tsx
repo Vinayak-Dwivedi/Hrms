@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { RoleListItem } from "../api/roles.client";
 import {
@@ -25,6 +25,7 @@ interface Props {
   permissionCounts: Map<number, number>;
   onView: (id: number) => void;
   onEdit: (id: number) => void;
+  onDelete: (id: number) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -34,6 +35,7 @@ export default function RolesTable({
   permissionCounts,
   onView,
   onEdit,
+  onDelete,
 }: Props) {
   const [page, setPage] = useState(1);
 
@@ -118,6 +120,15 @@ export default function RolesTable({
                         type="button"
                       >
                         <Pencil className={employeeIconSm} />
+                      </button>
+                      <button
+                        aria-label={`Delete ${role.name}`}
+                        className={employeeEditIconBtnClass}
+                        onClick={() => onDelete(role.id)}
+                        title="Delete"
+                        type="button"
+                      >
+                        <Trash2 className={employeeIconSm} />
                       </button>
                     </div>
                   </td>

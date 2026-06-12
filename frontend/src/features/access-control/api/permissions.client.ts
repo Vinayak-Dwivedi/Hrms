@@ -127,6 +127,10 @@ export async function updatePermission(
   return toListItem(res.data);
 }
 
+export async function deletePermission(id: number): Promise<void> {
+  await jsonFetch(`/permissions/${id}`, { method: "DELETE" });
+}
+
 export const PERMISSION_MODULES = [
   "employees",
   "leave",
