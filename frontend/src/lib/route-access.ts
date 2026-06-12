@@ -38,10 +38,6 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   if (pathname === "/offboarding" || pathname.startsWith("/offboarding/")) {
     return ["admin.roles"];
   }
-  if (pathname.startsWith("/hr/org-setup")) return ["onboarding.manage"];
-  if (pathname.startsWith("/hr/org-setup")) {
-    return [ONBOARDING_PERMISSIONS.MANAGE];
-  }
   if (pathname === "/hr/dashboard" || pathname.startsWith("/hr/dashboard/")) {
     return [ONBOARDING_PERMISSIONS.VIEW];
   }

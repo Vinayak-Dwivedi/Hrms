@@ -20,10 +20,11 @@ type AuditCtx = { ipAddress?: string | null; userAgent?: string | null };
 export async function listEmployees(params: {
   search?: string;
   departmentId?: number;
+  employeeStatus?: string;
   onboardingStatus?: string;
   limit: number;
   offset: number;
-  sort?: "createdAt" | "joiningDate" | "lastName";
+  sort?: "id" | "createdAt" | "joiningDate" | "lastName";
 }) {
   return employeeAdminRepo.listEmployeesAdmin(params);
 }

@@ -3,11 +3,14 @@
 import { useStore } from "@tanstack/react-form";
 import type { AnyFormApi } from "@tanstack/react-form";
 import { useMemo } from "react";
-import { SelectField } from "@/components/form/form-field";
+import { NativeSelectField } from "@/components/form/form-field";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
-import { employeeListFormControlClass } from "@/features/employees/employee-theme";
+import {
+  employeeFormNativeSelectClass,
+  employeeReadOnlyControlClass,
+} from "@/features/employees/employee-theme";
+import { cn } from "@/lib/utils";
 import type {
   CreateEmployeeFormValues,
   createEmployeeFieldValidators,
@@ -70,7 +73,7 @@ export default function OrgHierarchyRoleFields({
   levels,
   structures,
   fieldValidators,
-  controlClassName = employeeListFormControlClass,
+  controlClassName = employeeFormNativeSelectClass,
 }: Props) {
   const departmentId = useStore(
     form.store,
@@ -150,7 +153,7 @@ export default function OrgHierarchyRoleFields({
       >
         {(field) => (
           <EmployeeFormField>
-            <SelectField
+            <NativeSelectField
               controlClassName={controlClassName}
               field={field}
               label="Department"
@@ -171,7 +174,7 @@ export default function OrgHierarchyRoleFields({
       >
         {(field) => (
           <EmployeeFormField key={`sub-dept-${departmentId || "none"}`}>
-            <SelectField
+            <NativeSelectField
               controlClassName={controlClassName}
               disabled={!departmentId}
               field={field}
@@ -194,7 +197,7 @@ export default function OrgHierarchyRoleFields({
           <EmployeeFormField
             key={`desig-${departmentId || "none"}-${subDepartmentId || "none"}`}
           >
-            <SelectField
+            <NativeSelectField
               controlClassName={controlClassName}
               disabled={!departmentId || !subDepartmentId}
               field={field}
@@ -209,12 +212,16 @@ export default function OrgHierarchyRoleFields({
       <EmployeeFormField>
         <Field>
           <FieldLabel htmlFor="orgHierarchyLevel">Level / grade</FieldLabel>
-          <Input
-            id="orgHierarchyLevel"
-            className={controlClassName}
+          <input
             readOnly
-            value={levelLabel}
-            placeholder="Select a designation"
+            aria-readonly
+            id="orgHierarchyLevel"
+            tabIndex={-1}
+            className={cn(
+              employeeReadOnlyControlClass,
+              !levelLabel && "text-gray-400",
+            )}
+            value={levelLabel || "Auto-filled from designation"}
           />
         </Field>
       </EmployeeFormField>

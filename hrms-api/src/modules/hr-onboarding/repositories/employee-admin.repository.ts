@@ -24,15 +24,24 @@ export function redactEmployeeRow<T extends Record<string, unknown>>(row: T) {
 export async function listEmployeesAdmin(params: {
   search?: string;
   departmentId?: number;
+  employeeStatus?: string;
   onboardingStatus?: string;
   limit: number;
   offset: number;
-  sort?: "createdAt" | "joiningDate" | "lastName";
+  sort?: "id" | "createdAt" | "joiningDate" | "lastName";
 }) {
   const support = await getEmployeeColumnSupport();
   const conditions = [];
   if (params.departmentId) {
     conditions.push(eq(employees.departmentId, params.departmentId));
+  }
+  if (params.employeeStatus) {
+    conditions.push(
+      eq(
+        employees.employeeStatus,
+        params.employeeStatus as (typeof employees.employeeStatus.enumValues)[number],
+      ),
+    );
   }
   if (params.onboardingStatus) {
     conditions.push(
@@ -60,7 +69,9 @@ export async function listEmployeesAdmin(params: {
       ? desc(employees.joiningDate)
       : params.sort === "lastName"
         ? asc(employees.lastName)
-        : desc(employees.createdAt);
+        : params.sort === "createdAt"
+          ? desc(employees.createdAt)
+          : desc(employees.id);
 
   const selectFields = employeeListSelect(support);
   const rows = await db

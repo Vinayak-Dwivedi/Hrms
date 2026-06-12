@@ -23,6 +23,7 @@ import {
   fetchDepartments,
   fetchDesignations,
   fetchEmployees,
+  formatOnboardingStatus,
   type EmployeeStatus,
   type LookupItem,
   type OnboardingPipelineStatus,
@@ -128,7 +129,7 @@ export default function EmployeesPage() {
       }
       if (
         onboardingFilter !== ALL_ONBOARDING &&
-        emp.onboardingStatus !== onboardingFilter
+        (emp.onboardingStatus ?? "PENDING") !== onboardingFilter
       ) {
         return false;
       }
@@ -157,7 +158,7 @@ export default function EmployeesPage() {
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
-    });
+    }).sort((a, b) => b.id - a.id);
   }, [
     employees,
     search,
@@ -257,7 +258,7 @@ export default function EmployeesPage() {
                 ] as OnboardingPipelineStatus[]
               ).map((s) => (
                 <option key={s} value={s}>
-                  {s.replace(/_/g, " ")}
+                  {formatOnboardingStatus(s)}
                 </option>
               ))}
             </select>
@@ -338,7 +339,7 @@ export default function EmployeesPage() {
         <div className={employeeLoadingClass}>Loading employees…</div>
       ) : (
         <EmployeeTable
-          key={`${search}-${statusFilter}-${departmentFilter}-${designationFilter}`}
+          key={`${search}-${statusFilter}-${onboardingFilter}-${departmentFilter}-${designationFilter}`}
           departmentNames={departmentNames}
           designationNames={designationNames}
           employees={filteredEmployees}

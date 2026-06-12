@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FormValidationRevealProvider } from "@/components/form/form-validation-context";
-import { SelectField, TextField } from "@/components/form/form-field";
+import { NativeSelectField, TextField } from "@/components/form/form-field";
 import {
   createEmployee,
   EmployeeApiError,
@@ -43,6 +43,7 @@ import {
   employeeListBtnOutlineClass,
   employeeListErrorBannerClass,
   employeeListFormControlClass,
+  employeeFormNativeSelectClass,
   employeeListWarnBannerClass,
   employeeLoadingClass,
   employeeFormSectionsGridClass,
@@ -52,6 +53,9 @@ import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
 
 const employeeFieldControl = { controlClassName: employeeListFormControlClass };
+const employeeSelectControl = {
+  controlClassName: employeeFormNativeSelectClass,
+};
 const maxDob = maxDateOfBirthForAdult();
 const maxJoiningDate = maxDateToday();
 
@@ -226,6 +230,137 @@ function AddEmployeeFormContent({
         <EmployeeFormSection
           bodyClassName={`px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`}
           compact
+          icon={KeyRound}
+          title="Professional Details"
+        >
+          <EmployeeFormField>
+            <form.Field name="workEmail" validators={fieldValidators.workEmail}>
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  autoComplete="email"
+                  field={field}
+                  label="Work email"
+                  loginCredential
+                  type="email"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="roleId" validators={fieldValidators.roleId}>
+              {(field) => (
+                <NativeSelectField
+                  {...employeeSelectControl}
+                  field={field}
+                  label="System access role"
+                  options={toSelectOptions(roleOptions)}
+                  placeholder="Select role"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="password" validators={fieldValidators.password}>
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  autoComplete="new-password"
+                  description={PASSWORD_MIN_MESSAGE}
+                  field={field}
+                  label="Login password"
+                  type="password"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="confirmPassword">
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  autoComplete="new-password"
+                  field={field}
+                  label="Confirm login password"
+                  type="password"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection
+          compact
+          dense
+          icon={Briefcase}
+          title="Employment Details"
+        >
+          <EmployeeFormField>
+            <form.Field
+              name="joiningDate"
+              validators={fieldValidators.joiningDate}
+            >
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  field={field}
+                  label="Joining date"
+                  max={maxJoiningDate}
+                  type="date"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <OrgHierarchyRoleFields
+            form={form}
+            controlClassName={employeeFormNativeSelectClass}
+            departments={departments}
+            fieldValidators={fieldValidators}
+            subDepartments={subDepartments}
+            designations={designations}
+            levels={levels}
+            structures={structures}
+          />
+
+          <EmployeeFormField>
+            <form.Field
+              name="reportingManagerId"
+              validators={fieldValidators.reportingManagerId}
+            >
+              {(field) => (
+                <NativeSelectField
+                  {...employeeSelectControl}
+                  field={field}
+                  label="Reporting manager"
+                  options={toManagerSelectOptions(managers)}
+                  placeholder="Select manager"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="branchId" validators={fieldValidators.branchId}>
+              {(field) => (
+                <NativeSelectField
+                  {...employeeSelectControl}
+                  field={field}
+                  label="Location"
+                  options={toSelectOptions(branches)}
+                  placeholder="Select location"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection
+          bodyClassName={`px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`}
+          compact
           icon={Contact}
           title="Personal Details"
         >
@@ -282,8 +417,8 @@ function AddEmployeeFormContent({
           <EmployeeFormField>
             <form.Field name="gender" validators={fieldValidators.gender}>
               {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
+                <NativeSelectField
+                  {...employeeSelectControl}
                   field={field}
                   label="Gender"
                   options={[
@@ -291,137 +426,6 @@ function AddEmployeeFormContent({
                     { value: "Female", label: "Female" },
                     { value: "Other", label: "Other" },
                   ]}
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-        </EmployeeFormSection>
-
-        <EmployeeFormSection
-          compact
-          dense
-          icon={Briefcase}
-          title="Employment Details"
-        >
-          <EmployeeFormField>
-            <form.Field
-              name="joiningDate"
-              validators={fieldValidators.joiningDate}
-            >
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Joining date"
-                  max={maxJoiningDate}
-                  type="date"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <OrgHierarchyRoleFields
-            form={form}
-            controlClassName={employeeListFormControlClass}
-            departments={departments}
-            fieldValidators={fieldValidators}
-            subDepartments={subDepartments}
-            designations={designations}
-            levels={levels}
-            structures={structures}
-          />
-
-          <EmployeeFormField>
-            <form.Field
-              name="reportingManagerId"
-              validators={fieldValidators.reportingManagerId}
-            >
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Reporting manager"
-                  options={toManagerSelectOptions(managers)}
-                  placeholder="Select manager"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="branchId" validators={fieldValidators.branchId}>
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Location"
-                  options={toSelectOptions(branches)}
-                  placeholder="Select location"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-        </EmployeeFormSection>
-
-        <EmployeeFormSection
-          compact
-          icon={KeyRound}
-          title="Account & Access"
-        >
-          <EmployeeFormField>
-            <form.Field name="workEmail" validators={fieldValidators.workEmail}>
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  autoComplete="email"
-                  field={field}
-                  label="Work email"
-                  loginCredential
-                  type="email"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="roleId" validators={fieldValidators.roleId}>
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="System access role"
-                  options={toSelectOptions(roleOptions)}
-                  placeholder="Select role"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="password" validators={fieldValidators.password}>
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  autoComplete="new-password"
-                  description={PASSWORD_MIN_MESSAGE}
-                  field={field}
-                  label="Login password"
-                  type="password"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="confirmPassword">
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  autoComplete="new-password"
-                  field={field}
-                  label="Confirm login password"
-                  type="password"
                 />
               )}
             </form.Field>

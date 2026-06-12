@@ -40,14 +40,36 @@ export const employeeFieldLabelClass =
 /** Small corner radius on employee form controls (overrides shadcn rounded-lg). */
 export const employeeInputRadiusClass = "rounded-sm";
 
-export const employeeFormControlClass =
-  `h-auto !min-h-[42px] px-3 py-2.5 text-sm !${employeeInputRadiusClass} border-gray-300 bg-white shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent data-[size=default]:!h-auto`;
+/** Shared control height — keep native inputs and selects aligned in one row. */
+export const employeeFormControlHeightClass = "h-[42px] min-h-[42px]";
+export const employeeListControlHeightClass = "h-[38px] min-h-[38px]";
 
-export const employeeListFormControlClass =
-  `h-auto !min-h-[38px] px-3 py-2 text-sm !${employeeInputRadiusClass} border-gray-300 bg-white shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent data-[size=default]:!h-auto`;
+const employeeListControlBaseClass = [
+  employeeListControlHeightClass,
+  "px-3 py-0 text-sm leading-normal !rounded-sm border border-gray-300 bg-white",
+  "focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent",
+].join(" ");
+
+const employeeFormControlBaseClass = [
+  employeeFormControlHeightClass,
+  "px-3 py-0 text-sm leading-normal !rounded-sm border border-gray-300 bg-white",
+  "focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent",
+].join(" ");
+
+export const employeeFormControlClass = [
+  employeeFormControlBaseClass,
+  "shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent",
+  "!h-[42px] !min-h-[42px] data-[size=default]:!h-[42px]",
+].join(" ");
+
+export const employeeListFormControlClass = [
+  employeeListControlBaseClass,
+  "shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent",
+  "!h-[38px] !min-h-[38px] data-[size=default]:!h-[38px]",
+].join(" ");
 
 export const employeeFormFieldsClass =
-  "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1.5 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-xs [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500";
+  "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1.5 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-xs [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500 [&_[data-slot=input]]:!h-[42px] [&_[data-slot=input]]:!min-h-[42px] [&_[data-slot=input]]:!rounded-sm [&_select]:!h-[42px] [&_select]:!min-h-[42px] [&_select]:rounded-sm [&_input]:!h-[42px] [&_input]:!min-h-[42px] [&_input]:rounded-sm [&_button]:!h-[42px] [&_button]:!min-h-[42px] [&_button]:!rounded-sm";
 
 export const employeeFormSectionClass =
   "border border-gray-100 rounded-lg overflow-hidden bg-white";
@@ -68,7 +90,7 @@ export const employeeFormSectionBodyDenseClass =
   `px-5 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 ${employeeFormFieldsClass}`;
 
 export const employeeListFormFieldsClass =
-  "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-[11px] [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500";
+  "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-[11px] [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500 [&_[data-slot=input]]:!h-[38px] [&_[data-slot=input]]:!min-h-[38px] [&_[data-slot=input]]:!rounded-sm [&_select]:!h-[38px] [&_select]:!min-h-[38px] [&_select]:rounded-sm [&_input]:!h-[38px] [&_input]:!min-h-[38px] [&_input]:rounded-sm";
 
 export const employeeListFormSectionHeaderClass =
   "px-4 py-2.5 bg-gray-50 border-b border-gray-100";
@@ -107,17 +129,31 @@ export const employeeFormSectionsGridClass =
   "grid grid-cols-1 xl:grid-cols-2 gap-4";
 
 export const employeeInputClass =
-  `w-full px-3 py-2.5 border border-gray-300 ${employeeInputRadiusClass} focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent text-sm`;
+  "w-full h-[38px] min-h-[38px] px-3 py-0 border border-gray-300 rounded-sm text-sm leading-normal focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent";
 
 export const employeeListInputClass = employeeInputClass;
 
+const employeeSelectChevronBgClass =
+  "bg-no-repeat bg-[right_0.75rem_center] bg-[length:1rem] [background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")]";
+
 export const employeeSelectClass = [
   employeeInputClass,
-  "appearance-none pr-10 cursor-pointer bg-no-repeat bg-[right_0.75rem_center] bg-[length:1rem]",
-  "[background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")]",
+  "appearance-none pr-10 cursor-pointer",
+  employeeSelectChevronBgClass,
 ].join(" ");
 
 export const employeeListSelectClass = employeeSelectClass;
+
+/** Native selects in forms — chevron rendered via NativeSelectField wrapper. */
+export const employeeFormNativeSelectClass = [
+  employeeListControlBaseClass,
+  "w-full appearance-none pr-10 cursor-pointer",
+].join(" ");
+
+export const employeeReadOnlyControlClass = [
+  employeeListControlBaseClass,
+  "w-full bg-gray-50 text-gray-700 cursor-default focus:ring-0 focus:border-gray-300",
+].join(" ");
 
 export const employeeListBtnClass = employeeBtnClass;
 

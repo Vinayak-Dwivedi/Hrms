@@ -73,17 +73,6 @@ describe("route-access", () => {
   it("restricts hr zone by onboarding permissions", () => {
     assert.equal(canAccessRoute("/hr/dashboard", hrSession), true);
     assert.equal(canAccessRoute("/hr/dashboard", employeeSession), false);
-    assert.equal(
-      canAccessRoute("/hr/org-setup/location", hrSession),
-      true,
-    );
-    assert.equal(
-      canAccessRoute("/hr/org-setup/location", {
-        role: "hr",
-        permissions: ["onboarding.view"],
-      }),
-      false,
-    );
   });
 
   it("resolves edit route permissions", () => {

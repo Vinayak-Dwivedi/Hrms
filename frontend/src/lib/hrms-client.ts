@@ -163,6 +163,28 @@ interface MeResponse {
   emergencyContactPhone?: string | null;
 }
 
+export function identityFromAuthUser(user: LoggedInUser): UIEmployee {
+  const name = user.name?.trim() || user.email;
+  const parts = name.split(/\s+/).filter(Boolean);
+  const initials =
+    parts.length >= 2
+      ? `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase()
+      : name.slice(0, 2).toUpperCase() || "··";
+
+  return {
+    id: user.id,
+    name,
+    role: user.role,
+    initials,
+    employeeId: "",
+    avatarUrl: null,
+    email: user.email,
+    personalEmail: user.email,
+    workEmail: null,
+    phone: "",
+  };
+}
+
 export async function fetchCurrentEmployee(): Promise<UIEmployee> {
   const me = await jsonFetch<MeResponse>("/me");
   return {
@@ -179,6 +201,19 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     phone: me.phone,
     phoneVerified: me.phoneVerified ?? false,
   };
+}
+
+/** Header profile: employee record first, then manager endpoint if needed. */
+export async function fetchHeaderIdentity(): Promise<UIEmployee | null> {
+  try {
+    return await fetchCurrentEmployee();
+  } catch {
+    try {
+      return await fetchCurrentManager();
+    } catch {
+      return null;
+    }
+  }
 }
 
 // ── My Profile (view/edit) ────────────────────────────────────────────────────

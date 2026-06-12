@@ -26,9 +26,9 @@ import { AppLogo } from "@/components/app/AppLogo";
 import AppHeader from "@/components/app/AppHeader";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
 import {
-  fetchCurrentEmployee,
-  fetchCurrentManager,
+  fetchHeaderIdentity,
   fetchLeaveApprovals,
+  identityFromAuthUser,
 } from "@/lib/hrms-client";
 import type { Employee } from "@/lib/dashboard";
 import { useAuth } from "@/lib/auth-context";
@@ -123,23 +123,6 @@ const SETTINGS_SECTION: NavSection = {
   ],
 };
 
-const ORG_SETUP_SECTION: NavSection = {
-  title: "ORG SETUP",
-  entries: [
-    {
-      icon: Network,
-      label: "Org Setup",
-      href: "/hr/org-setup/location",
-      also: [
-        "/hr/org-setup/department",
-        "/hr/org-setup/designation",
-        "/hr/org-setup/department-hierarchy",
-      ],
-      requiredPermission: "onboarding.manage",
-    },
-  ],
-};
-
 function navEntryAllowed(
   entry: NavEntry,
   hasAnyPermission: (codes: string[]) => boolean,
@@ -226,7 +209,6 @@ const ALL_NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
-  ORG_SETUP_SECTION,
   USER_MGMT_SECTION,
   SETTINGS_SECTION,
 ];
@@ -266,10 +248,6 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/manager/team-dashboard": "Team Dashboard",
   "/manager/team-attendance-report": "Team Attendance",
   "/manager/approvals": "Approvals",
-  "/hr/org-setup/location": "Org Setup / Location",
-  "/hr/org-setup/department": "Org Setup / Department",
-  "/hr/org-setup/designation": "Org Setup / Designation",
-  "/hr/org-setup/department-hierarchy": "Org Setup / Department Hierarchy",
   "/departments/hierarchy": "Departments / Hierarchy",
   "/add-employee": "Add Employee",
   "/add-permission": "Add Permission",
@@ -354,9 +332,11 @@ export default function AppShell({
   role?: Role;
 }) {
   const pathname = usePathname();
-  const { hasAnyPermission, hasPermission } = useAuth();
+  const { hasAnyPermission, hasPermission, user } = useAuth();
 
-  const [identity, setIdentity] = useState<Employee | null>(null);
+  const [identity, setIdentity] = useState<Employee | null>(() =>
+    identityFromAuthUser(user),
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -417,16 +397,15 @@ export default function AppShell({
   }
 
   useEffect(() => {
+    setIdentity(identityFromAuthUser(user));
+  }, [user]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const emp = hasPermission("leave.approve")
-          ? await fetchCurrentManager()
-          : await fetchCurrentEmployee();
-        if (cancelled) return;
+      const emp = await fetchHeaderIdentity();
+      if (!cancelled && emp) {
         setIdentity(emp);
-      } catch {
-        /* page surfaces fetch errors itself */
       }
 
       // Pending-approvals badge: shown for any role with the
@@ -444,7 +423,7 @@ export default function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [pathname, role, hasPermission]);
+  }, [pathname, role, hasPermission, user]);
 
   const sections = filterNavSections(buildNav(), hasAnyPermission);
   const activeEntryId = useMemo(
@@ -606,7 +585,7 @@ export default function AppShell({
 
       {/* Main column */}
       <div className="flex-1 min-w-0">
-        <AppHeader role={role} identity={identity} />
+        <AppHeader role={role} identity={identity} sessionUser={user} />
         <main className="px-6 pb-6">{children}</main>
       </div>
     </div>

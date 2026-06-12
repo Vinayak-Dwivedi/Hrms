@@ -4,7 +4,7 @@ import { Bell, ChevronDown, LogOut, UserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Employee } from "@/lib/dashboard";
-import { signOut } from "@/lib/hrms-client";
+import { signOut, type LoggedInUser } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
 
 // Universal app header — breadcrumb on the left, notifications + user menu on
@@ -34,9 +34,6 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/admin/reports": "Reports",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
-  "/hr/org-setup/location": "Org Setup / Location",
-  "/hr/org-setup/department": "Org Setup / Department",
-  "/hr/org-setup/designation": "Org Setup / Designation",
   "/departments/hierarchy": "Departments / Hierarchy",
 };
 
@@ -96,9 +93,11 @@ function HeaderAvatar({
 export default function AppHeader({
   role,
   identity,
+  sessionUser,
 }: {
   role: Role;
   identity: Employee | null;
+  sessionUser: LoggedInUser;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -135,7 +134,22 @@ export default function AppHeader({
     }
   }
 
-  const initials = identity?.initials ?? "··";
+  const displayName =
+    identity?.name?.trim() ||
+    sessionUser.name?.trim() ||
+    sessionUser.email ||
+    "—";
+  const initials =
+    identity?.initials ??
+    (displayName !== "—"
+      ? displayName
+          .split(/\s+/)
+          .filter(Boolean)
+          .map((p) => p[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()
+      : "··");
   const crumb = breadcrumbFor(pathname);
 
   return (
@@ -168,7 +182,7 @@ export default function AppHeader({
                 src={identity?.avatarUrl}
               />
               <span className="text-sm font-semibold text-gray-700">
-                {identity?.name ?? "—"}
+                {displayName}
               </span>
               <ChevronDown
                 size={14}
@@ -186,7 +200,7 @@ export default function AppHeader({
               >
                 <div className="px-3 py-2.5 border-b border-gray-100">
                   <p className="text-[12px] font-semibold text-gray-900 truncate">
-                    {identity?.name ?? "—"}
+                    {displayName}
                   </p>
                   <p className="text-[11px] text-gray-400 truncate">
                     {identity?.role ?? rootLabelFor(role)}
