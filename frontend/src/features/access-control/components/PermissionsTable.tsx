@@ -6,8 +6,17 @@ import type { PermissionListItem } from "../api/permissions.client";
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
-  employeeIconMd,
-  employeeIconPen,
+  employeeIconSm,
+  employeeListPaginationBtnActiveClass,
+  employeeListPaginationBtnClass,
+  employeeListPaginationBtnInactiveClass,
+  employeeListTableBadgeClass,
+  employeeListTableCellClass,
+  employeeListTableEmptyClass,
+  employeeListTableFooterClass,
+  employeeListTableHeadClass,
+  employeeListTableRowClass,
+  employeeListTableSummaryClass,
   employeeViewIconBtnClass,
 } from "@/features/employees/employee-theme";
 
@@ -45,10 +54,7 @@ export default function PermissionsTable({
             <tr className="text-nowrap">
               {["Code", "Name", "Module", "Description", "Status", "Action"].map(
                 (h) => (
-                  <th
-                    key={h}
-                    className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                  >
+                  <th key={h} className={employeeListTableHeadClass}>
                     {h}
                   </th>
                 ),
@@ -58,28 +64,26 @@ export default function PermissionsTable({
           <tbody className="divide-y divide-gray-100">
             {pageRows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-6 py-10 text-center text-sm text-gray-400"
-                >
+                <td colSpan={6} className={employeeListTableEmptyClass}>
                   No permissions found.
                 </td>
               </tr>
             ) : (
               pageRows.map((perm) => (
-                <tr
-                  key={perm.id}
-                  className="hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                >
-                  <td className="px-6 py-4 font-mono text-xs">{perm.code}</td>
-                  <td className="px-6 py-4">{perm.name}</td>
-                  <td className="px-6 py-4 capitalize">{perm.module}</td>
-                  <td className="px-6 py-4 max-w-xs truncate">
+                <tr key={perm.id} className={employeeListTableRowClass}>
+                  <td className={`${employeeListTableCellClass} font-mono text-[11px]`}>
+                    {perm.code}
+                  </td>
+                  <td className={employeeListTableCellClass}>{perm.name}</td>
+                  <td className={`${employeeListTableCellClass} capitalize`}>
+                    {perm.module}
+                  </td>
+                  <td className={`${employeeListTableCellClass} max-w-xs truncate`}>
                     {perm.description ?? "—"}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className={employeeListTableCellClass}>
                     <span
-                      className={`px-3 py-1 text-xs font-medium rounded-full ${
+                      className={`${employeeListTableBadgeClass} ${
                         perm.isActive
                           ? "bg-green-100 text-green-700"
                           : "bg-gray-100 text-gray-600"
@@ -88,8 +92,8 @@ export default function PermissionsTable({
                       {perm.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-4">
+                  <td className={employeeListTableCellClass}>
+                    <div className="flex items-center gap-3">
                       <button
                         aria-label={`View ${perm.name}`}
                         className={employeeViewIconBtnClass}
@@ -97,7 +101,7 @@ export default function PermissionsTable({
                         title="View"
                         type="button"
                       >
-                        <Eye className={employeeIconMd} />
+                        <Eye className={employeeIconSm} />
                       </button>
                       <button
                         aria-label={`Edit ${perm.name}`}
@@ -106,7 +110,7 @@ export default function PermissionsTable({
                         title="Edit"
                         type="button"
                       >
-                        <Pencil className={employeeIconPen} />
+                        <Pencil className={employeeIconSm} />
                       </button>
                     </div>
                   </td>
@@ -118,15 +122,15 @@ export default function PermissionsTable({
       </div>
 
       {permissions.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
-          <p className="text-sm text-gray-500 m-0">
+        <div className={employeeListTableFooterClass}>
+          <p className={employeeListTableSummaryClass}>
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
             <span className="font-medium">{permissions.length}</span> results
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -138,12 +142,11 @@ export default function PermissionsTable({
               .map((p) => (
                 <button
                   key={p}
-                  className={[
-                    "px-4 py-2 text-sm rounded-lg transition-colors border",
+                  className={
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
-                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
-                  ].join(" ")}
+                      ? employeeListPaginationBtnActiveClass
+                      : employeeListPaginationBtnInactiveClass
+                  }
                   onClick={() => setPage(p)}
                   type="button"
                 >
@@ -151,7 +154,7 @@ export default function PermissionsTable({
                 </button>
               ))}
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

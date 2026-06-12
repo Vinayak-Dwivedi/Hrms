@@ -36,6 +36,12 @@ export type ColumnSupport = {
 
   onboardingCompletedAt: boolean;
 
+  /** employees.onboarding_bank_approved_at exists */
+  onboardingBankApproval: boolean;
+
+  /** employees.onboarding_reviewed_by exists */
+  onboardingReview: boolean;
+
   /** employees.pan_no_hash exists */
   employeeSensitiveHashes: boolean;
   /** employee_identity_details.pan_number_hash exists */
@@ -72,6 +78,10 @@ const TRACKED_COLUMNS = [
   "onboarding_token_used",
 
   "onboarding_completed_at",
+
+  "onboarding_bank_approved_at",
+
+  "onboarding_reviewed_by",
 
   "pan_no_hash",
 
@@ -227,6 +237,10 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     onboardingTokenUsed: cols.has("onboarding_token_used"),
 
     onboardingCompletedAt: cols.has("onboarding_completed_at"),
+
+    onboardingBankApproval: cols.has("onboarding_bank_approved_at"),
+
+    onboardingReview: cols.has("onboarding_reviewed_by"),
 
     employeeSensitiveHashes,
     identitySensitiveHashes,

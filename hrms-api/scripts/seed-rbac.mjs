@@ -27,6 +27,7 @@ const PERMISSIONS = [
   { code: "onboarding.manage", name: "Manage Onboarding", module: "onboarding", description: "Approve onboarding and manage invitations" },
   { code: "onboarding.verify_documents", name: "Verify Documents", module: "onboarding", description: "Verify or reject employee documents" },
   { code: "onboarding.resend_invitation", name: "Resend Invitations", module: "onboarding", description: "Resend or regenerate onboarding invitations" },
+  { code: "onboarding.manage_bank", name: "Manage Bank Details", module: "onboarding", description: "Add and approve employee bank account details during onboarding" },
 ];
 
 const ROLES = [
@@ -64,6 +65,7 @@ const ROLE_PERMISSION_CODES = {
     "onboarding.manage",
     "onboarding.verify_documents",
     "onboarding.resend_invitation",
+    "onboarding.manage_bank",
   ],
 };
 
@@ -75,6 +77,14 @@ try {
       SELECT id FROM permissions WHERE code = ${p.code} LIMIT 1
     `;
     if (existing) {
+      await sql`
+        UPDATE permissions
+        SET name = ${p.name},
+            module = ${p.module},
+            description = ${p.description},
+            is_active = true
+        WHERE id = ${existing.id}
+      `;
       permIdByCode[p.code] = existing.id;
       continue;
     }

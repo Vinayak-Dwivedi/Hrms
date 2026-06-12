@@ -1,14 +1,13 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import ViewEmployeeModal from "@/features/employees/components/ViewEmployeeModal";
+import { useEffect } from "react";
+import ViewEmployeePageContent from "@/features/employees/components/ViewEmployeePageContent";
 
 export default function EmployeeViewPage() {
   const router = useRouter();
   const params = useParams();
   const id = Number(params.id);
-  const [open, setOpen] = useState(Number.isFinite(id));
 
   useEffect(() => {
     if (!Number.isFinite(id)) {
@@ -18,17 +17,5 @@ export default function EmployeeViewPage() {
 
   if (!Number.isFinite(id)) return null;
 
-  return (
-    <ViewEmployeeModal
-      employeeId={id}
-      onClose={() => {
-        setOpen(false);
-        router.push("/employees");
-      }}
-      onEdit={(editEmployeeId) => {
-        router.push(`/employees/${editEmployeeId}/edit`);
-      }}
-      open={open}
-    />
-  );
+  return <ViewEmployeePageContent employeeId={id} />;
 }

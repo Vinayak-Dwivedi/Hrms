@@ -87,7 +87,9 @@ type TextFieldProps = BaseFieldProps &
   Omit<
     React.ComponentProps<typeof Input>,
     "name" | "value" | "onChange" | "onBlur" | "id"
-  >;
+  > & {
+    normalizeValue?: (value: string) => string;
+  };
 
 export function TextField({
   field,
@@ -95,6 +97,7 @@ export function TextField({
   description,
   controlClassName,
   loginCredential = false,
+  normalizeValue,
   type = "text",
   required,
   ...inputProps
@@ -119,7 +122,10 @@ export function TextField({
         id={field.name}
         name={field.name}
         onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.value)}
+        onChange={(event) => {
+          const next = event.target.value;
+          field.handleChange(normalizeValue ? normalizeValue(next) : next);
+        }}
         required={required}
         type={type}
         value={value ?? ""}
@@ -176,6 +182,7 @@ type SelectFieldProps = BaseFieldProps & {
   placeholder?: string;
   emptyOptionLabel?: string;
   disabled?: boolean;
+  onValueChange?: (value: string) => void;
 };
 
 const SELECT_EMPTY_SENTINEL = "__empty__";
@@ -187,6 +194,7 @@ export function SelectField({
   field,
   label,
   loginCredential = false,
+  onValueChange,
   options,
   placeholder,
   controlClassName,
@@ -217,8 +225,10 @@ export function SelectField({
           if (!open) field.handleBlur();
         }}
         onValueChange={(next) => {
-          field.handleChange(next === SELECT_EMPTY_SENTINEL ? "" : next);
+          const value = next === SELECT_EMPTY_SENTINEL ? "" : next;
+          field.handleChange(value);
           field.handleBlur();
+          onValueChange?.(value);
         }}
         value={selectValue}
       >

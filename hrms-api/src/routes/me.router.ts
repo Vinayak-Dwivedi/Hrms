@@ -19,12 +19,20 @@ import {
   regularisationRequests,
 } from "@/db/schema/hrms";
 import {
+  formatEmployeeFullName,
   loadCurrentEmployee,
   pad2,
   startEndOfMonth,
   todayYmd,
   ymd,
 } from "@/lib/employee";
+import {
+  formatAuthRoleLabel,
+  userTypeIdFromAuthRole,
+  userTypeLabelFromId,
+  userTypeSlugFromId,
+} from "@/lib/user-type";
+import { users } from "@/db/schema/auth";
 import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import { env } from "@/env";
 import { ApiError } from "@/middleware/error";
@@ -87,14 +95,31 @@ meRouter.get("/", async (req, res, next) => {
           .limit(1)
       : [];
 
+    const [authUser] = await db
+      .select({
+        name: users.name,
+        role: users.role,
+        userTypeId: users.userTypeId,
+      })
+      .from(users)
+      .where(eq(users.id, req.user!.id))
+      .limit(1);
+
+    const authRole = req.user!.role;
+    const userTypeId =
+      authUser?.userTypeId ?? userTypeIdFromAuthRole(authRole);
+    const fullName =
+      formatEmployeeFullName(emp) || authUser?.name?.trim() || emp.empId;
+    const designationName = designation?.name ?? null;
     const initials = `${emp.firstName[0] ?? ""}${emp.lastName[0] ?? ""}`.toUpperCase();
+
     res.json({
       id: emp.id,
       empId: emp.empId,
       firstName: emp.firstName,
       middleName: emp.middleName ?? null,
       lastName: emp.lastName,
-      fullName: `${emp.firstName} ${emp.lastName}`,
+      fullName,
       initials,
       avatarUrl: emp.profilePhotoUrl ?? null,
       email: req.user!.email,
@@ -108,7 +133,13 @@ meRouter.get("/", async (req, res, next) => {
       phoneVerifiedAt: emp.phoneVerifiedAt?.toISOString() ?? null,
       gender: emp.gender,
       dob: emp.dob,
-      role: designation?.name ?? null,
+      designation: designationName,
+      role: designationName,
+      authRole,
+      authRoleLabel: formatAuthRoleLabel(authRole),
+      userTypeId,
+      userType: userTypeSlugFromId(userTypeId),
+      userTypeLabel: userTypeLabelFromId(userTypeId),
       department: department?.name ?? null,
       grade: grade?.code ?? null,
       branch: branch?.name ?? null,
@@ -435,6 +466,8 @@ const holidaysQuery = z
       .optional()
       .transform((v) => v === "true" || v === "1"),
     limit: z.coerce.number().int().positive().max(50).default(20),
+    year: z.coerce.number().int().min(1970).max(9999).optional(),
+    month: z.coerce.number().int().min(1).max(12).optional(),
   })
   .strict();
 
@@ -459,9 +492,14 @@ meRouter.get("/holidays", async (req, res, next) => {
       (r) => r.branchId === null || r.branchId === emp.branchId,
     );
 
-    const filtered = q.upcoming
+    let filtered = q.upcoming
       ? visible.filter((r) => r.date >= todayYmd())
       : visible;
+
+    if (q.year != null && q.month != null) {
+      const prefix = `${q.year}-${String(q.month).padStart(2, "0")}`;
+      filtered = filtered.filter((r) => r.date.startsWith(prefix));
+    }
 
     filtered.sort((a, b) => a.date.localeCompare(b.date));
 

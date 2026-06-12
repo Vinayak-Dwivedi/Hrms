@@ -4,6 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
+import { sanitizePhoneInput } from "@/features/employees/schemas/employee.schema";
 import {
   ADDABLE_ACADEMIC_OPTIONS,
   academicQualificationFromApi,
@@ -19,9 +20,9 @@ import {
 } from "../constants/academic";
 import { onboardingBtnPrimaryClass } from "../constants/onboarding-theme";
 import {
+  collectOnboardingProfileErrors,
   onboardingProfileSchema,
   type AcademicDetailValues,
-  type BankDetailValues,
   type OnboardingProfileValues,
 } from "../schemas/onboarding.schema";
 
@@ -36,6 +37,8 @@ const DEFAULT_VALUES: OnboardingProfileValues = {
   permanentAddress: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
+  maritalStatus: "Single",
+  spouseName: "",
   fatherName: "",
   motherName: "",
   bloodGroup: "",
@@ -46,16 +49,6 @@ const DEFAULT_VALUES: OnboardingProfileValues = {
   esicNo: "",
   academic: DEFAULT_ACADEMIC_ROWS,
   professional: [],
-  bank: [
-    {
-      accountNumber: "",
-      accountName: "",
-      bankName: "",
-      branchName: "",
-      ifscCode: "",
-      isPrimary: true,
-    },
-  ],
 };
 
 function FieldLabel({
@@ -82,27 +75,9 @@ function FieldHint({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-gray-500 mt-1 m-0">{children}</p>;
 }
 
-function issueToFieldKey(path: (string | number)[]): string {
-  if (path[0] === "bank" && path.length >= 3) {
-    return `bank.${path[1]}.${path[2]}`;
-  }
-  if (path[0] === "academic" && path.length >= 3) {
-    return `academic.${path[1]}.${path[2]}`;
-  }
-  return String(path[0] ?? "form");
-}
-
 function digitsOnly(value: string, maxLen?: number): string {
   const d = value.replace(/\D/g, "");
   return maxLen ? d.slice(0, maxLen) : d;
-}
-
-function indianPhoneInput(value: string): string {
-  const cleaned = value.replace(/[\s\-().]/g, "");
-  if (cleaned.startsWith("+")) {
-    return `+${cleaned.slice(1).replace(/\D/g, "").slice(0, 12)}`;
-  }
-  return cleaned.replace(/\D/g, "").slice(0, 13);
 }
 
 function selectableQualificationOptions(
@@ -137,7 +112,6 @@ export default function OnboardingProfileForm({
     academic: initialValues?.academic?.length
       ? initialValues.academic
       : DEFAULT_VALUES.academic,
-    bank: initialValues?.bank?.length ? initialValues.bank : DEFAULT_VALUES.bank,
     professional: initialValues?.professional ?? [],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -150,7 +124,17 @@ export default function OnboardingProfileForm({
     setValues((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => {
       const next = { ...prev };
-      delete next[key];
+      delete next[String(key)];
+      return next;
+    });
+  }
+
+  function blurField(fieldKey: string, nextValues: OnboardingProfileValues) {
+    const fieldErrors = collectOnboardingProfileErrors(nextValues);
+    setErrors((prev) => {
+      const next = { ...prev };
+      if (fieldErrors[fieldKey]) next[fieldKey] = fieldErrors[fieldKey];
+      else delete next[fieldKey];
       return next;
     });
   }
@@ -194,33 +178,13 @@ export default function OnboardingProfileForm({
     });
   }
 
-  function updateBank(index: number, patch: Partial<BankDetailValues>) {
-    setValues((prev) => ({
-      ...prev,
-      bank: prev.bank.map((row, i) =>
-        i === index ? { ...row, ...patch } : row,
-      ),
-    }));
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
 
     const parsed = onboardingProfileSchema.safeParse(values);
     if (!parsed.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        // Zod 4 types issue.path as PropertyKey[] (includes symbols). Form
-        // field keys are always strings/numbers in practice — filter symbols
-        // out for the issueToFieldKey helper.
-        const path = issue.path.filter(
-          (p): p is string | number => typeof p !== "symbol",
-        );
-        const key = issueToFieldKey(path);
-        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-      }
-      setErrors(fieldErrors);
+      setErrors(collectOnboardingProfileErrors(values));
       return;
     }
 
@@ -236,20 +200,22 @@ export default function OnboardingProfileForm({
   return (
     <form onSubmit={handleSubmit} noValidate>
       <EmployeeFormSection title="Address">
-        <EmployeeFormField span={2}>
+        <EmployeeFormField>
           <FieldLabel required>Current Address</FieldLabel>
           <textarea
             className="w-full min-h-[80px] rounded-md border border-gray-200 px-3 py-2 text-sm"
             value={values.currentAddress}
+            onBlur={() => blurField("currentAddress", values)}
             onChange={(e) => setField("currentAddress", e.target.value)}
           />
           <FieldError message={errors.currentAddress} />
         </EmployeeFormField>
-        <EmployeeFormField span={2}>
+        <EmployeeFormField>
           <FieldLabel required>Permanent Address</FieldLabel>
           <textarea
             className="w-full min-h-[80px] rounded-md border border-gray-200 px-3 py-2 text-sm"
             value={values.permanentAddress}
+            onBlur={() => blurField("permanentAddress", values)}
             onChange={(e) => setField("permanentAddress", e.target.value)}
           />
           <FieldError message={errors.permanentAddress} />
@@ -262,6 +228,7 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
             value={values.emergencyContactName}
+            onBlur={() => blurField("emergencyContactName", values)}
             onChange={(e) => setField("emergencyContactName", e.target.value)}
           />
           <FieldError message={errors.emergencyContactName} />
@@ -271,19 +238,61 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
             value={values.emergencyContactPhone}
+            onBlur={() => blurField("emergencyContactPhone", values)}
             onChange={(e) =>
-              setField("emergencyContactPhone", indianPhoneInput(e.target.value))
+              setField(
+                "emergencyContactPhone",
+                sanitizePhoneInput(e.target.value),
+              )
             }
-            placeholder="9876543210 or +919876543210"
-            inputMode="tel"
+            placeholder="9999900000"
+            inputMode="numeric"
+            maxLength={10}
+            pattern="[0-9]{10}"
             autoComplete="tel"
           />
-          <FieldHint>Indian mobile: 10 digits starting with 6–9</FieldHint>
+          <FieldHint>10 digits only (numbers)</FieldHint>
           <FieldError message={errors.emergencyContactPhone} />
         </EmployeeFormField>
       </EmployeeFormSection>
 
       <EmployeeFormSection title="Personal & Compliance">
+        <EmployeeFormField>
+          <FieldLabel required>Marital Status</FieldLabel>
+          <select
+            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
+            value={values.maritalStatus}
+            onChange={(e) => {
+              const status = e.target.value as "Single" | "Married";
+              setField("maritalStatus", status);
+              if (status !== "Married") {
+                setField("spouseName", "");
+              }
+            }}
+          >
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+          </select>
+          <FieldError message={errors.maritalStatus} />
+        </EmployeeFormField>
+        <EmployeeFormField>
+          <FieldLabel required={values.maritalStatus === "Married"}>
+            Spouse Name
+          </FieldLabel>
+          <input
+            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+            value={values.spouseName ?? ""}
+            onBlur={() => blurField("spouseName", values)}
+            onChange={(e) => setField("spouseName", e.target.value)}
+            placeholder={
+              values.maritalStatus === "Married"
+                ? "Required if married"
+                : "Not applicable"
+            }
+            disabled={values.maritalStatus !== "Married"}
+          />
+          <FieldError message={errors.spouseName} />
+        </EmployeeFormField>
         <EmployeeFormField>
           <FieldLabel>Father&apos;s Name</FieldLabel>
           <input
@@ -305,6 +314,7 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm uppercase"
             value={values.panNo}
+            onBlur={() => blurField("panNo", values)}
             onChange={(e) =>
               setField(
                 "panNo",
@@ -322,6 +332,7 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
             value={values.aadhaarNo}
+            onBlur={() => blurField("aadhaarNo", values)}
             onChange={(e) => setField("aadhaarNo", digitsOnly(e.target.value, 12))}
             placeholder="1234 5678 9012"
             inputMode="numeric"
@@ -335,6 +346,7 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
             value={values.uanNo ?? ""}
+            onBlur={() => blurField("uanNo", values)}
             onChange={(e) => setField("uanNo", digitsOnly(e.target.value, 12))}
             placeholder="12-digit EPFO UAN"
             inputMode="numeric"
@@ -347,6 +359,7 @@ export default function OnboardingProfileForm({
           <input
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
             value={values.esicNo ?? ""}
+            onBlur={() => blurField("esicNo", values)}
             onChange={(e) => setField("esicNo", digitsOnly(e.target.value, 17))}
             placeholder="10 or 17 digits"
             inputMode="numeric"
@@ -551,91 +564,6 @@ export default function OnboardingProfileForm({
           </button>
         </div>
         <FieldError message={errors.academic} />
-      </EmployeeFormSection>
-
-      <EmployeeFormSection title="Bank Details">
-        {values.bank.map((row, index) => (
-          <div key={index} className="contents">
-            <EmployeeFormField>
-              <FieldLabel required>Account Number</FieldLabel>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
-                value={row.accountNumber}
-                onChange={(e) =>
-                  updateBank(index, {
-                    accountNumber: digitsOnly(e.target.value, 18),
-                  })
-                }
-                placeholder="9–18 digits"
-                inputMode="numeric"
-                maxLength={18}
-              />
-              <FieldError message={errors[`bank.${index}.accountNumber`]} />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>Account Name</FieldLabel>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
-                value={row.accountName}
-                onChange={(e) =>
-                  updateBank(index, { accountName: e.target.value })
-                }
-              />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>Bank Name</FieldLabel>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
-                value={row.bankName}
-                onChange={(e) =>
-                  updateBank(index, { bankName: e.target.value })
-                }
-              />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>Branch</FieldLabel>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
-                value={row.branchName}
-                onChange={(e) =>
-                  updateBank(index, { branchName: e.target.value })
-                }
-              />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>IFSC Code</FieldLabel>
-              <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm uppercase"
-                value={row.ifscCode}
-                onChange={(e) =>
-                  updateBank(index, {
-                    ifscCode: e.target.value
-                      .toUpperCase()
-                      .replace(/[^A-Z0-9]/g, "")
-                      .slice(0, 11),
-                  })
-                }
-                placeholder="SBIN0001234"
-                maxLength={11}
-              />
-              <FieldHint>11 characters: 4 letters + 0 + 6 alphanumeric</FieldHint>
-              <FieldError message={errors[`bank.${index}.ifscCode`]} />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700 mt-6">
-                <input
-                  type="checkbox"
-                  checked={row.isPrimary ?? false}
-                  onChange={(e) =>
-                    updateBank(index, { isPrimary: e.target.checked })
-                  }
-                />
-                Primary account
-              </label>
-            </EmployeeFormField>
-          </div>
-        ))}
-        <FieldError message={errors.bank} />
       </EmployeeFormSection>
 
       {formError && <p className="text-sm text-red-600 mb-4">{formError}</p>}

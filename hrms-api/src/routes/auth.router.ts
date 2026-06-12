@@ -1,15 +1,23 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "@/env";
 import { db } from "@/db/runtime";
-import { accounts, users } from "@/db/schema";
-import { employees } from "@/db/schema/hrms";
+import { users } from "@/db/schema";
 import {
   clearAuthCookies,
   setAccessCookie,
   setRefreshCookie,
 } from "@/lib/cookies";
+import {
+  lookupCredentialWithLoginId,
+  normalizeEmailLoginId,
+  PERSONAL_EMAIL_LOGIN_CODE,
+} from "@/lib/auth-credentials";
+import {
+  ACCOUNT_INACTIVE_CODE,
+  assertEmployeeMayAuthenticate,
+} from "@/lib/employee-auth";
 import {
   signAccessToken,
   signRefreshToken,
@@ -59,73 +67,40 @@ function ttlFromExp(exp: number | undefined): number {
   return Math.max(0, exp - Math.floor(Date.now() / 1000));
 }
 
-function isEmailLoginId(loginId: string): boolean {
-  return loginId.includes("@");
-}
-
-type CredentialRow = {
-  userId: string;
-  email: string;
-  name: string;
-  role: string;
-  password: string | null;
-};
-
-async function lookupUserByEmail(email: string): Promise<CredentialRow | null> {
-  const [row] = await db
-    .select({
-      userId: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      password: accounts.password,
-    })
-    .from(users)
-    .innerJoin(accounts, eq(accounts.userId, users.id))
-    .where(eq(users.email, email.toLowerCase()))
-    .limit(1);
-  if (!row || row.password === null) return null;
-  return row;
-}
-
-async function lookupUserByEmpId(empId: string): Promise<CredentialRow | null> {
-  const normalized = empId.trim().toLowerCase();
-  const [row] = await db
-    .select({
-      userId: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      password: accounts.password,
-    })
-    .from(employees)
-    .innerJoin(users, eq(users.id, employees.userId))
-    .innerJoin(accounts, eq(accounts.userId, users.id))
-    .where(sql`lower(${employees.empId}) = ${normalized}`)
-    .limit(1);
-  if (!row || row.password === null) return null;
-  return row;
-}
-
-async function lookupUserWithCredential(loginId: string) {
-  if (isEmailLoginId(loginId)) {
-    return lookupUserByEmail(loginId);
-  }
-  return lookupUserByEmpId(loginId);
+function loginFailureEntityId(loginId: string): string {
+  return loginId.includes("@")
+    ? normalizeEmailLoginId(loginId)
+    : loginId.trim().toLowerCase();
 }
 
 // ── POST /api/auth/login ─────────────────────────────────────────────────────
 authRouter.post("/login", async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const row = await lookupUserWithCredential(body.loginId);
+    let row;
+    try {
+      row = await lookupCredentialWithLoginId(body.loginId);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === PERSONAL_EMAIL_LOGIN_CODE) {
+        writeAuditLogAsync(
+          {
+            action: "LOGIN_FAILURE",
+            entityType: "auth",
+            entityId: loginFailureEntityId(body.loginId),
+          },
+          req.auditContext,
+        );
+      }
+      throw e;
+    }
+
     // Constant message to avoid user enumeration.
     if (!row) {
       writeAuditLogAsync(
         {
           action: "LOGIN_FAILURE",
           entityType: "auth",
-          entityId: body.loginId.toLowerCase(),
+          entityId: loginFailureEntityId(body.loginId),
         },
         req.auditContext,
       );
@@ -135,7 +110,7 @@ authRouter.post("/login", async (req, res, next) => {
         "Login ID or password is incorrect.",
       );
     }
-    const ok = await verifyPassword(body.password, row.password!);
+    const ok = await verifyPassword(body.password, row.password);
     if (!ok) {
       writeAuditLogAsync(
         {
@@ -151,6 +126,23 @@ authRouter.post("/login", async (req, res, next) => {
         "INVALID_CREDENTIALS",
         "Login ID or password is incorrect.",
       );
+    }
+
+    try {
+      await assertEmployeeMayAuthenticate(row.userId);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === ACCOUNT_INACTIVE_CODE) {
+        writeAuditLogAsync(
+          {
+            actorUserId: row.userId,
+            action: "LOGIN_FAILURE",
+            entityType: "auth",
+            entityId: row.userId,
+          },
+          req.auditContext,
+        );
+      }
+      throw e;
     }
 
     writeAuditLogAsync(
@@ -210,6 +202,8 @@ authRouter.post("/refresh", async (req, res, next) => {
 
     if (!u) throw new ApiError(401, "USER_NOT_FOUND", "User no longer exists.");
 
+    await assertEmployeeMayAuthenticate(u.id);
+
     // Revoke the just-used refresh jti so this exact token can't be replayed.
     await revokeJti(claims.jti, ttlFromExp(claims.exp));
 
@@ -248,6 +242,7 @@ authRouter.post("/logout", async (req, res, next) => {
 // ── GET /api/auth/me ────────────────────────────────────────────────────────
 authRouter.get("/me", requireAuth, async (req, res, next) => {
   try {
+    await assertEmployeeMayAuthenticate(req.user!.id);
     const [u] = await db
       .select({ id: users.id, email: users.email, name: users.name, role: users.role })
       .from(users)

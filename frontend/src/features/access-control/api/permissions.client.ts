@@ -132,6 +132,7 @@ export const PERMISSION_MODULES = [
   "leave",
   "attendance",
   "payroll",
+  "onboarding",
   "admin",
 ] as const;
 

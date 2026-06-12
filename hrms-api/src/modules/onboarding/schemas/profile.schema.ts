@@ -59,16 +59,28 @@ export const identitySchema = z.object({
   esicNumber: indianEsicSchema,
 });
 
-export const personalSchema = z.object({
-  currentAddress: z.string().trim().min(1).max(5000),
-  permanentAddress: z.string().trim().min(1).max(5000),
-  emergencyContactName: z.string().trim().min(1).max(200),
-  emergencyContactPhone: indianMobileSchema,
-  fatherName: z.string().trim().max(200).optional().nullable(),
-  motherName: z.string().trim().max(200).optional().nullable(),
-  bloodGroup: z.string().trim().max(5).optional().nullable(),
-  nationality: z.string().trim().max(50).optional(),
-});
+export const personalSchema = z
+  .object({
+    currentAddress: z.string().trim().min(1).max(5000),
+    permanentAddress: z.string().trim().min(1).max(5000),
+    emergencyContactName: z.string().trim().min(1).max(200),
+    emergencyContactPhone: indianMobileSchema,
+    maritalStatus: z.enum(["Single", "Married"]),
+    spouseName: z.string().trim().max(200).optional().nullable(),
+    fatherName: z.string().trim().max(200).optional().nullable(),
+    motherName: z.string().trim().max(200).optional().nullable(),
+    bloodGroup: z.string().trim().max(5).optional().nullable(),
+    nationality: z.string().trim().max(50).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Spouse name is required when marital status is Married.",
+        path: ["spouseName"],
+      });
+    }
+  });
 
 export const upsertProfileSchema = z.object({
   phone: z
@@ -81,7 +93,17 @@ export const upsertProfileSchema = z.object({
   identity: identitySchema,
   academic: z.array(academicDetailSchema).max(MAX_ACADEMIC_RECORDS).default([]),
   professional: z.array(professionalDetailSchema).default([]),
-  bank: z.array(bankDetailSchema).default([]),
+  bank: z.array(bankDetailSchema).optional(),
+});
+
+export const upsertBankDetailsSchema = z.object({
+  bank: z
+    .array(bankDetailSchema)
+    .min(1, "Add at least one bank account.")
+    .refine((rows) => rows.some((r) => r.isPrimary === true), {
+      message: "Mark one bank account as primary.",
+    }),
 });
 
 export type UpsertProfileInput = z.infer<typeof upsertProfileSchema>;
+export type UpsertBankDetailsInput = z.infer<typeof upsertBankDetailsSchema>;

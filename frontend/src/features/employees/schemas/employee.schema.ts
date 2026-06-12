@@ -6,14 +6,84 @@ import type {
 } from "../api/employees.client";
 
 const PHONE_REGEX = /^[0-9]{10}$/;
-const PHONE_MESSAGE = "Phone must be exactly 10 digits (numbers only).";
+export const PHONE_MESSAGE =
+  "Phone must be exactly 10 digits (numbers only).";
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Keep only digits and cap at 10 characters for phone inputs. */
+export function sanitizePhoneInput(value: string): string {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+function isValidCalendarDate(value: string): boolean {
+  const match = DATE_REGEX.exec(value);
+  if (!match) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.valueOf())) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() + 1 === month &&
+    date.getDate() === day
+  );
+}
+
+function requiredDateField(label: string) {
+  return z
+    .string()
+    .trim()
+    .min(1, `${label} is required.`)
+    .regex(DATE_REGEX, `Enter a valid ${label.toLowerCase()}.`)
+    .refine(
+      isValidCalendarDate,
+      `Enter a valid ${label.toLowerCase()}.`,
+    );
+}
+
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MIN_MESSAGE = `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`;
+
+function refineOptionalPasswordPair(
+  data: { password?: string; confirmPassword?: string },
+  ctx: z.RefinementCtx,
+) {
+  const password = data.password?.trim() ?? "";
+  const confirmPassword = data.confirmPassword?.trim() ?? "";
+  const wantsPassword = Boolean(password) || Boolean(confirmPassword);
+
+  if (!wantsPassword) {
+    return;
+  }
+
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    ctx.addIssue({
+      code: "custom",
+      message: PASSWORD_MIN_MESSAGE,
+      path: ["password"],
+    });
+  }
+  if (!confirmPassword) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Confirm the password.",
+      path: ["confirmPassword"],
+    });
+  }
+  if (password && confirmPassword && password !== confirmPassword) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Passwords do not match.",
+      path: ["confirmPassword"],
+    });
+  }
+}
 
 const requiredEmail = (label: string) =>
   z
     .string()
     .trim()
     .min(1, `${label} is required.`)
+    .max(254, `${label} must be at most 254 characters.`)
     .email(`Enter a valid ${label.toLowerCase()}.`);
 
 const requiredSelectId = (label: string) =>
@@ -42,6 +112,118 @@ function roleIdField(validRoleIds: number[]) {
   });
 }
 
+export const personalEmailFieldSchema = requiredEmail("Personal email");
+export const workEmailFieldSchema = requiredEmail("Work email");
+export const phoneFieldSchema = z
+  .string()
+  .trim()
+  .min(1, "Phone number is required.")
+  .regex(PHONE_REGEX, PHONE_MESSAGE);
+
+export const empIdFieldSchema = z
+  .string()
+  .trim()
+  .min(1, "Employee ID is required.")
+  .max(20, "Employee ID must be at most 20 characters.");
+export const firstNameFieldSchema = z
+  .string()
+  .trim()
+  .min(1, "First name is required.")
+  .max(100, "First name must be at most 100 characters.");
+export const middleNameFieldSchema = z
+  .string()
+  .trim()
+  .max(100, "Middle name must be at most 100 characters.");
+export const lastNameFieldSchema = z
+  .string()
+  .trim()
+  .min(1, "Last name is required.")
+  .max(100, "Last name must be at most 100 characters.");
+export const dobFieldSchema = requiredDateField("Date of birth");
+export const joiningDateFieldSchema = requiredDateField("Joining date").refine(
+  (value) => {
+    const joining = new Date(`${value}T00:00:00`);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return joining <= today;
+  },
+  "Joining date cannot be in the future.",
+);
+export const genderFieldSchema = z.enum(["Male", "Female", "Other"], {
+  message: "Gender is required.",
+});
+export const orgHierarchyDepartmentFieldSchema =
+  requiredSelectId("Department");
+export const orgHierarchySubDepartmentFieldSchema =
+  requiredSelectId("Sub department");
+export const orgHierarchyDesignationFieldSchema =
+  requiredSelectId("Designation");
+export const branchFieldSchema = requiredSelectId("Location");
+export const reportingManagerFieldSchema =
+  requiredSelectId("Reporting manager");
+
+/** Optional login password; when provided it must meet minimum length. */
+export const loginPasswordFieldSchema = z.string().superRefine((value, ctx) => {
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (trimmed.length < PASSWORD_MIN_LENGTH) {
+    ctx.addIssue({
+      code: "custom",
+      message: PASSWORD_MIN_MESSAGE,
+    });
+  }
+});
+
+export function fieldValidators<T extends z.ZodType>(schema: T) {
+  return {
+    onChange: schema,
+    onBlur: schema,
+  };
+}
+
+export function createEmployeeFieldValidators(validRoleIds: number[]) {
+  return {
+    empId: fieldValidators(empIdFieldSchema),
+    firstName: fieldValidators(firstNameFieldSchema),
+    middleName: fieldValidators(middleNameFieldSchema),
+    lastName: fieldValidators(lastNameFieldSchema),
+    personalEmail: fieldValidators(personalEmailFieldSchema),
+    workEmail: fieldValidators(workEmailFieldSchema),
+    phone: fieldValidators(phoneFieldSchema),
+    dob: fieldValidators(dobFieldSchema),
+    gender: fieldValidators(genderFieldSchema),
+    joiningDate: fieldValidators(joiningDateFieldSchema),
+    roleId: fieldValidators(roleIdField(validRoleIds)),
+    orgHierarchyDepartmentId: fieldValidators(orgHierarchyDepartmentFieldSchema),
+    orgHierarchySubDepartmentId: fieldValidators(
+      orgHierarchySubDepartmentFieldSchema,
+    ),
+    orgHierarchyDesignationId: fieldValidators(
+      orgHierarchyDesignationFieldSchema,
+    ),
+    branchId: fieldValidators(branchFieldSchema),
+    reportingManagerId: fieldValidators(reportingManagerFieldSchema),
+    password: fieldValidators(loginPasswordFieldSchema),
+  };
+}
+
+/** Maps full-form Zod issues (incl. superRefine) onto TanStack field errors. */
+export function zodFormFieldErrors<T>(schema: z.ZodType<T>) {
+  return ({ value }: { value: T }) => {
+    const result = schema.safeParse(value);
+    if (result.success) return undefined;
+
+    const fields: Record<string, string> = {};
+    for (const issue of result.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === "string" && !fields[key]) {
+        fields[key] = issue.message;
+      }
+    }
+    return Object.keys(fields).length > 0 ? fields : undefined;
+  };
+}
+
 export type CreateEmployeeFormSchemaOptions = {
   validRoleIds?: number[];
 };
@@ -62,61 +244,24 @@ export function createEmployeeFormSchema(
 
   return z
     .object({
-      empId: z
-        .string()
-        .trim()
-        .min(1, "Employee ID is required.")
-        .max(20, "Employee ID must be at most 20 characters."),
-      firstName: z
-        .string()
-        .trim()
-        .min(1, "First name is required.")
-        .max(100, "First name must be at most 100 characters."),
-      middleName: z
-        .string()
-        .trim()
-        .max(100, "Middle name must be at most 100 characters."),
-      lastName: z
-        .string()
-        .trim()
-        .min(1, "Last name is required.")
-        .max(100, "Last name must be at most 100 characters."),
-      personalEmail: requiredEmail("Personal email"),
-      workEmail: requiredEmail("Work email"),
-      phone: z
-        .string()
-        .trim()
-        .min(1, "Phone number is required.")
-        .regex(PHONE_REGEX, PHONE_MESSAGE),
-      dob: z
-        .string()
-        .min(1, "Date of birth is required.")
-        .regex(DATE_REGEX, "Enter a valid date of birth."),
-      gender: z.enum(["Male", "Female", "Other"], {
-        message: "Gender is required.",
-      }),
-      joiningDate: z
-        .string()
-        .min(1, "Joining date is required.")
-        .regex(DATE_REGEX, "Enter a valid joining date."),
+      empId: empIdFieldSchema,
+      firstName: firstNameFieldSchema,
+      middleName: middleNameFieldSchema,
+      lastName: lastNameFieldSchema,
+      personalEmail: personalEmailFieldSchema,
+      workEmail: workEmailFieldSchema,
+      phone: phoneFieldSchema,
+      dob: dobFieldSchema,
+      gender: genderFieldSchema,
+      joiningDate: joiningDateFieldSchema,
       roleId: roleIdField(validRoleIds),
-      departmentId: requiredSelectId("Department"),
-      designationId: requiredSelectId("Designation"),
-      gradeId: requiredSelectId("Grade"),
-      branchId: requiredSelectId("Branch"),
-      reportingManagerId: requiredSelectId("Reporting manager"),
-      // Plain `z.string().min(1)` — no refine. Zod 4 narrows the schema's
-      // standard-schema input type whenever a refine is attached, which
-      // breaks TanStack Form (the form's default value is "" — a wider
-      // string — and gets rejected by the narrowed schema). The dropdown
-      // only offers Single / Married, and toApiPayload narrows again at
-      // the API boundary, so a bogus value can't actually reach the API.
-      maritalStatus: z.string().min(1, "Marital status is required."),
-      spouseName: z
-        .string()
-        .trim()
-        .max(200, "Spouse name must be at most 200 characters.")
-        .optional(),
+      orgHierarchyDepartmentId: orgHierarchyDepartmentFieldSchema,
+      orgHierarchySubDepartmentId: orgHierarchySubDepartmentFieldSchema,
+      orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
+      branchId: branchFieldSchema,
+      reportingManagerId: reportingManagerFieldSchema,
+      password: z.string().optional(),
+      confirmPassword: z.string().optional(),
     })
     .superRefine((data, ctx) => {
       const dob = new Date(`${data.dob}T00:00:00`);
@@ -130,13 +275,7 @@ export function createEmployeeFormSchema(
         });
       }
 
-      if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Spouse name is required when marital status is Married.",
-          path: ["spouseName"],
-        });
-      }
+      refineOptionalPasswordPair(data, ctx);
     });
 }
 
@@ -156,13 +295,13 @@ export const defaultCreateEmployeeValues: CreateEmployeeFormValues = {
   gender: "Male",
   joiningDate: "",
   roleId: "",
-  departmentId: "",
-  designationId: "",
-  gradeId: "",
+  orgHierarchyDepartmentId: "",
+  orgHierarchySubDepartmentId: "",
+  orgHierarchyDesignationId: "",
   branchId: "",
   reportingManagerId: "",
-  maritalStatus: "",
-  spouseName: "",
+  password: "",
+  confirmPassword: "",
 };
 
 export function toCreatePayload(values: CreateEmployeeFormValues) {
@@ -171,12 +310,6 @@ export function toCreatePayload(values: CreateEmployeeFormValues) {
   return {
     ...rest,
     middleName: rest.middleName?.trim() || null,
-    spouseName:
-      rest.maritalStatus === "Married" ? rest.spouseName?.trim() || null : null,
-    maritalStatus: rest.maritalStatus,
-    departmentId: Number(rest.departmentId),
-    designationId: Number(rest.designationId),
-    gradeId: Number(rest.gradeId),
     branchId: Number(rest.branchId),
     reportingManagerId: Number(rest.reportingManagerId),
   };
@@ -184,15 +317,12 @@ export function toCreatePayload(values: CreateEmployeeFormValues) {
 
 export function toApiPayload(
   values: CreateEmployeeFormValues,
+  orgHierarchyStructureId: number,
 ): CreateEmployeePayload {
   const base = toCreatePayload(values);
   // Narrow the schema-validated string into the literal union the API
   // expects. Validation already guarantees one of these two values reaches
   // here; the `null` fallback is dead code that keeps the type system happy.
-  const maritalStatus: "Single" | "Married" | null =
-    base.maritalStatus === "Single" || base.maritalStatus === "Married"
-      ? base.maritalStatus
-      : null;
   return {
     empId: base.empId,
     firstName: base.firstName,
@@ -205,14 +335,20 @@ export function toApiPayload(
     gender: base.gender,
     joiningDate: base.joiningDate,
     roleId: Number(base.roleId),
-    departmentId: base.departmentId,
-    designationId: base.designationId,
-    gradeId: base.gradeId,
+    orgHierarchyStructureId,
     branchId: base.branchId,
     reportingManagerId: base.reportingManagerId,
-    maritalStatus,
-    spouseName: base.spouseName,
+    ...(values.password?.trim() ? { password: values.password.trim() } : {}),
   };
+}
+
+/** Today's date in `YYYY-MM-DD` for date input max attributes. */
+export function maxDateToday(): string {
+  const today = new Date();
+  const year = today.getFullYear().toString().padStart(4, "0");
+  const month = (today.getMonth() + 1).toString().padStart(2, "0");
+  const day = today.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** Latest date of birth for employees who must be at least 18 years old. */
@@ -225,45 +361,70 @@ export function maxDateOfBirthForAdult(): string {
   return `${year}-${month}-${day}`;
 }
 
-const optionalIdOrNull = z
-  .string()
-  .optional()
-  .transform((v) => {
-    if (!v || v.length === 0) return null;
-    const n = Number(v);
-    return Number.isInteger(n) && n > 0 ? n : null;
-  });
+function optionalSelectFieldSchema(label: string) {
+  return z.string().refine(
+    (value) =>
+      value === "" ||
+      (Number.isFinite(Number(value)) &&
+        Number.isInteger(Number(value)) &&
+        Number(value) > 0),
+    `Select a valid ${label.toLowerCase()} or leave blank.`,
+  );
+}
+
+export const employeeStatusFieldSchema = z.enum(
+  ["Active", "Inactive", "Probation", "Notice", "Exited"],
+  { message: "Status is required." },
+);
+export const optionalDepartmentFieldSchema =
+  optionalSelectFieldSchema("department");
+export const optionalDesignationFieldSchema =
+  optionalSelectFieldSchema("designation");
+export const optionalGradeFieldSchema = optionalSelectFieldSchema("grade");
+export const optionalBranchFieldSchema = optionalSelectFieldSchema("branch");
+export const optionalReportingManagerFieldSchema = optionalSelectFieldSchema(
+  "reporting manager",
+);
+
+export function createUpdateEmployeeFieldValidators() {
+  return {
+    empId: fieldValidators(empIdFieldSchema),
+    firstName: fieldValidators(firstNameFieldSchema),
+    middleName: fieldValidators(middleNameFieldSchema),
+    lastName: fieldValidators(lastNameFieldSchema),
+    employeeStatus: fieldValidators(employeeStatusFieldSchema),
+    personalEmail: fieldValidators(personalEmailFieldSchema),
+    workEmail: fieldValidators(workEmailFieldSchema),
+    phone: fieldValidators(phoneFieldSchema),
+    dob: fieldValidators(dobFieldSchema),
+    gender: fieldValidators(genderFieldSchema),
+    joiningDate: fieldValidators(joiningDateFieldSchema),
+    departmentId: fieldValidators(optionalDepartmentFieldSchema),
+    designationId: fieldValidators(optionalDesignationFieldSchema),
+    gradeId: fieldValidators(optionalGradeFieldSchema),
+    branchId: fieldValidators(optionalBranchFieldSchema),
+    reportingManagerId: fieldValidators(optionalReportingManagerFieldSchema),
+  };
+}
 
 export const updateEmployeeFormSchema = z
   .object({
-    empId: z.string().trim().min(1, "Employee ID is required.").max(20),
-    firstName: z.string().trim().min(1, "First name is required.").max(100),
-    middleName: z.string().trim().max(100).optional(),
-    lastName: z.string().trim().min(1, "Last name is required.").max(100),
-    personalEmail: z.string().trim().email("Enter a valid personal email."),
-    workEmail: z.string().trim().email("Enter a valid work email."),
-    phone: z
-      .string()
-      .trim()
-      .min(1, "Phone number is required.")
-      .regex(PHONE_REGEX, PHONE_MESSAGE),
-    dob: z.string().regex(DATE_REGEX, "Date of birth is required."),
-    gender: z.enum(["Male", "Female", "Other"], {
-      message: "Gender is required.",
-    }),
-    joiningDate: z.string().regex(DATE_REGEX, "Joining date is required."),
-    employeeStatus: z.enum([
-      "Active",
-      "Inactive",
-      "Probation",
-      "Notice",
-      "Exited",
-    ]),
-    departmentId: optionalIdOrNull,
-    designationId: optionalIdOrNull,
-    gradeId: optionalIdOrNull,
-    branchId: optionalIdOrNull,
-    reportingManagerId: optionalIdOrNull,
+    empId: empIdFieldSchema,
+    firstName: firstNameFieldSchema,
+    middleName: middleNameFieldSchema,
+    lastName: lastNameFieldSchema,
+    personalEmail: personalEmailFieldSchema,
+    workEmail: workEmailFieldSchema,
+    phone: phoneFieldSchema,
+    dob: dobFieldSchema,
+    gender: genderFieldSchema,
+    joiningDate: joiningDateFieldSchema,
+    employeeStatus: employeeStatusFieldSchema,
+    departmentId: optionalDepartmentFieldSchema,
+    designationId: optionalDesignationFieldSchema,
+    gradeId: optionalGradeFieldSchema,
+    branchId: optionalBranchFieldSchema,
+    reportingManagerId: optionalReportingManagerFieldSchema,
     maritalStatus: z.enum(["Single", "Married", ""]).optional(),
     spouseName: z.string().trim().max(200).optional(),
     password: z.string().optional(),
@@ -289,35 +450,7 @@ export const updateEmployeeFormSchema = z
       });
     }
 
-    const wantsPassword =
-      Boolean(data.password?.trim()) || Boolean(data.confirmPassword?.trim());
-    if (wantsPassword) {
-      if (!data.password?.trim() || data.password.length < 8) {
-        ctx.addIssue({
-          code: "custom",
-          message: "New password must be at least 8 characters.",
-          path: ["password"],
-        });
-      }
-      if (!data.confirmPassword?.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Confirm the new password.",
-          path: ["confirmPassword"],
-        });
-      }
-      if (
-        data.password &&
-        data.confirmPassword &&
-        data.password !== data.confirmPassword
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Passwords do not match.",
-          path: ["confirmPassword"],
-        });
-      }
-    }
+    refineOptionalPasswordPair(data, ctx);
   });
 
 // Use z.input — the form holds the *unparsed* shape (string IDs, "" for
@@ -367,10 +500,33 @@ export function toUpdateApiPayload(
   };
 
   if (values.password?.trim()) {
-    payload.password = values.password;
+    payload.password = values.password.trim();
   }
 
   return payload;
+}
+
+export function formatEmployeeValidationErrors(details: unknown): string | null {
+  if (!Array.isArray(details)) return null;
+  const messages = details
+    .map((issue) => {
+      if (!issue || typeof issue !== "object") return null;
+      const row = issue as { message?: unknown; path?: unknown[] };
+      if (typeof row.message !== "string" || !row.message) return null;
+      const field = row.path?.[0];
+      if (typeof field === "string") {
+        const label =
+          field === "password"
+            ? "Password"
+            : field === "confirmPassword"
+              ? "Confirm password"
+              : field;
+        return `${label}: ${row.message}`;
+      }
+      return row.message;
+    })
+    .filter((m): m is string => Boolean(m));
+  return messages.length > 0 ? messages.join(" ") : null;
 }
 
 export function detailToFormValues(

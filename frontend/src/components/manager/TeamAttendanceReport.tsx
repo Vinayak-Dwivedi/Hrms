@@ -81,19 +81,6 @@ function detailRow(
       status: rec.status,
     };
   }
-  const [y, m, d] = ymd.split("-").map(Number);
-  const dow = new Date(y, m - 1, d).getDay();
-  if (dow === 0 || dow === 6) {
-    return {
-      date: ymd,
-      punchIn: dash,
-      punchOut: dash,
-      workHrs: dash,
-      lateBy: dash,
-      earlyExit: dash,
-      status: "Weekend",
-    };
-  }
   return {
     date: ymd,
     punchIn: dash,
@@ -293,9 +280,6 @@ export default function TeamAttendanceReport({
   function statusFor(empId: number, ymd: string): AttCellStatus {
     const s = cellStatus.get(empId)?.get(ymd);
     if (s) return s;
-    const [y, mo, d] = ymd.split("-").map(Number);
-    const dow = new Date(y, mo - 1, d).getDay();
-    if (dow === 0 || dow === 6) return "W";
     return "—";
   }
 

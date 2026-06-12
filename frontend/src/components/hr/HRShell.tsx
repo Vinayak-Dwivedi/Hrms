@@ -1,55 +1,33 @@
 "use client";
 
 import {
+  ArrowLeft,
   BadgeCheck,
   Bell,
-  Briefcase,
   Building2,
-  Calendar as CalendarIcon,
   ChevronDown,
   ChevronRight,
-  Clock,
-  LogOut,
   MapPin,
   Menu,
   Network,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Employee } from "@/lib/dashboard";
 import { APP_LOCATION, APP_VERSION } from "@/lib/dashboard";
 import { useAuth } from "@/lib/auth-context";
+import { isNavActive, navLinkClassName } from "@/lib/nav-active";
 import { fetchCurrentEmployee, signOut } from "@/lib/hrms-client";
 
 // ── nav config ───────────────────────────────────────────────────────────────
 type NavEntry = {
-  icon: typeof Briefcase;
+  icon: typeof MapPin;
   label: string;
   href: string;
   also?: string[];
   requiredPermission?: string | string[];
 };
-
-export const HR_NAV: NavEntry[] = [
-  {
-    icon: Briefcase,
-    label: "Dashboard",
-    href: "/hr/dashboard",
-    requiredPermission: "onboarding.view",
-  },
-  {
-    icon: Clock,
-    label: "Attendance",
-    href: "/hr/attendance",
-    requiredPermission: "attendance.view",
-  },
-  {
-    icon: CalendarIcon,
-    label: "Leave",
-    href: "/hr/leave",
-    requiredPermission: "leave.view",
-  },
-];
 
 // ── Org Setup collapsible group ──────────────────────────────────────────────
 const ORG_SETUP_BASE = "/hr/org-setup";
@@ -72,6 +50,12 @@ const ORG_SETUP_CHILDREN: NavEntry[] = [
     href: "/hr/org-setup/designation",
     requiredPermission: "onboarding.manage",
   },
+  {
+    icon: Network,
+    label: "Department Hierarchy",
+    href: "/hr/org-setup/department-hierarchy",
+    requiredPermission: "onboarding.manage",
+  },
 ];
 
 function navEntryAllowed(
@@ -85,23 +69,12 @@ function navEntryAllowed(
   return hasAnyPermission(codes);
 }
 
-function isNavActive(entry: NavEntry, pathname: string): boolean {
-  if (pathname === entry.href) return true;
-  if (pathname.startsWith(`${entry.href}/`)) return true;
-  if (entry.also?.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return true;
-  }
-  return false;
-}
-
 // ── breadcrumb derived from the URL ──────────────────────────────────────────
 const BREADCRUMB_LABELS: Record<string, string> = {
-  "/hr/dashboard": "Dashboard",
-  "/hr/attendance": "Attendance",
-  "/hr/leave": "Leave",
   "/hr/org-setup/location": "Org Setup / Location",
   "/hr/org-setup/department": "Org Setup / Department",
   "/hr/org-setup/designation": "Org Setup / Designation",
+  "/hr/org-setup/department-hierarchy": "Org Setup / Department Hierarchy",
 };
 
 function breadcrumbFor(pathname: string): string {
@@ -169,11 +142,9 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hasAnyPermission } = useAuth();
 
-  const visibleHrNav = HR_NAV.filter((e) => navEntryAllowed(e, hasAnyPermission));
   const visibleOrgChildren = ORG_SETUP_CHILDREN.filter((e) =>
     navEntryAllowed(e, hasAnyPermission),
   );
-  const showOrgSetup = visibleOrgChildren.length > 0;
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -304,62 +275,37 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
           className="flex flex-col gap-1 flex-1"
           style={{ padding: collapsed ? "10px 10px" : "8px 12px" }}
         >
-          {visibleHrNav.map(({ icon: Icon, label, href }) => {
-            const entry = visibleHrNav.find((e) => e.label === label);
-            const active = entry ? isNavActive(entry, pathname) : false;
-            return (
-              <a
-                key={label}
-                href={href}
-                title={collapsed ? label : undefined}
-                className="flex items-center rounded-xl text-[13px] font-medium no-underline"
-                style={{
-                  color: active ? "#fff" : "#4b5563",
-                  background: active
-                    ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
-                    : "transparent",
-                  padding: collapsed ? "10px 0" : "10px 12px",
-                  gap: 12,
-                  justifyContent: collapsed ? "center" : "flex-start",
-                }}
-              >
-                <Icon size={16} />
-                {!collapsed && label}
-              </a>
-            );
-          })}
+          <Link
+            href="/dashboard"
+            title={collapsed ? "Back to HRMS" : undefined}
+            className={navLinkClassName(false, { collapsed })}
+          >
+            <ArrowLeft size={16} />
+            {!collapsed && "Back to HRMS"}
+          </Link>
 
           {/* Org Setup — collapsible group */}
-          {showOrgSetup &&
+          {visibleOrgChildren.length > 0 &&
             (collapsed ? (
-              <a
+              <Link
                 href={visibleOrgChildren[0]?.href ?? "/hr/org-setup/location"}
                 title="Org Setup"
-                className="flex items-center justify-center rounded-xl text-[13px] font-medium no-underline"
-                style={{
-                  color: inOrgSetup ? "#fff" : "#4b5563",
-                  background: inOrgSetup
-                    ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
-                    : "transparent",
-                  padding: "10px 0",
-                }}
+                aria-current={inOrgSetup ? "page" : undefined}
+                className={navLinkClassName(inOrgSetup, { collapsed })}
               >
                 <Network size={16} />
-              </a>
+              </Link>
             ) : (
               <div className="flex flex-col">
                 <button
                   type="button"
                   onClick={toggleOrg}
-                  className="flex items-center rounded-xl text-[13px] font-medium w-full"
-                  style={{
-                    color: inOrgSetup ? "#be185d" : "#4b5563",
-                    background: inOrgSetup ? "#fff1f2" : "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "10px 12px",
-                    gap: 12,
-                  }}
+                  className={[
+                    "flex items-center rounded-xl text-[13px] font-medium w-full border-0 cursor-pointer px-3 py-2.5 gap-3",
+                    inOrgSetup
+                      ? "active text-[#be185d] bg-[#fff1f2]"
+                      : "text-gray-600 bg-transparent hover:bg-gray-50 hover:text-gray-900",
+                  ].join(" ")}
                 >
                   <Network size={16} />
                   <span className="flex-1 text-left">Org Setup</span>
@@ -374,26 +320,19 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
 
                 {orgOpen && (
                   <div className="flex flex-col gap-1 mt-1">
-                    {visibleOrgChildren.map(({ icon: Icon, label, href }) => {
-                      const active =
-                        pathname === href || pathname.startsWith(`${href}/`);
+                    {visibleOrgChildren.map((entry) => {
+                      const { icon: Icon, label, href } = entry;
+                      const active = isNavActive(entry, pathname);
                       return (
-                        <a
+                        <Link
                           key={label}
                           href={href}
-                          className="flex items-center rounded-xl text-[13px] font-medium no-underline"
-                          style={{
-                            color: active ? "#fff" : "#4b5563",
-                            background: active
-                              ? "linear-gradient(135deg, #ec4899 0%, #be185d 100%)"
-                              : "transparent",
-                            padding: "9px 12px 9px 36px",
-                            gap: 10,
-                          }}
+                          aria-current={active ? "page" : undefined}
+                          className={navLinkClassName(active, { hrNested: true })}
                         >
                           <Icon size={15} />
                           {label}
-                        </a>
+                        </Link>
                       );
                     })}
                   </div>

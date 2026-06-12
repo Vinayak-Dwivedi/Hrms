@@ -1,6 +1,7 @@
 "use client";
 
-import { Eye, Pencil } from "lucide-react";
+import { ClipboardList, Eye, Pencil } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   formatEmployeeDisplayName,
@@ -11,8 +12,7 @@ import {
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
-  employeeIconMd,
-  employeeIconPen,
+  employeeIconSm,
   employeeViewIconBtnClass,
 } from "../employee-theme";
 
@@ -20,8 +20,7 @@ interface Props {
   employees: EmployeeListItem[];
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
-  onView: (id: number) => void;
-  onEdit: (id: number) => void;
+  showOnboardingAction?: boolean;
 }
 
 const STATUS_CLASS: Record<EmployeeStatus, string> = {
@@ -47,8 +46,7 @@ export default function EmployeeTable({
   employees,
   departmentNames,
   designationNames,
-  onView,
-  onEdit,
+  showOnboardingAction = false,
 }: Props) {
   const [page, setPage] = useState(1);
 
@@ -83,7 +81,7 @@ export default function EmployeeTable({
               ].map((h) => (
                 <th
                   key={h}
-                  className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                  className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider"
                 >
                   {h}
                 </th>
@@ -95,7 +93,7 @@ export default function EmployeeTable({
               <tr>
                 <td
                   colSpan={10}
-                  className="px-6 py-10 text-center text-sm text-gray-400"
+                  className="px-4 py-8 text-center text-[13px] text-gray-400"
                 >
                   No employees found.
                 </td>
@@ -104,57 +102,65 @@ export default function EmployeeTable({
               pageRows.map((emp) => (
                 <tr
                   key={emp.id}
-                  className="hover:bg-gray-50 transition-colors text-sm text-gray-700"
+                  className="hover:bg-gray-50 transition-colors text-[13px] text-gray-600"
                 >
-                  <td className="px-6 py-4">{emp.empId}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">{emp.empId}</td>
+                  <td className="px-4 py-2.5">
                     {formatEmployeeDisplayName(emp)}
                   </td>
-                  <td className="px-6 py-4">{emp.workEmail ?? "—"}</td>
-                  <td className="px-6 py-4">{emp.phone}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">{emp.workEmail ?? "—"}</td>
+                  <td className="px-4 py-2.5">{emp.phone}</td>
+                  <td className="px-4 py-2.5">
                     {emp.departmentId != null
                       ? (departmentNames.get(emp.departmentId) ?? "—")
                       : "—"}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">
                     {emp.designationId != null
                       ? (designationNames.get(emp.designationId) ?? "—")
                       : "—"}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">
                     <span
-                      className={`px-3 py-1 text-xs font-medium rounded-full ${STATUS_CLASS[emp.employeeStatus]}`}
+                      className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${STATUS_CLASS[emp.employeeStatus]}`}
                     >
                       {emp.employeeStatus}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-3 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
+                  <td className="px-4 py-2.5">
+                    <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-slate-100 text-slate-700">
                       {formatOnboardingStatus(emp.onboardingStatus)}
                     </span>
                   </td>
-                  <td className="px-6 py-4">{fmtDate(emp.joiningDate)}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-4">
-                      <button
+                  <td className="px-4 py-2.5">{fmtDate(emp.joiningDate)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <Link
                         aria-label={`View ${emp.firstName} ${emp.lastName}`}
                         className={employeeViewIconBtnClass}
-                        onClick={() => onView(emp.id)}
+                        href={`/employees/${emp.id}`}
                         title="View"
-                        type="button"
                       >
-                        <Eye className={employeeIconMd} />
-                      </button>
-                      <button
+                        <Eye className={employeeIconSm} />
+                      </Link>
+                      <Link
                         aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
                         className={employeeEditIconBtnClass}
-                        onClick={() => onEdit(emp.id)}
+                        href={`/employees/${emp.id}/edit`}
                         title="Edit"
-                        type="button"
                       >
-                        <Pencil className={employeeIconPen} />
-                      </button>
+                        <Pencil className={employeeIconSm} />
+                      </Link>
+                      {showOnboardingAction && (
+                        <Link
+                          aria-label={`Onboarding for ${emp.firstName} ${emp.lastName}`}
+                          className="text-pink-700 hover:text-pink-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                          href={`/employees/${emp.id}/onboarding`}
+                          title="Onboarding"
+                        >
+                          <ClipboardList className={employeeIconSm} />
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -165,15 +171,15 @@ export default function EmployeeTable({
       </div>
 
       {employees.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
-          <p className="text-sm text-gray-500 m-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-100">
+          <p className="text-[13px] text-gray-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
             <span className="font-medium">{employees.length}</span> results
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -186,7 +192,7 @@ export default function EmployeeTable({
                 <button
                   key={p}
                   className={[
-                    "px-4 py-2 text-sm rounded-lg transition-colors border",
+                    "px-3 py-1.5 text-[13px] rounded-lg transition-colors border",
                     p === safePage
                       ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
@@ -198,7 +204,7 @@ export default function EmployeeTable({
                 </button>
               ))}
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

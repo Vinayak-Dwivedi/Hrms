@@ -1,17 +1,16 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { employees } from "@/db/schema/hrms";
+import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import { REQUIRED_SUBMIT_DOCUMENT_TYPES } from "@/modules/onboarding/constants";
 import * as academicRepo from "@/modules/onboarding/repositories/academic.repository";
-import * as bankRepo from "@/modules/onboarding/repositories/bank.repository";
 import * as documentRepo from "@/modules/onboarding/repositories/document.repository";
 import * as identityRepo from "@/modules/onboarding/repositories/identity.repository";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { ApiError } from "@/middleware/error";
 
 export async function submitOnboarding(employeeId: number) {
-  const [emp, identity, academicCount, bankRows, uploadedTypes] =
-    await Promise.all([
+  const [emp, identity, academicCount, uploadedTypes] = await Promise.all([
       db
         .select({
           id: employees.id,
@@ -27,7 +26,6 @@ export async function submitOnboarding(employeeId: number) {
         .then((rows) => rows[0]),
       identityRepo.getIdentityByEmployeeId(employeeId),
       academicRepo.countAcademicByEmployeeId(employeeId),
-      bankRepo.listBankByEmployeeId(employeeId),
       documentRepo.listDocumentTypesForEmployee(employeeId),
     ]);
 
@@ -72,17 +70,6 @@ export async function submitOnboarding(employeeId: number) {
     );
   }
 
-  const hasValidBank =
-    bankRows.length >= 1 &&
-    (bankRows.length === 1 || bankRows.some((b) => b.isPrimary));
-  if (!hasValidBank) {
-    throw new ApiError(
-      400,
-      "BANK_INCOMPLETE",
-      "At least one bank account is required (mark one as primary if adding multiple).",
-    );
-  }
-
   const missingDocs = REQUIRED_SUBMIT_DOCUMENT_TYPES.filter(
     (type) => !uploadedTypes.has(type),
   );
@@ -94,19 +81,35 @@ export async function submitOnboarding(employeeId: number) {
     );
   }
 
+  const support = await getEmployeeColumnSupport();
   const now = new Date();
+  const patch: Record<string, unknown> = { updatedAt: now };
+  if (support.onboardingStatus) {
+    patch.onboardingStatus = "IN_PROGRESS";
+  }
+  if (support.onboardingSubmittedAt) {
+    patch.onboardingSubmittedAt = now;
+  } else {
+    throw new ApiError(
+      503,
+      "SCHEMA_NOT_READY",
+      "Onboarding submit is unavailable until database migrations are applied. Run: npm run db:migrate-onboarding-pending",
+    );
+  }
+
+  const returning: Record<string, unknown> = {};
+  if (support.onboardingStatus) {
+    returning.onboardingStatus = employees.onboardingStatus;
+  }
+  if (support.onboardingSubmittedAt) {
+    returning.onboardingSubmittedAt = employees.onboardingSubmittedAt;
+  }
+
   const [updated] = await db
     .update(employees)
-    .set({
-      onboardingStatus: "IN_PROGRESS",
-      onboardingSubmittedAt: now,
-      updatedAt: now,
-    })
+    .set(patch as Partial<typeof employees.$inferInsert>)
     .where(eq(employees.id, employeeId))
-    .returning({
-      onboardingStatus: employees.onboardingStatus,
-      onboardingSubmittedAt: employees.onboardingSubmittedAt,
-    });
+    .returning(returning as Record<string, typeof employees.id>);
 
   writeAuditLogAsync({
     action: "ONBOARDING_SUBMITTED",

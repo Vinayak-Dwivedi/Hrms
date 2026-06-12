@@ -107,6 +107,8 @@ export async function getProfile(employeeId: number) {
       motherName: emp.motherName,
       bloodGroup: emp.bloodGroup,
       nationality: emp.nationality,
+      maritalStatus: emp.maritalStatus,
+      spouseName: emp.spouseName,
     },
     identity: identity
       ? {
@@ -166,6 +168,11 @@ export async function upsertProfile(
       motherName: input.personal.motherName?.trim() || null,
       bloodGroup: input.personal.bloodGroup?.trim() || null,
       nationality: input.personal.nationality?.trim() || "Indian",
+      maritalStatus: input.personal.maritalStatus,
+      spouseName:
+        input.personal.maritalStatus === "Married"
+          ? input.personal.spouseName?.trim() || null
+          : null,
       ...encryptedLegacy,
       updatedAt: new Date(),
     };
@@ -190,7 +197,9 @@ export async function upsertProfile(
   await identityRepo.upsertIdentity(employeeId, input.identity);
   await academicRepo.syncAcademicDetails(employeeId, input.academic);
   await professionalRepo.syncProfessionalDetails(employeeId, input.professional);
-  await bankRepo.syncBankDetails(employeeId, input.bank);
+  if (input.bank !== undefined) {
+    await bankRepo.syncBankDetails(employeeId, input.bank);
+  }
 
   writeAuditLogAsync({
     actorUserId,

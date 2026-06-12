@@ -1,0 +1,220 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import OnboardingProfileReadOnly from "@/features/onboarding/components/OnboardingProfileReadOnly";
+import {
+  computeOnboardingPipeline,
+  computeOnboardingReadiness,
+  fetchEmployeeOnboardingProfile,
+  type OnboardingTimeline,
+} from "../api/hr-onboarding.client";
+import {
+  fetchEmployeeById,
+  formatEmployeeDisplayName,
+  formatOnboardingStatus,
+  type EmployeeDetail,
+} from "../api/employees.client";
+import {
+  employeeBtnOutlineSmClass,
+  employeeCardClass,
+  employeeErrorBannerClass,
+  employeeLoadingClass,
+} from "../employee-theme";
+import { onboardingReviewCardClass } from "../onboarding-admin-theme";
+import OnboardingAdminPanel, {
+  hasOnboardingPanelAccess,
+} from "./OnboardingAdminPanel";
+import { useAuth } from "@/lib/auth-context";
+import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+
+interface Props {
+  employeeId: number;
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  COMPLETED: "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200",
+  IN_PROGRESS: "bg-blue-50 text-blue-800 ring-1 ring-blue-200",
+  INVITATION_SENT: "bg-violet-50 text-violet-800 ring-1 ring-violet-200",
+  PENDING: "bg-gray-100 text-gray-700 ring-1 ring-gray-200",
+  EXPIRED: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
+};
+
+function SubmittedProfilePanel({
+  profileValues,
+  submittedAt,
+}: {
+  profileValues: OnboardingProfileValues;
+  submittedAt?: string | null;
+}) {
+  return (
+    <section className={onboardingReviewCardClass}>
+      <header className="px-5 py-4 border-b border-gray-100 bg-slate-50/70">
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 m-0">
+          Employee record
+        </p>
+        <h2 className="text-base font-semibold text-gray-900 mt-1 mb-0">
+          Submitted profile
+        </h2>
+        <p className="text-xs text-gray-600 mt-1 mb-0">
+          Review personal, compliance, and education details while completing HR
+          checks.
+          {submittedAt && (
+            <>
+              {" "}
+              Submitted {new Date(submittedAt).toLocaleString("en-IN")}.
+            </>
+          )}
+        </p>
+      </header>
+      <div className="p-5">
+        <OnboardingProfileReadOnly values={profileValues} layout="stack" />
+      </div>
+    </section>
+  );
+}
+
+export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
+  const router = useRouter();
+  const { hasAnyPermission } = useAuth();
+  const canAccess = hasOnboardingPanelAccess(hasAnyPermission);
+
+  const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
+  const [profileValues, setProfileValues] =
+    useState<OnboardingProfileValues | null>(null);
+  const [timeline, setTimeline] = useState<OnboardingTimeline | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [emp, profile] = await Promise.all([
+        fetchEmployeeById(employeeId),
+        fetchEmployeeOnboardingProfile(employeeId),
+      ]);
+      setEmployee(emp);
+      setProfileValues(computeOnboardingReadiness(profile).formValues);
+    } catch (e) {
+      setLoadError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (!canAccess) return;
+    void load();
+  }, [canAccess, load]);
+
+  if (!canAccess) {
+    return (
+      <div className={employeeErrorBannerClass}>
+        You do not have permission to manage employee onboarding.
+      </div>
+    );
+  }
+
+  const pipeline = timeline ? computeOnboardingPipeline(timeline) : null;
+  const showSubmittedDetails =
+    pipeline != null &&
+    (pipeline.isSubmitted || pipeline.isCompleted) &&
+    profileValues != null;
+
+  const statusKey = employee?.onboardingStatus ?? "PENDING";
+  const statusBadgeClass =
+    STATUS_BADGE[statusKey] ?? "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
+
+  const sideContent =
+    showSubmittedDetails && profileValues ? (
+      <SubmittedProfilePanel
+        profileValues={profileValues}
+        submittedAt={timeline?.submittedAt}
+      />
+    ) : null;
+
+  return (
+    <div className="space-y-4">
+      {loading && (
+        <div className={employeeLoadingClass}>Loading onboarding…</div>
+      )}
+      {loadError && (
+        <div className={employeeErrorBannerClass}>{loadError}</div>
+      )}
+
+      {!loading && !loadError && employee && (
+        <div className={`${employeeCardClass} overflow-hidden`}>
+          <div className="border-b border-gray-100 px-5 py-4 bg-white">
+            <nav
+              className="flex flex-wrap items-center gap-1 text-xs text-gray-500 mb-3"
+              aria-label="Breadcrumb"
+            >
+              <Link href="/employees" className="hover:text-gray-800 no-underline">
+                Employees
+              </Link>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <Link
+                href={`/employees/${employeeId}`}
+                className="hover:text-gray-800 no-underline"
+              >
+                {employee.empId}
+              </Link>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="text-gray-800 font-medium">Onboarding</span>
+            </nav>
+
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 m-0 tracking-tight">
+                  {formatEmployeeDisplayName(employee)}
+                </h1>
+                <p className="text-sm text-gray-500 mt-1 mb-0">
+                  {employee.empId}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <span
+                  className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${statusBadgeClass}`}
+                >
+                  {formatOnboardingStatus(employee.onboardingStatus)}
+                </span>
+                <Link
+                  className={employeeBtnOutlineSmClass}
+                  href={`/employees/${employeeId}`}
+                >
+                  View profile
+                </Link>
+                <Link className={employeeBtnOutlineSmClass} href="/employees">
+                  Back to list
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 bg-slate-50/40">
+            <OnboardingAdminPanel
+              employeeId={employeeId}
+              variant="page"
+              sideContent={sideContent}
+              onTimelineLoaded={setTimeline}
+              onUpdated={async () => {
+                const emp = await fetchEmployeeById(employeeId);
+                setEmployee(emp);
+                const profile = await fetchEmployeeOnboardingProfile(employeeId);
+                setProfileValues(computeOnboardingReadiness(profile).formValues);
+              }}
+              onOnboardingCompleted={() => {
+                router.push("/employees");
+                router.refresh();
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

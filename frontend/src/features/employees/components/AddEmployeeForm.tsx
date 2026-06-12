@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { Briefcase, Contact, KeyRound, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -11,9 +12,6 @@ import {
   createEmployee,
   EmployeeApiError,
   fetchBranches,
-  fetchDepartments,
-  fetchDesignations,
-  fetchGrades,
   fetchManagerOptions,
   fetchRoleOptions,
   toManagerSelectOptions,
@@ -21,32 +19,44 @@ import {
   type LookupItem,
   type ManagerOption,
 } from "../api/employees.client";
+import OrgHierarchyRoleFields, {
+  fetchOrgHierarchyRoleLookups,
+  orgStructureNotFoundMessage,
+  resolveOrgStructureId,
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 import {
+  createEmployeeFieldValidators,
   createEmployeeFormSchema,
   defaultCreateEmployeeValues,
+  formatEmployeeValidationErrors,
   maxDateOfBirthForAdult,
+  maxDateToday,
+  PASSWORD_MIN_MESSAGE,
+  sanitizePhoneInput,
   toApiPayload,
+  zodFormFieldErrors,
 } from "../schemas/employee.schema";
 import {
-  employeeBtnClass,
   employeeCardClass,
-  employeeErrorBannerClass,
+  employeeListBtnClass,
+  employeeListBtnOutlineClass,
+  employeeListErrorBannerClass,
+  employeeListFormControlClass,
+  employeeListWarnBannerClass,
   employeeLoadingClass,
-  employeeWarnBannerClass,
-  employeeFormControlClass,
   employeeFormSectionsGridClass,
+  employeeListFormFieldsClass,
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
 
-const employeeFieldControl = { controlClassName: employeeFormControlClass };
+const employeeFieldControl = { controlClassName: employeeListFormControlClass };
 const maxDob = maxDateOfBirthForAdult();
+const maxJoiningDate = maxDateToday();
 
-type FormLookups = {
-  departments: LookupItem[];
-  designations: LookupItem[];
+type FormLookups = OrgHierarchyRoleLookups & {
   branches: LookupItem[];
-  grades: LookupItem[];
   managers: ManagerOption[];
   roleOptions: LookupItem[];
   lookupsError: string | null;
@@ -54,9 +64,11 @@ type FormLookups = {
 
 function AddEmployeeFormContent({
   departments,
+  subDepartments,
   designations,
+  levels,
+  structures,
   branches,
-  grades,
   managers,
   roleOptions,
   lookupsError,
@@ -65,19 +77,27 @@ function AddEmployeeFormContent({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [revealErrors, setRevealErrors] = useState(false);
 
-  const employeeFormSchema = useMemo(
-    () =>
-      createEmployeeFormSchema({
-        validRoleIds: roleOptions.map((role) => role.id),
-      }),
+  const validRoleIds = useMemo(
+    () => roleOptions.map((role) => role.id),
     [roleOptions],
+  );
+
+  const employeeFormSchema = useMemo(
+    () => createEmployeeFormSchema({ validRoleIds }),
+    [validRoleIds],
+  );
+
+  const fieldValidators = useMemo(
+    () => createEmployeeFieldValidators(validRoleIds),
+    [validRoleIds],
   );
 
   const form = useForm({
     defaultValues: defaultCreateEmployeeValues,
     validators: {
-      onMount: employeeFormSchema,
-      onChange: employeeFormSchema,
+      onChange: zodFormFieldErrors(employeeFormSchema),
+      onBlur: zodFormFieldErrors(employeeFormSchema),
+      onSubmit: zodFormFieldErrors(employeeFormSchema),
     },
     onSubmitInvalid: () => {
       setRevealErrors(true);
@@ -96,17 +116,28 @@ function AddEmployeeFormContent({
       }
 
       try {
-        await createEmployee(toApiPayload(parsed.data));
+        const structureId = resolveOrgStructureId(
+          structures,
+          Number(parsed.data.orgHierarchyDepartmentId),
+          Number(parsed.data.orgHierarchySubDepartmentId),
+          Number(parsed.data.orgHierarchyDesignationId),
+        );
+        if (structureId == null) {
+          setRevealErrors(true);
+          setSubmitError(orgStructureNotFoundMessage());
+          return;
+        }
+
+        await createEmployee(toApiPayload(parsed.data, structureId));
         toast.success("Employee created successfully.");
         router.push("/employees");
       } catch (e) {
         if (e instanceof EmployeeApiError) {
-          if (e.status === 422 && Array.isArray(e.details)) {
-            const messages = (e.details as { message?: string }[])
-              .map((d) => d.message)
-              .filter(Boolean)
-              .join(" ");
-            setSubmitError(messages || e.message);
+          if (e.status === 422) {
+            setRevealErrors(true);
+            setSubmitError(
+              formatEmployeeValidationErrors(e.details) ?? e.message,
+            );
             return;
           }
           setSubmitError(e.message);
@@ -128,24 +159,25 @@ function AddEmployeeFormContent({
         void form.handleSubmit();
       }}
     >
-      <div className="p-6">
+      <div className="p-5">
       {lookupsError && (
-        <div className={employeeWarnBannerClass}>
+        <div className={employeeListWarnBannerClass}>
           Some dropdown options failed to load: {lookupsError}
         </div>
       )}
 
       {submitError && (
-        <div className={employeeErrorBannerClass}>{submitError}</div>
+        <div className={employeeListErrorBannerClass}>{submitError}</div>
       )}
 
       <div className={employeeFormSectionsGridClass}>
         <EmployeeFormSection
-          description="Primary identifiers used across HRMS records."
+          compact
+          icon={User}
           title="Basic Information"
         >
           <EmployeeFormField>
-            <form.Field name="empId">
+            <form.Field name="empId" validators={fieldValidators.empId}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -160,7 +192,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="firstName">
+            <form.Field name="firstName" validators={fieldValidators.firstName}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="First name" />
               )}
@@ -168,7 +200,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="middleName">
+            <form.Field name="middleName" validators={fieldValidators.middleName}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -183,7 +215,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="lastName">
+            <form.Field name="lastName" validators={fieldValidators.lastName}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="Last name" />
               )}
@@ -192,12 +224,16 @@ function AddEmployeeFormContent({
         </EmployeeFormSection>
 
         <EmployeeFormSection
-          dense
-          description="Contact and demographic details for the employee profile."
+          bodyClassName={`px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`}
+          compact
+          icon={Contact}
           title="Personal Details"
         >
           <EmployeeFormField>
-            <form.Field name="personalEmail">
+            <form.Field
+              name="personalEmail"
+              validators={fieldValidators.personalEmail}
+            >
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -211,7 +247,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="phone">
+            <form.Field name="phone" validators={fieldValidators.phone}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -220,7 +256,9 @@ function AddEmployeeFormContent({
                   inputMode="numeric"
                   label="Phone"
                   maxLength={10}
+                  normalizeValue={sanitizePhoneInput}
                   placeholder="9999900000"
+                  pattern="[0-9]{10}"
                   type="tel"
                 />
               )}
@@ -228,7 +266,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="dob">
+            <form.Field name="dob" validators={fieldValidators.dob}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -242,7 +280,7 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="gender">
+            <form.Field name="gender" validators={fieldValidators.gender}>
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -258,113 +296,47 @@ function AddEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
 
-          <EmployeeFormField>
-            <form.Field name="maritalStatus">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Marital status"
-                  options={[
-                    { value: "Single", label: "Single" },
-                    { value: "Married", label: "Married" },
-                  ]}
-                  placeholder="Select status"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="spouseName">
-              {(field) => (
-                <TextField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Spouse name"
-                  placeholder="Required if married"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
         </EmployeeFormSection>
 
         <EmployeeFormSection
+          compact
           dense
-          description="Job placement, reporting structure, and org hierarchy."
+          icon={Briefcase}
           title="Employment Details"
         >
           <EmployeeFormField>
-            <form.Field name="joiningDate">
+            <form.Field
+              name="joiningDate"
+              validators={fieldValidators.joiningDate}
+            >
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
                   field={field}
                   label="Joining date"
+                  max={maxJoiningDate}
                   type="date"
                 />
               )}
             </form.Field>
           </EmployeeFormField>
 
-          <EmployeeFormField>
-            <form.Field name="departmentId">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Department"
-                  options={toSelectOptions(departments)}
-                  placeholder="Select department"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
+          <OrgHierarchyRoleFields
+            form={form}
+            controlClassName={employeeListFormControlClass}
+            departments={departments}
+            fieldValidators={fieldValidators}
+            subDepartments={subDepartments}
+            designations={designations}
+            levels={levels}
+            structures={structures}
+          />
 
           <EmployeeFormField>
-            <form.Field name="designationId">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Designation"
-                  options={toSelectOptions(designations)}
-                  placeholder="Select designation"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="gradeId">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Grade"
-                  options={toSelectOptions(grades)}
-                  placeholder="Select grade"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="branchId">
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Branch"
-                  options={toSelectOptions(branches)}
-                  placeholder="Select branch"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="reportingManagerId">
+            <form.Field
+              name="reportingManagerId"
+              validators={fieldValidators.reportingManagerId}
+            >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
@@ -376,14 +348,29 @@ function AddEmployeeFormContent({
               )}
             </form.Field>
           </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="branchId" validators={fieldValidators.branchId}>
+              {(field) => (
+                <SelectField
+                  {...employeeFieldControl}
+                  field={field}
+                  label="Location"
+                  options={toSelectOptions(branches)}
+                  placeholder="Select location"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
         </EmployeeFormSection>
 
         <EmployeeFormSection
-          description="Work email and role for system access. A secure password is generated automatically."
+          compact
+          icon={KeyRound}
           title="Account & Access"
         >
           <EmployeeFormField>
-            <form.Field name="workEmail">
+            <form.Field name="workEmail" validators={fieldValidators.workEmail}>
               {(field) => (
                 <TextField
                   {...employeeFieldControl}
@@ -398,12 +385,12 @@ function AddEmployeeFormContent({
           </EmployeeFormField>
 
           <EmployeeFormField>
-            <form.Field name="roleId">
+            <form.Field name="roleId" validators={fieldValidators.roleId}>
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
                   field={field}
-                  label="Role"
+                  label="System access role"
                   options={toSelectOptions(roleOptions)}
                   placeholder="Select role"
                 />
@@ -411,13 +398,41 @@ function AddEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
 
+          <EmployeeFormField>
+            <form.Field name="password" validators={fieldValidators.password}>
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  autoComplete="new-password"
+                  description={PASSWORD_MIN_MESSAGE}
+                  field={field}
+                  label="Login password"
+                  type="password"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <form.Field name="confirmPassword">
+              {(field) => (
+                <TextField
+                  {...employeeFieldControl}
+                  autoComplete="new-password"
+                  field={field}
+                  label="Confirm login password"
+                  type="password"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
         </EmployeeFormSection>
       </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+      <div className="flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border-t border-gray-100">
         <Link
-          className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm no-underline transition-colors"
+          className={employeeListBtnOutlineClass}
           href="/employees"
         >
           Cancel
@@ -426,7 +441,7 @@ function AddEmployeeFormContent({
           {([isValid, isSubmitting]) => (
             <button
               aria-disabled={!isValid || isSubmitting}
-              className={`${employeeBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+              className={`${employeeListBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
               disabled={!isValid || isSubmitting}
               type="submit"
             >
@@ -443,10 +458,14 @@ function AddEmployeeFormContent({
 export default function AddEmployeeForm() {
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
-  const [departments, setDepartments] = useState<LookupItem[]>([]);
-  const [designations, setDesignations] = useState<LookupItem[]>([]);
+  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups>({
+    departments: [],
+    subDepartments: [],
+    designations: [],
+    levels: [],
+    structures: [],
+  });
   const [branches, setBranches] = useState<LookupItem[]>([]);
-  const [grades, setGrades] = useState<LookupItem[]>([]);
   const [managers, setManagers] = useState<ManagerOption[]>([]);
   const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
 
@@ -454,19 +473,15 @@ export default function AddEmployeeForm() {
     let cancelled = false;
     (async () => {
       try {
-        const [depts, desigs, brs, grds, mgrs, rolesList] = await Promise.all([
-          fetchDepartments(),
-          fetchDesignations(),
+        const [org, brs, mgrs, rolesList] = await Promise.all([
+          fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
-          fetchGrades(),
           fetchManagerOptions(),
           fetchRoleOptions(),
         ]);
         if (cancelled) return;
-        setDepartments(depts);
-        setDesignations(desigs);
+        setOrgLookups(org);
         setBranches(brs);
-        setGrades(grds);
         setManagers(mgrs);
         setRoleOptions(rolesList);
       } catch (e) {
@@ -486,10 +501,8 @@ export default function AddEmployeeForm() {
 
   return (
     <AddEmployeeFormContent
+      {...orgLookups}
       branches={branches}
-      departments={departments}
-      designations={designations}
-      grades={grades}
       lookupsError={lookupsError}
       managers={managers}
       roleOptions={roleOptions}

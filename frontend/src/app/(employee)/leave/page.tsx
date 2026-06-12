@@ -7,22 +7,33 @@ import {
   employeeLoadingClass,
 } from "@/features/employees/employee-theme";
 import { type LeaveRequest } from "@/lib/dashboard";
+import { useAuth } from "@/lib/auth-context";
 import {
   cancelLeaveRequest,
+  fetchManagerLeaveRequests,
   fetchMyLeaveRequests,
 } from "@/lib/hrms-client";
 
 export default function LeavePage() {
+  const { hasPermission } = useAuth();
+  const useManagerApi = hasPermission("leave.approve");
+
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  async function loadRequests() {
+    return useManagerApi
+      ? fetchManagerLeaveRequests()
+      : fetchMyLeaveRequests();
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const lr = await fetchMyLeaveRequests();
+        const lr = await loadRequests();
         if (cancelled) return;
         setRequests(lr);
       } catch (e) {
@@ -34,14 +45,15 @@ export default function LeavePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useManagerApi]);
 
   async function handleCancel(id: string) {
     setBusyId(id);
     setLoadError(null);
     try {
       await cancelLeaveRequest(id);
-      const fresh = await fetchMyLeaveRequests();
+      const fresh = await loadRequests();
       setRequests(fresh);
     } catch (e) {
       setLoadError((e as Error).message);

@@ -4,16 +4,24 @@ import { useEffect, useState } from "react";
 import { fetchOnboardingDocumentFile } from "../api/onboarding.client";
 import { onboardingErrorAlertClass } from "../constants/onboarding-theme";
 
+type FetchedDocument = {
+  blob: Blob;
+  mimeType: string;
+  filename: string;
+};
+
 interface Props {
   documentId: string;
   documentType: string;
   alt?: string;
+  fetchDocument?: (documentId: string) => Promise<FetchedDocument>;
 }
 
 export default function OnboardingDocumentPreview({
   documentId,
   documentType,
   alt,
+  fetchDocument,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +35,7 @@ export default function OnboardingDocumentPreview({
     setLoading(true);
     setError(null);
 
-    void fetchOnboardingDocumentFile(documentId)
+    void (fetchDocument ?? fetchOnboardingDocumentFile)(documentId)
       .then((result) => {
         if (cancelled) return;
         const url = URL.createObjectURL(result.blob);
@@ -48,7 +56,7 @@ export default function OnboardingDocumentPreview({
     return () => {
       cancelled = true;
     };
-  }, [documentId]);
+  }, [documentId, fetchDocument]);
 
   useEffect(() => {
     return () => {

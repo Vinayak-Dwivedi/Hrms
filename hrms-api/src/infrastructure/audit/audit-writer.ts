@@ -15,7 +15,9 @@ type AuditAction =
   | "DOCUMENT_VERIFIED"
   | "DOCUMENT_REJECTED"
   | "ONBOARDING_SUBMITTED"
-  | "ONBOARDING_COMPLETED";
+  | "ONBOARDING_COMPLETED"
+  | "ONBOARDING_PROFILE_UPDATED_ON_BEHALF"
+  | "ONBOARDING_SUBMITTED_ON_BEHALF";
 
 type AuditEntityType = "employee" | "document" | "invitation" | "auth";
 

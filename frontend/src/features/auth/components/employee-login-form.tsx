@@ -4,7 +4,12 @@ import { AlertCircle, Eye, EyeOff, Lock, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { z } from "zod";
-import { signIn } from "@/lib/hrms-client";
+import {
+  NETWORK_ERROR_MESSAGE,
+  SESSION_NOT_ESTABLISHED_MESSAGE,
+} from "@/lib/auth-errors";
+import { fetchAuthSession, signIn } from "@/lib/hrms-client";
+import { defaultHomeForUser } from "@/lib/route-access";
 
 const schema = z.object({
   loginId: z.string().trim().min(1, "Login ID is required."),
@@ -53,15 +58,17 @@ export function EmployeeLoginForm() {
     setSubmitting(true);
     try {
       const user = await signIn(parsed.data.loginId, parsed.data.password);
-      const dest =
-        user.role === "manager"
-          ? "/manager/dashboard"
-          : user.role === "hr"
-          ? "/hr/dashboard"
-          : "/dashboard";
-      router.push(dest);
+      const session = await fetchAuthSession();
+      if (!session) {
+        throw new Error(SESSION_NOT_ESTABLISHED_MESSAGE);
+      }
+      router.push(defaultHomeForUser(user.role, session.permissions));
       router.refresh();
     } catch (e) {
+      if (e instanceof TypeError) {
+        setError(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       setError((e as Error).message ?? "Unable to sign in.");
     } finally {
       setSubmitting(false);
@@ -77,7 +84,7 @@ export function EmployeeLoginForm() {
           className="block text-[13px] font-semibold mb-1.5"
           style={{ color: "#1f2937" }}
         >
-          Login ID
+          Work email or employee ID
         </label>
         <div style={fieldShellStyle}>
           <span

@@ -4,7 +4,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Upload } from "lucide-react";
 import type { DayAttendance, LeaveType } from "@/lib/dashboard";
-import { mockLeaveBalance } from "@/lib/dashboard";
+import { countLeaveDays, holidayDateSet } from "@/lib/attendance-merge";
+import type { UpcomingHoliday } from "@/lib/hrms-client";
 
 export interface LeaveSubmission {
   leaveTypeCode: string;
@@ -29,6 +30,7 @@ interface Props {
   initialYear?: number;
   initialMonth?: number; // 0-indexed
   leaveBalances?: LeaveType[];
+  holidays?: UpcomingHoliday[];
   onSubmitLeave?: (input: LeaveSubmission) => Promise<void>;
   onSubmitRegularisation?: (input: RegularisationSubmission) => Promise<void>;
   regularisationHistory?: ReadonlyArray<RegularisationHistoryItem>;
@@ -91,32 +93,18 @@ function getDayName(ymd: string) {
   return DAY_NAMES[new Date(y, m - 1, d).getDay()];
 }
 
-function countWorkingDays(from: string, to: string): number {
-  if (!from || !to) return 0;
-  const s = new Date(from);
-  const e = new Date(to);
-  if (e < s) return 0;
-  let count = 0;
-  const cur = new Date(s);
-  while (cur <= e) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) count++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return count;
-}
-
 // ── Leave Application Form ────────────────────────────────────────────────────
 
 interface LeaveFormProps {
   defaultDate: string;
   onClose: () => void;
   leaveBalances: LeaveType[];
+  holidays: UpcomingHoliday[];
   onSubmit?: (input: LeaveSubmission) => Promise<void>;
 }
 
-function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: LeaveFormProps) {
-  const types = leaveBalances.length > 0 ? leaveBalances : mockLeaveBalance;
+function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmit }: LeaveFormProps) {
+  const types = leaveBalances;
   const [leaveTypeIdx, setLeaveTypeIdx] = useState(0);
   const [reason, setReason]             = useState("");
   const [duration, setDuration]         = useState<"Full Day" | "First Half" | "Second Half">("Full Day");
@@ -135,7 +123,33 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
     name: string;
   } | null>(null);
 
-  const workingDays = countWorkingDays(fromDate, toDate);
+  const workingDays = countLeaveDays(fromDate, toDate, holidayDateSet(holidays));
+
+  if (types.length === 0) {
+    return (
+      <div
+        style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        onClick={onClose}
+      >
+        <div
+          style={{ background: "#fff", borderRadius: 16, width: "100%", maxWidth: 420, padding: 24, boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", margin: "0 0 8px" }}>No leave balance</h2>
+          <p style={{ fontSize: 14, color: "#6b7280", margin: "0 0 16px" }}>
+            Leave types are not available for your account yet. Contact HR if you need to apply for leave.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#e91e8c", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Re-fetch the resolved policy whenever the selected leave type changes.
   // We hit /api/me/leave-policy?leaveTypeCode=... and only consume settings
@@ -781,6 +795,7 @@ export default function AttendanceCalendar({
   initialYear,
   initialMonth,
   leaveBalances = [],
+  holidays = [],
   onSubmitLeave,
   onSubmitRegularisation,
   regularisationHistory = [],
@@ -881,9 +896,9 @@ export default function AttendanceCalendar({
                 const ymd       = toYMD(date);
                 const inMonth   = date.getMonth() === month;
                 const isToday   = ymd === today;
-                const isWeekend = di >= 5;
                 const entry     = dataMap.get(ymd);
                 const isHoliday = entry?.status === "Holiday";
+                const isWeekend = entry?.status === "Weekend";
                 const badge     = entry?.status ? STATUS_BADGE[entry.status] : undefined;
                 const isUpcoming = inMonth && !entry && ymd > today;
                 const isClickable = inMonth && (!!entry || isUpcoming);
@@ -987,6 +1002,7 @@ export default function AttendanceCalendar({
         <LeaveFormModal
           defaultDate={upcomingYmd}
           leaveBalances={leaveBalances}
+          holidays={holidays}
           onSubmit={onSubmitLeave}
           onClose={() => { setShowLeaveForm(false); setUpcomingYmd(null); }}
         />

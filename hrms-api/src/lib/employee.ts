@@ -4,6 +4,16 @@ import { employees } from "@/db/schema/hrms";
 import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import { ApiError } from "@/middleware/error";
 
+export function formatEmployeeFullName(parts: {
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+}): string {
+  return [parts.firstName, parts.middleName, parts.lastName]
+    .filter((part) => part?.trim())
+    .join(" ");
+}
+
 export type CurrentEmployee = {
   id: number;
   empId: string;

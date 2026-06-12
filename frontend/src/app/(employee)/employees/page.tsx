@@ -4,20 +4,20 @@ import Link from "next/link";
 import { PlusCircle, RotateCcw, Search, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BulkUploadEmployeeModal from "@/features/employees/components/BulkUploadEmployeeModal";
-import EditEmployeeModal from "@/features/employees/components/EditEmployeeModal";
 import EmployeeTable from "@/features/employees/components/EmployeeTable";
-import ViewEmployeeModal from "@/features/employees/components/ViewEmployeeModal";
+import { hasOnboardingPanelAccess } from "@/features/employees/components/OnboardingAdminPanel";
+import { useAuth } from "@/lib/auth-context";
 import {
   employeeBtnOutlineSmClass,
   employeeBtnSmClass,
   employeeCardClass,
   employeeErrorBannerClass,
-  employeeFilterLabelClass,
   employeeIconSm,
   employeeIconXs,
-  employeeInputClass,
+  employeeListFilterLabelClass,
+  employeeListInputClass,
+  employeeListSelectClass,
   employeeLoadingClass,
-  employeeSelectClass,
 } from "@/features/employees/employee-theme";
 import {
   fetchDepartments,
@@ -32,6 +32,9 @@ const ALL_STATUS = "All";
 const ALL_ONBOARDING = "All";
 
 export default function EmployeesPage() {
+  const { hasAnyPermission } = useAuth();
+  const showOnboardingAction = hasOnboardingPanelAccess(hasAnyPermission);
+
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<
@@ -47,8 +50,6 @@ export default function EmployeesPage() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [designationFilter, setDesignationFilter] = useState("");
 
-  const [viewId, setViewId] = useState<number | null>(null);
-  const [editId, setEditId] = useState<number | null>(null);
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
 
   useEffect(() => {
@@ -176,19 +177,7 @@ export default function EmployeesPage() {
     setDesignationFilter("");
   }
 
-  function openView(id: number) {
-    setEditId(null);
-    setViewId(id);
-  }
-
-  function openEdit(id: number) {
-    setViewId(null);
-    setEditId(id);
-  }
-
   function openBulkUpload() {
-    setViewId(null);
-    setEditId(null);
     setBulkUploadOpen(true);
   }
 
@@ -196,38 +185,33 @@ export default function EmployeesPage() {
     setBulkUploadOpen(false);
   }
 
-  function switchViewToEdit(id: number) {
-    setViewId(null);
-    setEditId(id);
-  }
-
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="emp-search">
+            <label className={employeeListFilterLabelClass} htmlFor="emp-search">
               Search
             </label>
             <div className="relative">
               <input
-                className={`${employeeInputClass} pl-10`}
+                className={`${employeeListInputClass} pl-8`}
                 id="emp-search"
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search employees..."
                 type="text"
                 value={search}
               />
-              <Search className={`${employeeIconSm} text-gray-400 absolute left-3 top-1/2 -translate-y-1/2`} />
+              <Search className={`${employeeIconXs} text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2`} />
             </div>
           </div>
 
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="emp-status">
+            <label className={employeeListFilterLabelClass} htmlFor="emp-status">
               Status
             </label>
             <select
-              className={employeeSelectClass}
+              className={employeeListSelectClass}
               id="emp-status"
               onChange={(e) => setStatusFilter(e.target.value)}
               value={statusFilter}
@@ -251,13 +235,13 @@ export default function EmployeesPage() {
 
           <div>
             <label
-              className={employeeFilterLabelClass}
+              className={employeeListFilterLabelClass}
               htmlFor="emp-onboarding"
             >
               Onboarding
             </label>
             <select
-              className={employeeSelectClass}
+              className={employeeListSelectClass}
               id="emp-onboarding"
               onChange={(e) => setOnboardingFilter(e.target.value)}
               value={onboardingFilter}
@@ -280,11 +264,11 @@ export default function EmployeesPage() {
           </div>
 
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="emp-dept">
+            <label className={employeeListFilterLabelClass} htmlFor="emp-dept">
               Department
             </label>
             <select
-              className={employeeSelectClass}
+              className={employeeListSelectClass}
               id="emp-dept"
               onChange={(e) => setDepartmentFilter(e.target.value)}
               value={departmentFilter}
@@ -299,11 +283,11 @@ export default function EmployeesPage() {
           </div>
 
           <div>
-            <label className={employeeFilterLabelClass} htmlFor="emp-desig">
+            <label className={employeeListFilterLabelClass} htmlFor="emp-desig">
               Designation
             </label>
             <select
-              className={employeeSelectClass}
+              className={employeeListSelectClass}
               id="emp-desig"
               onChange={(e) => setDesignationFilter(e.target.value)}
               value={designationFilter}
@@ -320,7 +304,7 @@ export default function EmployeesPage() {
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
           <button
-            className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm transition-colors bg-transparent border-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 font-medium text-[13px] transition-colors bg-transparent border-0 cursor-pointer"
             onClick={resetFilters}
             type="button"
           >
@@ -358,24 +342,9 @@ export default function EmployeesPage() {
           departmentNames={departmentNames}
           designationNames={designationNames}
           employees={filteredEmployees}
-          onEdit={openEdit}
-          onView={openView}
+          showOnboardingAction={showOnboardingAction}
         />
       )}
-
-      <ViewEmployeeModal
-        employeeId={viewId}
-        onClose={() => setViewId(null)}
-        onEdit={switchViewToEdit}
-        open={viewId != null}
-      />
-
-      <EditEmployeeModal
-        employeeId={editId}
-        onClose={() => setEditId(null)}
-        onSaved={() => void loadEmployees()}
-        open={editId != null}
-      />
 
       <BulkUploadEmployeeModal
         onClose={closeBulkUpload}

@@ -7,7 +7,10 @@ import {
   employeeErrorBannerClass,
   employeeLoadingClass,
 } from "../employee-theme";
-import OnboardingAdminPanel from "./OnboardingAdminPanel";
+import OnboardingAdminPanel, {
+  hasOnboardingPanelAccess,
+} from "./OnboardingAdminPanel";
+import { useAuth } from "@/lib/auth-context";
 import {
   fetchBranches,
   fetchDepartments,
@@ -26,6 +29,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onEdit: (id: number) => void;
+  onOnboardingCompleted?: () => void;
 }
 
 export default function ViewEmployeeModal({
@@ -33,7 +37,11 @@ export default function ViewEmployeeModal({
   open,
   onClose,
   onEdit,
+  onOnboardingCompleted,
 }: Props) {
+  const { hasAnyPermission } = useAuth();
+  const showOnboardingPanel = hasOnboardingPanelAccess(hasAnyPermission);
+
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
@@ -139,15 +147,18 @@ export default function ViewEmployeeModal({
             resendingInvitation={resendingInvitation}
             variant="modal"
           />
-          <div className="px-6 pb-6">
-            <OnboardingAdminPanel
-              employeeId={employee.id}
-              onUpdated={async () => {
-                const emp = await fetchEmployeeById(employee.id);
-                setEmployee(emp);
-              }}
-            />
-          </div>
+          {showOnboardingPanel && (
+            <div className="px-6 pb-6">
+              <OnboardingAdminPanel
+                employeeId={employee.id}
+                onUpdated={async () => {
+                  const emp = await fetchEmployeeById(employee.id);
+                  setEmployee(emp);
+                }}
+                onOnboardingCompleted={onOnboardingCompleted}
+              />
+            </div>
+          )}
         </>
       )}
     </EmployeeModalShell>

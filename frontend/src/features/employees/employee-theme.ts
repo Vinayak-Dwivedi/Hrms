@@ -28,6 +28,9 @@ export const employeeCardClass =
 export const employeeFilterLabelClass =
   "block text-xs font-medium text-gray-500 uppercase mb-1.5 tracking-wide";
 
+/** List-page filter controls (employees, departments, roles, permissions). */
+export const employeeListFilterLabelClass = employeeFilterLabelClass;
+
 export const employeeModalTitleClass =
   "text-lg font-medium text-gray-500 m-0";
 
@@ -39,6 +42,9 @@ export const employeeInputRadiusClass = "rounded-sm";
 
 export const employeeFormControlClass =
   `h-auto !min-h-[42px] px-3 py-2.5 text-sm !${employeeInputRadiusClass} border-gray-300 bg-white shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent data-[size=default]:!h-auto`;
+
+export const employeeListFormControlClass =
+  `h-auto !min-h-[38px] px-3 py-2 text-sm !${employeeInputRadiusClass} border-gray-300 bg-white shadow-none focus-visible:ring-1 focus-visible:ring-[#ffb9ce] focus-visible:border-transparent data-[size=default]:!h-auto`;
 
 export const employeeFormFieldsClass =
   "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1.5 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-xs [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500";
@@ -61,6 +67,34 @@ export const employeeFormSectionBodyClass =
 export const employeeFormSectionBodyDenseClass =
   `px-5 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 ${employeeFormFieldsClass}`;
 
+export const employeeListFormFieldsClass =
+  "[&_[data-slot=field]]:!gap-0 [&_[data-slot=field-label]]:block [&_[data-slot=field-label]]:mb-1 [&_[data-slot=field-label]]:w-full [&_[data-slot=field-label]]:text-[11px] [&_[data-slot=field-label]]:font-medium [&_[data-slot=field-label]]:uppercase [&_[data-slot=field-label]]:tracking-wide [&_[data-slot=field-label]]:text-gray-500";
+
+export const employeeListFormSectionHeaderClass =
+  "px-4 py-2.5 bg-gray-50 border-b border-gray-100";
+
+export const employeeListFormSectionTitleClass =
+  "text-[13px] font-semibold text-gray-800 m-0 leading-none";
+
+export const employeeListFormSectionDescClass =
+  "text-[11px] text-gray-500 mt-0.5 mb-0";
+
+export const employeeFormSectionIconWrapClass =
+  "flex items-center justify-center w-8 h-8 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0";
+
+export const employeeListFormSectionIconWrapClass =
+  "flex items-center justify-center w-7 h-7 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0";
+
+export const employeeFormSectionIconClass = "w-4 h-4";
+
+export const employeeListFormSectionIconClass = "w-3.5 h-3.5";
+
+export const employeeListFormSectionBodyClass =
+  `px-4 py-4 grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`;
+
+export const employeeListFormSectionBodyDenseClass =
+  `px-4 py-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`;
+
 export const employeeFormFieldClass = "min-w-0";
 
 export const employeeFormFieldSpan2Class = "md:col-span-2";
@@ -75,11 +109,52 @@ export const employeeFormSectionsGridClass =
 export const employeeInputClass =
   `w-full px-3 py-2.5 border border-gray-300 ${employeeInputRadiusClass} focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent text-sm`;
 
+export const employeeListInputClass = employeeInputClass;
+
 export const employeeSelectClass = [
   employeeInputClass,
   "appearance-none pr-10 cursor-pointer bg-no-repeat bg-[right_0.75rem_center] bg-[length:1rem]",
   "[background-image:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E\")]",
 ].join(" ");
+
+export const employeeListSelectClass = employeeSelectClass;
+
+export const employeeListBtnClass = employeeBtnClass;
+
+export const employeeListBtnOutlineClass =
+  "inline-flex items-center gap-2 px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm no-underline transition-colors cursor-pointer";
+
+export const employeeListResetBtnClass =
+  "inline-flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 font-medium text-[13px] transition-colors bg-transparent border-0 cursor-pointer";
+
+export const employeeListTableHeadClass =
+  "px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider";
+
+export const employeeListTableCellClass = "px-4 py-2.5";
+
+export const employeeListTableEmptyClass =
+  "px-4 py-8 text-center text-[13px] text-gray-400";
+
+export const employeeListTableRowClass =
+  "hover:bg-gray-50 transition-colors text-[13px] text-gray-600";
+
+export const employeeListTableBadgeClass =
+  "px-2 py-0.5 text-[11px] font-medium rounded-full";
+
+export const employeeListTableFooterClass =
+  "flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-100";
+
+export const employeeListTableSummaryClass =
+  "text-[13px] text-gray-500 m-0";
+
+export const employeeListPaginationBtnClass =
+  "px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+export const employeeListPaginationBtnActiveClass =
+  "px-3 py-1.5 text-[13px] rounded-lg transition-colors border text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]";
+
+export const employeeListPaginationBtnInactiveClass =
+  "px-3 py-1.5 text-[13px] rounded-lg transition-colors border text-gray-600 bg-white border-gray-300 hover:bg-gray-50";
 
 export const employeeIconSm = "w-4 h-4";
 export const employeeIconXs = "w-3.5 h-3.5";
@@ -89,8 +164,14 @@ export const employeeIconMd = "w-5 h-5";
 export const employeeErrorBannerClass =
   "mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800";
 
+export const employeeListErrorBannerClass = employeeErrorBannerClass;
+
 export const employeeWarnBannerClass =
   "mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900";
 
+export const employeeListWarnBannerClass = employeeWarnBannerClass;
+
 export const employeeLoadingClass =
   `${employeeCardClass} p-8 text-center text-sm text-gray-500`;
+
+export const employeeListLoadingClass = employeeLoadingClass;

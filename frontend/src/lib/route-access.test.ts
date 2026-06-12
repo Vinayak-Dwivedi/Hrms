@@ -28,12 +28,18 @@ describe("route-access", () => {
     permissions: ["onboarding.view", "onboarding.manage", "attendance.view"],
   };
 
-  it("admin bypasses all permission checks", () => {
+  const adminSession = {
+    role: "admin",
+    permissions: ["admin.roles", "admin.permissions", "employees.view"],
+  };
+
+  it("gates admin routes by permissions from DB", () => {
+    assert.equal(canAccessRoute("/user-roles", adminSession), true);
     assert.equal(
       canAccessRoute("/user-roles", { role: "admin", permissions: [] }),
-      true,
+      false,
     );
-    assert.equal(hasPermission([], "admin.roles", "admin"), true);
+    assert.equal(hasPermission(adminSession.permissions, "admin.roles"), true);
   });
 
   it("blocks employees from admin routes", () => {
@@ -64,7 +70,7 @@ describe("route-access", () => {
     assert.equal(canAccessRoute("/manager/dashboard", employeeSession), false);
   });
 
-  it("restricts hr zone to hr role or onboarding.view", () => {
+  it("restricts hr zone by onboarding permissions", () => {
     assert.equal(canAccessRoute("/hr/dashboard", hrSession), true);
     assert.equal(canAccessRoute("/hr/dashboard", employeeSession), false);
     assert.equal(
@@ -87,13 +93,28 @@ describe("route-access", () => {
     assert.deepEqual(requiredPermissionsForRoute("/employees/42"), [
       "employees.view",
     ]);
+    assert.deepEqual(requiredPermissionsForRoute("/employees/42/onboarding"), [
+      "onboarding.view",
+      "onboarding.manage",
+      "onboarding.verify_documents",
+      "onboarding.resend_invitation",
+      "onboarding.manage_bank",
+    ]);
+    assert.equal(
+      canAccessRoute("/employees/42/onboarding", hrSession),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/employees/42/onboarding", employeeSession),
+      false,
+    );
   });
 
-  it("picks role-appropriate default home", () => {
-    assert.equal(defaultHomeForUser("hr", hrSession.permissions), "/hr/dashboard");
+  it("picks canonical default home for all roles", () => {
+    assert.equal(defaultHomeForUser("hr", hrSession.permissions), "/dashboard");
     assert.equal(
       defaultHomeForUser("manager", managerSession.permissions),
-      "/manager/dashboard",
+      "/dashboard",
     );
     assert.equal(
       defaultHomeForUser("user", employeeSession.permissions),

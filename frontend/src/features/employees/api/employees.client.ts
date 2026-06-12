@@ -105,6 +105,7 @@ export type CreateEmployeePayload = {
   joiningDate: string;
   password?: string;
   roleId: number;
+  orgHierarchyStructureId?: number;
   departmentId?: number;
   designationId?: number;
   gradeId?: number;
