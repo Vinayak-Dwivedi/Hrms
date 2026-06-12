@@ -54,9 +54,7 @@ CREATE TABLE IF NOT EXISTS "employee_identity_details" (
 	"updated_at" timestamptz DEFAULT now() NOT NULL
 );--> statement-breakpoint
 
-ALTER TABLE "employee_documents" RENAME TO "employee_documents_legacy";--> statement-breakpoint
-
-CREATE TABLE "employee_documents" (
+CREATE TABLE IF NOT EXISTS "employee_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"employee_id" integer NOT NULL,
 	"document_type" "document_type_enum" NOT NULL,
@@ -71,52 +69,10 @@ CREATE TABLE "employee_documents" (
 	"created_at" timestamptz DEFAULT now() NOT NULL,
 	"updated_at" timestamptz DEFAULT now() NOT NULL,
 	CONSTRAINT "employee_documents_size_bytes_chk" CHECK ("size_bytes" >= 0)
-);--> statement-breakpoint
+);
 
-CREATE INDEX "idx_employee_documents_employee_id" ON "employee_documents" ("employee_id");--> statement-breakpoint
-CREATE INDEX "idx_employee_documents_type" ON "employee_documents" ("employee_id", "document_type");--> statement-breakpoint
-
-INSERT INTO "employee_documents" (
-	"employee_id",
-	"document_type",
-	"original_filename",
-	"stored_filename",
-	"mime_type",
-	"size_bytes",
-	"storage_path",
-	"status",
-	"verified_by",
-	"verified_at",
-	"created_at",
-	"updated_at"
-)
-SELECT
-	leg."employee_id",
-	leg."document_type",
-	COALESCE(
-		NULLIF(regexp_replace(url, '^.*/', ''), ''),
-		'legacy-upload'
-	),
-	COALESCE(
-		NULLIF(regexp_replace(url, '^.*/', ''), ''),
-		'legacy-upload'
-	),
-	'application/octet-stream',
-	0,
-	CASE
-		WHEN url LIKE '/uploads/%' THEN regexp_replace(url, '^/uploads/', '')
-		ELSE url
-	END,
-	leg."status",
-	leg."verified_by",
-	leg."verified_at",
-	leg."created_at",
-	leg."updated_at"
-FROM "employee_documents_legacy" leg
-CROSS JOIN LATERAL unnest(leg."document_urls") AS url
-WHERE array_length(leg."document_urls", 1) > 0;--> statement-breakpoint
-
-DROP TABLE "employee_documents_legacy";--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_employee_documents_employee_id" ON "employee_documents" ("employee_id");
+CREATE INDEX IF NOT EXISTS "idx_employee_documents_type" ON "employee_documents" ("employee_id", "document_type");--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS "employee_bank_details" (
 	"id" serial PRIMARY KEY NOT NULL,

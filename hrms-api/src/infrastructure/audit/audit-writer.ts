@@ -15,9 +15,24 @@ type AuditAction =
   | "DOCUMENT_VERIFIED"
   | "DOCUMENT_REJECTED"
   | "ONBOARDING_SUBMITTED"
-  | "ONBOARDING_COMPLETED";
+  | "ONBOARDING_COMPLETED"
+  // Leave lifecycle (M5)
+  | "LEAVE_SUBMITTED"
+  | "LEAVE_AUTO_APPROVED"
+  | "LEAVE_AUTO_REJECTED"
+  | "LEAVE_APPROVED_BY_MANAGER"
+  | "LEAVE_REJECTED_BY_MANAGER"
+  | "LEAVE_FORWARDED_BY_MANAGER"
+  | "LEAVE_APPROVED_BY_HR"
+  | "LEAVE_REJECTED_BY_HR"
+  | "LEAVE_CANCELLED";
 
-type AuditEntityType = "employee" | "document" | "invitation" | "auth";
+type AuditEntityType =
+  | "employee"
+  | "document"
+  | "invitation"
+  | "auth"
+  | "leave_request";
 
 export type AuditEntry = {
   actorUserId?: string | null;

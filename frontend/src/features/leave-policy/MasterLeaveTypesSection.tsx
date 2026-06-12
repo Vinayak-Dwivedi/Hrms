@@ -187,6 +187,11 @@ const BLANK_FORM: LeaveTypeUpsert = {
   minNoticeDays: 0,
   requiresProofAfterDays: null,
   maxContinuousDays: null,
+  hourlyLeaveAllowed: false,
+  carryForwardAllowed: false,
+  encashmentAllowed: false,
+  attachmentRequired: false,
+  allowedInProbation: true,
 };
 
 function EditPanel({
@@ -214,6 +219,11 @@ function EditPanel({
           minNoticeDays: initial.minNoticeDays,
           requiresProofAfterDays: initial.requiresProofAfterDays,
           maxContinuousDays: initial.maxContinuousDays,
+          hourlyLeaveAllowed: initial.hourlyLeaveAllowed,
+          carryForwardAllowed: initial.carryForwardAllowed,
+          encashmentAllowed: initial.encashmentAllowed,
+          attachmentRequired: initial.attachmentRequired,
+          allowedInProbation: initial.allowedInProbation,
         }
       : BLANK_FORM,
   );
@@ -362,6 +372,36 @@ function EditPanel({
             sub="Borrow advance leaves"
             checked={form.allowNegativeBalance}
             onChange={(v) => setForm({ ...form, allowNegativeBalance: v })}
+          />
+          <FlagToggle
+            label="Hourly Leave"
+            sub="Apply in hour increments"
+            checked={form.hourlyLeaveAllowed}
+            onChange={(v) => setForm({ ...form, hourlyLeaveAllowed: v })}
+          />
+          <FlagToggle
+            label="Carry Forward"
+            sub="Roll over unused balance"
+            checked={form.carryForwardAllowed}
+            onChange={(v) => setForm({ ...form, carryForwardAllowed: v })}
+          />
+          <FlagToggle
+            label="Encashment"
+            sub="Convert balance to salary"
+            checked={form.encashmentAllowed}
+            onChange={(v) => setForm({ ...form, encashmentAllowed: v })}
+          />
+          <FlagToggle
+            label="Attachment Required"
+            sub="Mandate proof on apply"
+            checked={form.attachmentRequired}
+            onChange={(v) => setForm({ ...form, attachmentRequired: v })}
+          />
+          <FlagToggle
+            label="Allowed in Probation"
+            sub="Available before confirmation"
+            checked={form.allowedInProbation}
+            onChange={(v) => setForm({ ...form, allowedInProbation: v })}
           />
         </div>
 
