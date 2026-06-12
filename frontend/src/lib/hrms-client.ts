@@ -343,14 +343,24 @@ function mapAttStatus(s: string): DayAttendance["status"] {
   }
 }
 
+interface MonthHolidayRow {
+  id: number;
+  date: string;
+  name: string;
+  type: string;
+  isHalfDay: boolean;
+}
+
 export async function fetchMonthAttendance(
   year: number,
   month1: number,
 ): Promise<DayAttendance[]> {
-  const data = await jsonFetch<{ records: RawAttendance[] }>(
-    `/me/attendance/month?year=${year}&month=${month1}`,
-  );
-  return data.records.map((r) => ({
+  const data = await jsonFetch<{
+    records: RawAttendance[];
+    holidays?: MonthHolidayRow[];
+  }>(`/me/attendance/month?year=${year}&month=${month1}`);
+
+  const attendance = data.records.map<DayAttendance>((r) => ({
     date: r.date,
     status: mapAttStatus(r.status),
     punchIn: formatTimeOfDay(r.punchIn) ?? undefined,
@@ -360,6 +370,22 @@ export async function fetchMonthAttendance(
     earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
     location: r.location ?? undefined,
   }));
+
+  // Merge holidays in. An actual attendance record (Present, Leave, etc.)
+  // wins over a Holiday cell — if the employee worked on a designated
+  // holiday, the calendar should show the real attendance.
+  const haveAttendance = new Set(attendance.map((a) => a.date));
+  const holidayDays = (data.holidays ?? [])
+    .filter((h) => !haveAttendance.has(h.date))
+    .map<DayAttendance>((h) => ({
+      date: h.date,
+      status: "Holiday",
+      holidayName: h.name,
+    }));
+
+  return [...attendance, ...holidayDays].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
 }
 
 // ───────────────────────── leave ─────────────────────────────────
@@ -524,8 +550,9 @@ export interface UpcomingHoliday {
   id: number;
   date: string; // YYYY-MM-DD
   name: string;
-  type: "National" | "Regional" | "Optional";
+  type: "National" | "Regional" | "Optional" | "Restricted" | "Festival";
   branchId: number | null;
+  isHalfDay?: boolean;
 }
 
 export async function fetchUpcomingHolidays(

@@ -100,7 +100,14 @@ const USER_MGMT_SECTION: NavSection = {
   ],
 };
 
-const SETTINGS_HREFS = ["/locations", "/leave-policy", "/offboarding"];
+const SETTINGS_HREFS = [
+  "/locations",
+  "/leave-policy",
+  "/holiday-calendars",
+  "/weekly-off",
+  "/leave-credits",
+  "/offboarding",
+];
 
 const SETTINGS_SECTION: NavSection = {
   title: "SETTINGS",
@@ -115,6 +122,24 @@ const SETTINGS_SECTION: NavSection = {
       requiredPermission: "admin.roles",
     },
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
+    {
+      icon: CalendarIcon,
+      label: "Holiday Policy",
+      href: "/holiday-calendars",
+      requiredPermission: "admin.roles",
+    },
+    {
+      icon: CalendarIcon,
+      label: "Weekly Off",
+      href: "/weekly-off",
+      requiredPermission: "admin.roles",
+    },
+    {
+      icon: Receipt,
+      label: "Leave Credits",
+      href: "/leave-credits",
+      requiredPermission: "admin.roles",
+    },
     {
       icon: LogOut,
       label: "Offboarding",

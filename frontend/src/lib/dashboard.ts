@@ -30,7 +30,12 @@ export interface LeaveType {
   available: number;
 }
 
-export type HolidayType = "National" | "Regional" | "Optional";
+export type HolidayType =
+  | "National"
+  | "Regional"
+  | "Optional"
+  | "Restricted"
+  | "Festival";
 
 export interface Holiday {
   id: string;

@@ -41,6 +41,11 @@ const upsertSchema = z.object({
     .max(365)
     .optional()
     .nullable(),
+  hourlyLeaveAllowed: z.boolean().default(false),
+  carryForwardAllowed: z.boolean().default(false),
+  encashmentAllowed: z.boolean().default(false),
+  attachmentRequired: z.boolean().default(false),
+  allowedInProbation: z.boolean().default(true),
 });
 
 function shape(row: typeof leaveTypes.$inferSelect) {
@@ -58,6 +63,11 @@ function shape(row: typeof leaveTypes.$inferSelect) {
     minNoticeDays: row.minNoticeDays,
     requiresProofAfterDays: row.requiresProofAfterDays ?? null,
     maxContinuousDays: row.maxContinuousDays ?? null,
+    hourlyLeaveAllowed: row.hourlyLeaveAllowed,
+    carryForwardAllowed: row.carryForwardAllowed,
+    encashmentAllowed: row.encashmentAllowed,
+    attachmentRequired: row.attachmentRequired,
+    allowedInProbation: row.allowedInProbation,
   };
 }
 

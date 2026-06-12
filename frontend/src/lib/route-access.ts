@@ -37,6 +37,21 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   if (pathname === "/offboarding" || pathname.startsWith("/offboarding/")) {
     return ["admin.roles"];
   }
+  if (
+    pathname === "/holiday-calendars" ||
+    pathname.startsWith("/holiday-calendars/")
+  ) {
+    return ["admin.roles"];
+  }
+  if (pathname === "/weekly-off" || pathname.startsWith("/weekly-off/")) {
+    return ["admin.roles"];
+  }
+  if (
+    pathname === "/leave-credits" ||
+    pathname.startsWith("/leave-credits/")
+  ) {
+    return ["admin.roles"];
+  }
   if (pathname.startsWith("/hr/org-setup")) return ["onboarding.manage"];
   if (pathname === "/hr/dashboard" || pathname.startsWith("/hr/dashboard/")) {
     return ["onboarding.view"];

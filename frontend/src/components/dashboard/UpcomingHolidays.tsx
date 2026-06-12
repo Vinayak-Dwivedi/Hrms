@@ -8,6 +8,8 @@ const TYPE_STYLES: Record<HolidayType, { background: string; color: string }> = 
   National: { background: "#fce7f3", color: "#be185d" },
   Regional: { background: "#dbeafe", color: "#1d4ed8" },
   Optional: { background: "#ffedd5", color: "#c2410c" },
+  Restricted: { background: "#fee2e2", color: "#b91c1c" },
+  Festival: { background: "#ede9fe", color: "#7c3aed" },
 };
 
 export default function UpcomingHolidays({ holidays }: UpcomingHolidaysProps) {

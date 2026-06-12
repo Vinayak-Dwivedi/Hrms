@@ -22,6 +22,16 @@ import {
   ymd,
 } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
+import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
+import {
+  loadLeaveRequestParticipants,
+  requiresHRApprovalForEmployee,
+} from "@/services/leave-routing";
+import {
+  notifyEmployeeOnApproval,
+  notifyEmployeeOnRejection,
+  notifyHROnForward,
+} from "@/services/leave-notifications";
 
 export const managerRouter: Router = Router();
 
@@ -418,16 +428,53 @@ managerRouter.post("/leave-approvals/:id/approve", async (req, res, next) => {
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
     }
+
+    // Decide whether HR review is required. If yes, manager Approve
+    // promotes the request to "Forwarded" (awaiting HR), not directly
+    // "Approved". This keeps the existing 5-value status enum.
+    const ctx = await loadLeaveRequestParticipants(idNum);
+    const hrRequired = ctx
+      ? await requiresHRApprovalForEmployee(
+          ctx.request.employeeId,
+          ctx.request.leaveTypeId,
+        )
+      : false;
+
+    const nextStatus = hrRequired ? "Forwarded" : "Approved";
     const [row] = await db
       .update(leaveRequests)
       .set({
         managerId: mgr.id,
         managerDecision: "Approved",
         managerDecidedAt: new Date(),
-        status: "Approved",
+        status: nextStatus,
       })
       .where(eq(leaveRequests.id, idNum))
       .returning();
+
+    writeAuditLogAsync({
+      actorUserId: req.user!.id,
+      actorEmployeeId: mgr.id,
+      action: hrRequired
+        ? "LEAVE_FORWARDED_BY_MANAGER"
+        : "LEAVE_APPROVED_BY_MANAGER",
+      entityType: "leave_request",
+      entityId: String(idNum),
+      metadata: { nextStatus, hrRequired },
+    });
+
+    if (ctx) {
+      if (hrRequired) {
+        notifyHROnForward(ctx.participants, ctx.request).catch(() => {});
+      } else {
+        notifyEmployeeOnApproval(
+          ctx.participants,
+          ctx.request,
+          ctx.participants.managerName ?? "your manager",
+        ).catch(() => {});
+      }
+    }
+
     res.json({ request: row });
   } catch (e) {
     next(e);
@@ -442,6 +489,7 @@ managerRouter.post("/leave-approvals/:id/reject", async (req, res, next) => {
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
     }
+    const ctx = await loadLeaveRequestParticipants(idNum);
     const [row] = await db
       .update(leaveRequests)
       .set({
@@ -453,6 +501,25 @@ managerRouter.post("/leave-approvals/:id/reject", async (req, res, next) => {
       })
       .where(eq(leaveRequests.id, idNum))
       .returning();
+
+    writeAuditLogAsync({
+      actorUserId: req.user!.id,
+      actorEmployeeId: mgr.id,
+      action: "LEAVE_REJECTED_BY_MANAGER",
+      entityType: "leave_request",
+      entityId: String(idNum),
+      metadata: { remarks: body.remarks ?? null },
+    });
+
+    if (ctx) {
+      notifyEmployeeOnRejection(
+        ctx.participants,
+        ctx.request,
+        ctx.participants.managerName ?? "your manager",
+        body.remarks ?? null,
+      ).catch(() => {});
+    }
+
     res.json({ request: row });
   } catch (e) {
     next(e);
@@ -466,6 +533,7 @@ managerRouter.post("/leave-approvals/:id/forward", async (req, res, next) => {
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
     }
+    const ctx = await loadLeaveRequestParticipants(idNum);
     const [row] = await db
       .update(leaveRequests)
       .set({
@@ -476,6 +544,19 @@ managerRouter.post("/leave-approvals/:id/forward", async (req, res, next) => {
       })
       .where(eq(leaveRequests.id, idNum))
       .returning();
+
+    writeAuditLogAsync({
+      actorUserId: req.user!.id,
+      actorEmployeeId: mgr.id,
+      action: "LEAVE_FORWARDED_BY_MANAGER",
+      entityType: "leave_request",
+      entityId: String(idNum),
+    });
+
+    if (ctx) {
+      notifyHROnForward(ctx.participants, ctx.request).catch(() => {});
+    }
+
     res.json({ request: row });
   } catch (e) {
     next(e);

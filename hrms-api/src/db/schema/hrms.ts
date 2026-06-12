@@ -97,6 +97,8 @@ export const holidayTypeEnum = pgEnum("holiday_type_enum", [
   "National",
   "Regional",
   "Optional",
+  "Restricted",
+  "Festival",
 ]);
 export const dayTypeEnum = pgEnum("day_type_enum", ["Full", "Half", "Off"]);
 export const documentTypeEnum = pgEnum("document_type_enum", [
@@ -132,6 +134,7 @@ export const auditEntityTypeEnum = pgEnum("audit_entity_type_enum", [
   "document",
   "invitation",
   "auth",
+  "leave_request",
 ]);
 export const auditActionEnum = pgEnum("audit_action_enum", [
   "EMPLOYEE_CREATED",
@@ -148,6 +151,16 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "DOCUMENT_REJECTED",
   "ONBOARDING_SUBMITTED",
   "ONBOARDING_COMPLETED",
+  // Leave lifecycle (M5)
+  "LEAVE_SUBMITTED",
+  "LEAVE_AUTO_APPROVED",
+  "LEAVE_AUTO_REJECTED",
+  "LEAVE_APPROVED_BY_MANAGER",
+  "LEAVE_REJECTED_BY_MANAGER",
+  "LEAVE_FORWARDED_BY_MANAGER",
+  "LEAVE_APPROVED_BY_HR",
+  "LEAVE_REJECTED_BY_HR",
+  "LEAVE_CANCELLED",
 ]);
 export const documentStatusEnum = pgEnum("document_status_enum", [
   "Pending",
@@ -851,6 +864,14 @@ export const leaveTypes = pgTable("leave_types", {
   requiresProofAfterDays: integer("requires_proof_after_days"),
   // null = unlimited continuous stretch.
   maxContinuousDays: integer("max_continuous_days"),
+  // Phase-1 extension flags — surfaced in the catalog editor; the application
+  // engine in later milestones reads them.
+  hourlyLeaveAllowed: boolean("hourly_leave_allowed").notNull().default(false),
+  carryForwardAllowed: boolean("carry_forward_allowed").notNull().default(false),
+  encashmentAllowed: boolean("encashment_allowed").notNull().default(false),
+  attachmentRequired: boolean("attachment_required").notNull().default(false),
+  // false = blocked while employee is on probation.
+  allowedInProbation: boolean("allowed_in_probation").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -927,6 +948,35 @@ export const leaveApprovalWorkflows = pgTable("leave_approval_workflows", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ───── Leave Credit Transactions (M6) ────────────────────────────────────
+//
+// Append-only audit ledger. Every row explains a delta applied to the
+// employee's running balance. closing_balance on leave_balances should
+// always equal opening_balance + sum of credits + carried_forward − used.
+
+export const leaveCreditTransactions = pgTable("leave_credit_transactions", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  leaveTypeId: integer("leave_type_id")
+    .notNull()
+    .references(() => leaveTypes.id, { onDelete: "cascade" }),
+  policyId: integer("policy_id").references(() => leavePolicies.id, {
+    onDelete: "set null",
+  }),
+  amount: numeric("amount", { precision: 6, scale: 2 }).notNull(),
+  // 'Accrual' | 'Grant' | 'Adjustment' | 'CarryForward' | 'Lapse' | 'Encashment'
+  kind: varchar("kind", { length: 20 }).notNull(),
+  // YYYY-MM for monthly accruals; YYYY-01 etc. for yearly grants.
+  period: varchar("period", { length: 7 }).notNull(),
+  reason: text("reason"),
+  actorUserId: text("actor_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
     .notNull(),
 });
 
@@ -1095,6 +1145,24 @@ export const broadcasts = pgTable(
 // regional holidays, a branch-specific row overrides / supplements the null
 // row for that branch on that date.
 
+export const holidayCalendars = pgTable("holiday_calendars", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull().unique(),
+  description: text("description"),
+  // 'Draft' | 'Published' | 'Archived'
+  status: varchar("status", { length: 20 }).notNull().default("Draft"),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const holidays = pgTable(
   "holidays",
   {
@@ -1105,14 +1173,104 @@ export const holidays = pgTable(
     branchId: integer("branch_id").references(() => branches.id, {
       onDelete: "cascade",
     }),
+    // Nullable for legacy rows that were attached only to a branch. New rows
+    // are always associated with a holiday_calendar.
+    calendarId: integer("calendar_id").references(() => holidayCalendars.id, {
+      onDelete: "cascade",
+    }),
+    isHalfDay: boolean("is_half_day").notNull().default(false),
+    description: text("description"),
+    // Per-holiday scope: optional array of { scopeType, scopeId } rows
+    // that narrow which employees this holiday applies to *within* the
+    // calendar's broader scope. Empty array = applies to everyone the
+    // calendar applies to.
+    scope: jsonb("scope").notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (table: any) => [
     index("idx_holidays_date").on(table.date),
+    index("idx_holidays_calendar").on(table.calendarId, table.date),
   ],
 );
+
+// Many-to-many: one holiday can apply to many calendars (teams). The legacy
+// holidays.calendar_id is still around but the link table is the canonical
+// source going forward.
+export const holidayTeamLinks = pgTable(
+  "holiday_team_links",
+  {
+    holidayId: integer("holiday_id")
+      .notNull()
+      .references(() => holidays.id, { onDelete: "cascade" }),
+    calendarId: integer("calendar_id")
+      .notNull()
+      .references(() => holidayCalendars.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "holiday_team_links_pkey",
+      columns: [table.holidayId, table.calendarId],
+    }),
+    index("idx_holiday_team_links_calendar").on(table.calendarId),
+  ],
+);
+
+export const holidayCalendarScope = pgTable("holiday_calendar_scope", {
+  id: serial("id").primaryKey(),
+  calendarId: integer("calendar_id")
+    .notNull()
+    .references(() => holidayCalendars.id, { onDelete: "cascade" }),
+  // 'Company' | 'Branch' | 'Location' | 'Department' | 'Designation' | 'Grade'
+  // | 'EmploymentType' | 'Employee'
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  scopeId: integer("scope_id"),
+  priority: integer("priority").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ───── Weekly Off Configurations ──────────────────────────────────────────
+
+export const weeklyOffConfigs = pgTable("weekly_off_configs", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull().unique(),
+  description: text("description"),
+  // 'Draft' | 'Published' | 'Archived'
+  status: varchar("status", { length: 20 }).notNull().default("Draft"),
+  // 'Fixed' | 'Rotational' | 'Roster'
+  mode: varchar("mode", { length: 20 }).notNull().default("Fixed"),
+  // Mode-specific shape — Zod-validated at the API boundary.
+  settings: jsonb("settings").notNull().default({}),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const weeklyOffScope = pgTable("weekly_off_scope", {
+  id: serial("id").primaryKey(),
+  configId: integer("config_id")
+    .notNull()
+    .references(() => weeklyOffConfigs.id, { onDelete: "cascade" }),
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  scopeId: integer("scope_id"),
+  priority: integer("priority").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 9 — ORG SETUP: LOCATIONS

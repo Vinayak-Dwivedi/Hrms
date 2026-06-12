@@ -17,6 +17,11 @@ export interface LeaveType {
   minNoticeDays: number;
   requiresProofAfterDays: number | null;
   maxContinuousDays: number | null;
+  hourlyLeaveAllowed: boolean;
+  carryForwardAllowed: boolean;
+  encashmentAllowed: boolean;
+  attachmentRequired: boolean;
+  allowedInProbation: boolean;
 }
 
 export type LeaveTypeUpsert = Omit<LeaveType, "id">;

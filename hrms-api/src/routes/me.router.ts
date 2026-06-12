@@ -35,6 +35,11 @@ import {
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
 import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
 import { runWorkflowOnNewRequest } from "@/services/leave-workflow-engine";
+import { validateLeaveApplication } from "@/services/leave-validation";
+import { holidaysForEmployee } from "@/services/holiday-calendar-resolver";
+import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
+import { loadLeaveRequestParticipants } from "@/services/leave-routing";
+import { notifyManagerOnSubmission } from "@/services/leave-notifications";
 
 function resolveProfilePhotoDiskPath(
   profilePhotoUrl: string | null | undefined,
@@ -268,16 +273,37 @@ meRouter.get("/attendance/month", async (req, res, next) => {
     const year = q.year ?? now.getFullYear();
     const month1 = q.month ?? now.getMonth() + 1;
     const { start, end } = startEndOfMonth(year, month1 - 1);
-    const rows = await db
-      .select()
-      .from(attendanceRecords)
-      .where(and(
-        eq(attendanceRecords.employeeId, emp.id),
-        gte(attendanceRecords.date, start),
-        lte(attendanceRecords.date, end),
-      ))
-      .orderBy(asc(attendanceRecords.date));
-    res.json({ year, month: month1, records: rows });
+
+    // Attendance records + holidays for the same range, in parallel.
+    const [rows, monthHolidays] = await Promise.all([
+      db
+        .select()
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.employeeId, emp.id),
+            gte(attendanceRecords.date, start),
+            lte(attendanceRecords.date, end),
+          ),
+        )
+        .orderBy(asc(attendanceRecords.date)),
+      holidaysForEmployee(emp.id, start, end),
+    ]);
+
+    res.json({
+      year,
+      month: month1,
+      records: rows,
+      // M5 — surface the employee's holidays for the month so the calendar
+      // can render holiday cells alongside attendance cells.
+      holidays: monthHolidays.map((h) => ({
+        id: h.id,
+        date: h.date,
+        name: h.name,
+        type: h.type,
+        isHalfDay: h.isHalfDay,
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -425,16 +451,33 @@ meRouter.get("/attendance/week", async (req, res, next) => {
 });
 
 // ── GET /api/me/holidays ────────────────────────────────────────────────────
-// Returns the holiday calendar visible to this employee. Branch-specific
-// rows (matching the employee's branch) are mixed in with company-wide
-// (branch_id IS NULL) rows.
+// Returns holidays applicable to this employee.
+//
+// Resolution (M5 calendar-aware):
+//   1. Find the holiday_calendar that applies to the employee via
+//      holiday_calendar_scope (specificity ranking).
+//   2. Pull the calendar's holidays within the requested date range.
+//   3. Filter by per-holiday `scope` JSONB (an empty scope applies to all
+//      employees the calendar covers).
+//   4. If no calendar matches the employee, fall back to the legacy
+//      branch-keyed `holidays` table so historical seed data still appears.
+//
+// Two query modes:
+//   ?upcoming=true&limit=N            → next N upcoming holidays
+//   ?from=YYYY-MM-DD&to=YYYY-MM-DD    → all holidays in the inclusive range
+//
+// Response shape stays backward compatible: `{ holidays: [{ id, date, name,
+// type, branchId, isHalfDay }, ...] }`. branchId is null for calendar-sourced
+// rows.
 const holidaysQuery = z
   .object({
     upcoming: z
       .string()
       .optional()
       .transform((v) => v === "true" || v === "1"),
-    limit: z.coerce.number().int().positive().max(50).default(20),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    limit: z.coerce.number().int().positive().max(100).default(20),
   })
   .strict();
 
@@ -443,29 +486,75 @@ meRouter.get("/holidays", async (req, res, next) => {
     const emp = await loadCurrentEmployee(req.user!.id);
     const q = holidaysQuery.parse(req.query);
 
-    // Pull all matching rows then filter / sort in JS — the holidays table
-    // is tiny and this keeps the SQL trivial regardless of upcoming vs. all.
-    const rows = await db
-      .select({
-        id: holidays.id,
-        date: holidays.date,
-        name: holidays.name,
-        type: holidays.type,
-        branchId: holidays.branchId,
-      })
-      .from(holidays);
+    // Build the date range.
+    //   Range mode: from/to required.
+    //   Upcoming mode: today through one year forward.
+    //   Default: today through one year forward (so the dashboard's existing
+    //   "fetch upcoming" call keeps working unchanged).
+    const today = todayYmd();
+    const oneYear = new Date(today);
+    oneYear.setFullYear(oneYear.getFullYear() + 1);
+    const oneYearStr = oneYear.toISOString().slice(0, 10);
 
-    const visible = rows.filter(
-      (r) => r.branchId === null || r.branchId === emp.branchId,
-    );
+    const fromDate = q.from ?? today;
+    const toDate = q.to ?? oneYearStr;
 
-    const filtered = q.upcoming
-      ? visible.filter((r) => r.date >= todayYmd())
-      : visible;
+    // Primary: calendar-aware resolution.
+    const calendarHolidays = await holidaysForEmployee(emp.id, fromDate, toDate);
 
-    filtered.sort((a, b) => a.date.localeCompare(b.date));
+    let result = calendarHolidays.map((h) => ({
+      id: h.id,
+      date: h.date,
+      name: h.name,
+      type: h.type,
+      branchId: null as number | null,
+      isHalfDay: h.isHalfDay,
+    }));
 
-    res.json({ holidays: filtered.slice(0, q.limit) });
+    // Fallback for the case where no calendar is scoped to this employee
+    // yet — surface the legacy single-table data.
+    if (result.length === 0) {
+      const rows = await db
+        .select({
+          id: holidays.id,
+          date: holidays.date,
+          name: holidays.name,
+          type: holidays.type,
+          branchId: holidays.branchId,
+          isHalfDay: holidays.isHalfDay,
+        })
+        .from(holidays);
+
+      result = rows
+        .filter(
+          (r) => r.branchId === null || r.branchId === emp.branchId,
+        )
+        .filter((r) => {
+          const dateStr = typeof r.date === "string" ? r.date : String(r.date);
+          return dateStr >= fromDate && dateStr <= toDate;
+        })
+        .map((r) => ({
+          id: r.id,
+          date:
+            typeof r.date === "string"
+              ? r.date
+              : new Date(r.date as unknown as string).toISOString().slice(0, 10),
+          name: r.name,
+          type: r.type,
+          branchId: r.branchId,
+          isHalfDay: r.isHalfDay,
+        }));
+    }
+
+    // Upcoming-only filter (defaults to upcoming when neither from nor
+    // upcoming flags are supplied — preserves the old endpoint contract).
+    if (q.upcoming || (!q.from && !q.to)) {
+      result = result.filter((r) => r.date >= today);
+    }
+
+    result.sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json({ holidays: result.slice(0, q.limit) });
   } catch (e) {
     next(e);
   }
@@ -652,6 +741,35 @@ meRouter.post("/leave-requests", async (req, res, next) => {
     if (!leaveTypeId) {
       throw new ApiError(400, "UNKNOWN_LEAVE_TYPE", "leaveTypeCode did not match any leave_type.");
     }
+
+    // M4 — Run the validation engine. Hard errors → 422 with structured
+    // issues; warnings (e.g. dates overlap a holiday) flow through to the
+    // response so the UI can show an inline notice on the created row.
+    const validation = await validateLeaveApplication({
+      employeeId: emp.id,
+      leaveTypeId,
+      fromDate: body.fromDate,
+      toDate: body.toDate,
+      days: Number(body.days),
+      // Existing endpoint doesn't yet accept attachments — wire when the
+      // document-upload feature lands. For now skip the attachment check by
+      // claiming "true" so attachmentRequired leave-types don't block.
+      hasAttachment: true,
+    });
+    if (!validation.ok) {
+      res.status(422).json({
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Leave request did not pass validation.",
+          details: {
+            errors: validation.errors,
+            warnings: validation.warnings,
+          },
+        },
+      });
+      return;
+    }
+
     const [row] = await db
       .insert(leaveRequests)
       .values({
@@ -686,11 +804,40 @@ meRouter.post("/leave-requests", async (req, res, next) => {
       .where(eq(leaveRequests.id, row!.id))
       .limit(1);
 
+    // M5 — audit + notification for the submission.
+    writeAuditLogAsync({
+      actorUserId: req.user!.id,
+      actorEmployeeId: emp.id,
+      action: "LEAVE_SUBMITTED",
+      entityType: "leave_request",
+      entityId: String(row!.id),
+      metadata: {
+        leaveTypeId,
+        days: Number(body.days),
+        fromDate: body.fromDate,
+        toDate: body.toDate,
+        workflowOutcome: workflowResult.status,
+      },
+    });
+
+    // If the workflow didn't auto-decide, the request is now sitting in the
+    // manager's inbox. Send them a heads-up email.
+    if (workflowResult.status === "Pending") {
+      const ctx = await loadLeaveRequestParticipants(row!.id);
+      if (ctx) {
+        notifyManagerOnSubmission(ctx.participants, ctx.request).catch(
+          () => {},
+        );
+      }
+    }
+
     res.status(201).json({
       request: finalRow,
       workflow: workflowResult.workflowName
         ? { name: workflowResult.workflowName, appliedStatus: workflowResult.status }
         : null,
+      // Non-blocking validation warnings (holidays/weekly-offs in range).
+      warnings: validation.warnings,
     });
   } catch (e) {
     next(e);
@@ -712,6 +859,13 @@ meRouter.post("/leave-requests/:id/cancel", async (req, res, next) => {
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }
+    writeAuditLogAsync({
+      actorUserId: req.user!.id,
+      actorEmployeeId: emp.id,
+      action: "LEAVE_CANCELLED",
+      entityType: "leave_request",
+      entityId: String(idNum),
+    });
     res.json({ request: row });
   } catch (e) {
     next(e);

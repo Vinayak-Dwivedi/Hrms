@@ -18,6 +18,11 @@ import { meRouter } from "@/routes/me.router";
 import { attendanceRouter } from "@/routes/attendance.router";
 import { adminLeaveTypesRouter } from "@/routes/admin-leave-types.router";
 import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
+import { adminHolidayCalendarsRouter } from "@/routes/admin-holiday-calendars.router";
+import { adminHolidaysRouter } from "@/routes/admin-holidays.router";
+import { adminWeeklyOffConfigsRouter } from "@/routes/admin-weekly-off-configs.router";
+import { adminLeaveCreditsRouter } from "@/routes/admin-leave-credits.router";
+import { hrLeaveApprovalsRouter } from "@/routes/hr-leave-approvals.router";
 import { onboardingRouter } from "@/routes/onboarding.router";
 import { profileEmailVerificationRouter } from "@/modules/email-verification/routes/profile.routes";
 import { employeeRoutes } from "@/modules/onboarding/routes/employee.routes";
@@ -108,6 +113,11 @@ export function createApp() {
   app.use("/api/attendance", requireAuth, attendanceRouter);
   app.use("/api/admin/leave-types", requireAuth, adminLeaveTypesRouter);
   app.use("/api/admin/leave-policies", requireAuth, adminLeavePoliciesRouter);
+  app.use("/api/admin/holiday-calendars", requireAuth, adminHolidayCalendarsRouter);
+  app.use("/api/admin/holidays", requireAuth, adminHolidaysRouter);
+  app.use("/api/admin/weekly-off-configs", requireAuth, adminWeeklyOffConfigsRouter);
+  app.use("/api/admin/leave-credits", requireAuth, adminLeaveCreditsRouter);
+  app.use("/api/hr/leave-approvals", requireAuth, hrLeaveApprovalsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

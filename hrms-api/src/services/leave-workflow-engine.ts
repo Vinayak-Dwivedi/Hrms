@@ -24,6 +24,11 @@ import {
 } from "@/db/schema/hrms";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
+import { loadLeaveRequestParticipants } from "@/services/leave-routing";
+import {
+  notifyEmployeeOnApproval,
+  notifyEmployeeOnRejection,
+} from "@/services/leave-notifications";
 
 interface Criterion {
   field: string;
@@ -158,17 +163,24 @@ export async function runWorkflowOnNewRequest(args: {
     writeAuditLogAsync({
       actorUserId: args.actorUserId,
       actorEmployeeId: args.employeeId,
-      action: "ONBOARDING_COMPLETED", // closest valid enum value; widen later
-      entityType: "auth",
+      action: "LEAVE_AUTO_APPROVED",
+      entityType: "leave_request",
       entityId: String(args.requestId),
       metadata: {
-        kind: "leave_request_auto_approved",
         workflowId: winner.id,
         workflowName: winner.name,
       },
     });
-    // TODO: send winner.subject / winner.body to winner.toRecipients via
-    // the mailer once SMTP is configured. For now the row update is enough.
+    // Notify employee using the workflow's own subject/body template if set.
+    const ctx = await loadLeaveRequestParticipants(args.requestId);
+    if (ctx) {
+      notifyEmployeeOnApproval(
+        ctx.participants,
+        ctx.request,
+        `policy workflow "${winner.name}"`,
+        { subject: winner.subject, body: winner.body },
+      ).catch(() => {});
+    }
     return { status: "Approved", workflowName: winner.name };
   }
 
@@ -182,6 +194,27 @@ export async function runWorkflowOnNewRequest(args: {
         managerRemarks: `Auto-rejected by workflow "${winner.name}".`,
       })
       .where(eq(leaveRequests.id, args.requestId));
+    writeAuditLogAsync({
+      actorUserId: args.actorUserId,
+      actorEmployeeId: args.employeeId,
+      action: "LEAVE_AUTO_REJECTED",
+      entityType: "leave_request",
+      entityId: String(args.requestId),
+      metadata: {
+        workflowId: winner.id,
+        workflowName: winner.name,
+      },
+    });
+    const ctx = await loadLeaveRequestParticipants(args.requestId);
+    if (ctx) {
+      notifyEmployeeOnRejection(
+        ctx.participants,
+        ctx.request,
+        `policy workflow "${winner.name}"`,
+        `Auto-rejected by workflow "${winner.name}".`,
+        { subject: winner.subject, body: winner.body },
+      ).catch(() => {});
+    }
     return { status: "Rejected", workflowName: winner.name };
   }
 
