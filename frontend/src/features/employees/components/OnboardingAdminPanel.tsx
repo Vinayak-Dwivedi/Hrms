@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { CheckCircle2, Circle, Eye, XCircle } from "lucide-react";
+import { Check, CheckCircle2, Eye, XCircle } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   approveOnboarding,
@@ -16,9 +16,9 @@ import {
 import { employeeIconMd, employeeViewIconBtnClass } from "../employee-theme";
 import {
   onboardingChecklistDoneClass,
-  onboardingChecklistIconDoneClass,
-  onboardingChecklistIconPendingClass,
   onboardingChecklistItemClass,
+  onboardingChecklistMarkDoneClass,
+  onboardingChecklistMarkPendingClass,
   onboardingDocTableCellClass,
   onboardingDocTableHeadClass,
   onboardingPrimaryBtnClass,
@@ -73,6 +73,23 @@ function stepStatusFor(
   if (stepNumber < currentStep) return "complete";
   if (stepNumber === currentStep) return "active";
   return "default";
+}
+
+function ChecklistRow({ done, label }: { done: boolean; label: string }) {
+  return (
+    <li
+      className={`${onboardingChecklistItemClass} ${done ? onboardingChecklistDoneClass : ""}`}
+    >
+      {done ? (
+        <span className={onboardingChecklistMarkDoneClass} aria-hidden>
+          <Check className="h-3 w-3" strokeWidth={3} />
+        </span>
+      ) : (
+        <span className={onboardingChecklistMarkPendingClass} aria-hidden />
+      )}
+      {label}
+    </li>
+  );
 }
 
 export default function OnboardingAdminPanel({
@@ -187,8 +204,8 @@ export default function OnboardingAdminPanel({
     !pipeline.isCompleted && timeline.documents.length > 0 ? (
       <OnboardingReviewSection
         step={2}
-        title="Document verification"
-        description=""
+        title="Verify documents"
+        description="Review and approve each required document."
         status={stepStatusFor(
           2,
           pipeline.currentStep,
@@ -307,49 +324,30 @@ export default function OnboardingAdminPanel({
       <OnboardingReviewSection
         step={4}
         title="Complete onboarding"
-        description=""
+        description="Finalize onboarding after employee data, documents, and bank details are approved."
         status={stepStatusFor(4, pipeline.currentStep, pipeline.isCompleted)}
       >
-        <ul className="space-y-2 m-0 p-0 list-none mb-4">
-          <li
-            className={`${onboardingChecklistItemClass} ${pipeline.isSubmitted ? onboardingChecklistDoneClass : ""}`}
-          >
-            {pipeline.isSubmitted ? (
-              <CheckCircle2 className={onboardingChecklistIconDoneClass} />
-            ) : (
-              <Circle className={onboardingChecklistIconPendingClass} />
-            )}
-            Employee data submitted
-          </li>
+        <ul className="space-y-2.5 m-0 p-0 list-none mb-4">
+          <ChecklistRow
+            done={pipeline.isSubmitted}
+            label="Employee data submitted"
+          />
           {HR_VERIFICATION_DOCUMENTS.map((type) => {
             const status = timeline.documents.find(
               (d) => d.documentType === type,
             )?.status;
-            const ok = status === "Verified";
             return (
-              <li
+              <ChecklistRow
                 key={type}
-                className={`${onboardingChecklistItemClass} ${ok ? onboardingChecklistDoneClass : ""}`}
-              >
-                {ok ? (
-                  <CheckCircle2 className={onboardingChecklistIconDoneClass} />
-                ) : (
-                  <Circle className={onboardingChecklistIconPendingClass} />
-                )}
-                {type} verified
-              </li>
+                done={status === "Verified"}
+                label={`${type} verified`}
+              />
             );
           })}
-          <li
-            className={`${onboardingChecklistItemClass} ${pipeline.bankApproved ? onboardingChecklistDoneClass : ""}`}
-          >
-            {pipeline.bankApproved ? (
-              <CheckCircle2 className={onboardingChecklistIconDoneClass} />
-            ) : (
-              <Circle className={onboardingChecklistIconPendingClass} />
-            )}
-            Bank details approved
-          </li>
+          <ChecklistRow
+            done={pipeline.bankApproved}
+            label="Bank details approved"
+          />
         </ul>
 
         <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
@@ -480,7 +478,7 @@ export default function OnboardingAdminPanel({
   );
 
   const reviewSidebar = (
-    <aside className="space-y-4 xl:sticky xl:top-4">
+    <aside className="space-y-4 xl:sticky xl:top-4 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 m-0 px-1">
         HR actions
       </p>
@@ -541,7 +539,10 @@ export default function OnboardingAdminPanel({
               profilePanel
             )
           ) : (
-            <div className="max-w-3xl">{behalfPanelSection}</div>
+            <div className="space-y-4">
+              {behalfPanelSection}
+              {invitationSection}
+            </div>
           )
         ) : (
           <>

@@ -16,6 +16,7 @@ import {
   uploadOnboardingDocumentOnBehalf,
 } from "../api/hr-onboarding.client";
 import { employeeErrorBannerClass } from "../employee-theme";
+import { onboardingReviewCardClass } from "../onboarding-admin-theme";
 
 type BehalfStep = "profile" | "documents" | "review";
 
@@ -139,7 +140,7 @@ export default function OnboardingBehalfPanel({
 
   const containerClass =
     layout === "flat"
-      ? "space-y-4"
+      ? `${onboardingReviewCardClass} p-5 space-y-4`
       : "space-y-4 border border-[#fecdd3] rounded-lg bg-[#fffafb] p-4 mt-4";
 
   const step =
@@ -147,6 +148,17 @@ export default function OnboardingBehalfPanel({
 
   return (
     <div className={containerClass}>
+      {layout === "flat" && (
+        <header>
+          <h2 className="text-base font-semibold text-gray-900 m-0">
+            Complete employee data
+          </h2>
+          <p className="text-xs text-gray-600 mt-1 mb-0">
+            Enter profile and documents on behalf of the employee before HR
+            review.
+          </p>
+        </header>
+      )}
       {error && (
         <div className={employeeErrorBannerClass}>{error}</div>
       )}

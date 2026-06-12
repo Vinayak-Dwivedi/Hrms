@@ -104,7 +104,7 @@ export const employeeFormFieldSpan3Class = "lg:col-span-3";
 export const employeeFormSectionsStackClass = "space-y-5";
 
 export const employeeFormSectionsGridClass =
-  "grid grid-cols-1 xl:grid-cols-2 gap-5";
+  "grid grid-cols-1 xl:grid-cols-2 gap-4";
 
 export const employeeInputClass =
   `w-full px-3 py-2.5 border border-gray-300 ${employeeInputRadiusClass} focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent text-sm`;

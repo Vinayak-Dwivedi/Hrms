@@ -8,6 +8,7 @@ import {
   Clock,
   FileText,
   LayoutDashboard,
+  LogOut,
   MapPin,
   Network,
   Receipt,

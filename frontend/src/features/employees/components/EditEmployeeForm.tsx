@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
+import { Briefcase, Contact, KeyRound, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -37,18 +38,20 @@ import {
   zodFormFieldErrors,
 } from "../schemas/employee.schema";
 import {
-  employeeBtnClass,
   employeeCardClass,
-  employeeErrorBannerClass,
+  employeeFormSectionsGridClass,
+  employeeListBtnClass,
+  employeeListBtnOutlineClass,
+  employeeListErrorBannerClass,
+  employeeListFormControlClass,
+  employeeListFormFieldsClass,
+  employeeListWarnBannerClass,
   employeeLoadingClass,
-  employeeWarnBannerClass,
-  employeeFormControlClass,
-  employeeFormSectionsStackClass,
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
 
-const employeeFieldControl = { controlClassName: employeeFormControlClass };
+const employeeFieldControl = { controlClassName: employeeListFormControlClass };
 const maxDob = maxDateOfBirthForAdult();
 const maxDobDate = new Date(`${maxDob}T23:59:59`);
 
@@ -183,22 +186,19 @@ export default function EditEmployeeForm({
         void form.handleSubmit();
       }}
     >
-      <div className="p-6">
+      <div className="p-5">
       {lookupsError && (
-        <div className={employeeWarnBannerClass}>
+        <div className={employeeListWarnBannerClass}>
           Some dropdown options failed to load: {lookupsError}
         </div>
       )}
 
       {submitError && (
-        <div className={employeeErrorBannerClass}>{submitError}</div>
+        <div className={employeeListErrorBannerClass}>{submitError}</div>
       )}
 
-      <div className={employeeFormSectionsStackClass}>
-        <EmployeeFormSection
-          description="Primary identifiers and employment status."
-          title="Basic Information"
-        >
+      <div className={employeeFormSectionsGridClass}>
+        <EmployeeFormSection compact icon={User} title="Basic Information">
           <EmployeeFormField>
             <form.Field name="empId" validators={fieldValidators.empId}>
               {(field) => (
@@ -260,8 +260,9 @@ export default function EditEmployeeForm({
         </EmployeeFormSection>
 
         <EmployeeFormSection
-          dense
-          description="Contact and demographic details for the employee profile."
+          bodyClassName={`px-4 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 ${employeeListFormFieldsClass}`}
+          compact
+          icon={Contact}
           title="Personal Details"
         >
           <EmployeeFormField>
@@ -344,11 +345,7 @@ export default function EditEmployeeForm({
 
         </EmployeeFormSection>
 
-        <EmployeeFormSection
-          dense
-          description="Job placement, reporting structure, and org hierarchy."
-          title="Employment Details"
-        >
+        <EmployeeFormSection compact dense icon={Briefcase} title="Employment Details">
           <EmployeeFormField>
             <form.Field
               name="joiningDate"
@@ -454,10 +451,7 @@ export default function EditEmployeeForm({
           </EmployeeFormField>
         </EmployeeFormSection>
 
-        <EmployeeFormSection
-          description="Leave password fields blank to keep the current login password."
-          title="Account & Access"
-        >
+        <EmployeeFormSection compact icon={KeyRound} title="Account & Access">
           <EmployeeFormField>
             <form.Field name="password">
               {(field) => (
@@ -490,10 +484,10 @@ export default function EditEmployeeForm({
       </div>
       </div>
 
-      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+      <div className="flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border-t border-gray-100">
         {onCancel ? (
           <button
-            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors cursor-pointer"
+            className={employeeListBtnOutlineClass}
             onClick={onCancel}
             type="button"
           >
@@ -501,7 +495,7 @@ export default function EditEmployeeForm({
           </button>
         ) : (
           <Link
-            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium text-sm no-underline transition-colors"
+            className={employeeListBtnOutlineClass}
             href={`/employees/${employee.id}`}
           >
             Cancel
@@ -510,7 +504,7 @@ export default function EditEmployeeForm({
         <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
           {([canSubmit, isSubmitting]) => (
             <button
-              className={`${employeeBtnClass} disabled:opacity-60`}
+              className={`${employeeListBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
               disabled={!canSubmit || isSubmitting}
               type="submit"
             >

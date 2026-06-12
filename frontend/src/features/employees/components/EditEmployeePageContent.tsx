@@ -55,15 +55,14 @@ export default function EditEmployeePageContent({ employeeId }: Props) {
 
   return (
     <>
-      <div className="mb-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <Link className={employeeBtnOutlineSmClass} href="/employees">
           ← Back to employees
         </Link>
+        {!loading && !loadError && employee && (
+          <h1 className={`${employeeModalTitleClass} m-0`}>{title}</h1>
+        )}
       </div>
-
-      {!loading && !loadError && employee && (
-        <h1 className={`${employeeModalTitleClass} mb-4`}>{title}</h1>
-      )}
 
       {loading && <div className={employeeLoadingClass}>Loading employee…</div>}
       {loadError && (

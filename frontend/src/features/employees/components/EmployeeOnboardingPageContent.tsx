@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import OnboardingProfileReadOnly from "@/features/onboarding/components/OnboardingProfileReadOnly";
 import {
   computeOnboardingPipeline,
   computeOnboardingReadiness,
+  fetchEmployeeOnboarding,
   fetchEmployeeOnboardingProfile,
   type OnboardingTimeline,
 } from "../api/hr-onboarding.client";
@@ -52,11 +52,8 @@ function SubmittedProfilePanel({
   return (
     <section className={onboardingReviewCardClass}>
       <header className="px-5 py-4 border-b border-gray-100 bg-slate-50/70">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 m-0">
-          Employee record
-        </p>
-        <h2 className="text-base font-semibold text-gray-900 mt-1 mb-0">
-          Submitted profile
+        <h2 className="text-base font-semibold text-gray-900 m-0">
+          Submitted profile details
         </h2>
         <p className="text-xs text-gray-600 mt-1 mb-0">
           Review personal, compliance, and education details while completing HR
@@ -70,7 +67,7 @@ function SubmittedProfilePanel({
         </p>
       </header>
       <div className="p-5">
-        <OnboardingProfileReadOnly values={profileValues} layout="stack" />
+        <OnboardingProfileReadOnly values={profileValues} layout="grid" />
       </div>
     </section>
   );
@@ -92,12 +89,14 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [emp, profile] = await Promise.all([
+      const [emp, profile, onboarding] = await Promise.all([
         fetchEmployeeById(employeeId),
         fetchEmployeeOnboardingProfile(employeeId),
+        fetchEmployeeOnboarding(employeeId),
       ]);
       setEmployee(emp);
       setProfileValues(computeOnboardingReadiness(profile).formValues);
+      setTimeline(onboarding);
     } catch (e) {
       setLoadError((e as Error).message);
     } finally {
@@ -120,9 +119,9 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
 
   const pipeline = timeline ? computeOnboardingPipeline(timeline) : null;
   const showSubmittedDetails =
+    profileValues != null &&
     pipeline != null &&
-    (pipeline.isSubmitted || pipeline.isCompleted) &&
-    profileValues != null;
+    (pipeline.isSubmitted || pipeline.isCompleted);
 
   const statusKey = employee?.onboardingStatus ?? "PENDING";
   const statusBadgeClass =
@@ -138,6 +137,20 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link className={employeeBtnOutlineSmClass} href="/employees">
+          ← Back to employees
+        </Link>
+        {employee && (
+          <Link
+            className={employeeBtnOutlineSmClass}
+            href={`/employees/${employeeId}`}
+          >
+            View employee profile
+          </Link>
+        )}
+      </div>
+
       {loading && (
         <div className={employeeLoadingClass}>Loading onboarding…</div>
       )}
@@ -148,27 +161,12 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
       {!loading && !loadError && employee && (
         <div className={`${employeeCardClass} overflow-hidden`}>
           <div className="border-b border-gray-100 px-5 py-4 bg-white">
-            <nav
-              className="flex flex-wrap items-center gap-1 text-xs text-gray-500 mb-3"
-              aria-label="Breadcrumb"
-            >
-              <Link href="/employees" className="hover:text-gray-800 no-underline">
-                Employees
-              </Link>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <Link
-                href={`/employees/${employeeId}`}
-                className="hover:text-gray-800 no-underline"
-              >
-                {employee.empId}
-              </Link>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="text-gray-800 font-medium">Onboarding</span>
-            </nav>
-
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <h1 className="text-xl font-semibold text-gray-900 m-0 tracking-tight">
+                <p className="text-xs font-medium uppercase tracking-wider text-gray-500 m-0">
+                  Employee onboarding
+                </p>
+                <h1 className="text-xl font-semibold text-gray-900 mt-1 mb-0 tracking-tight">
                   {formatEmployeeDisplayName(employee)}
                 </h1>
                 <p className="text-sm text-gray-500 mt-1 mb-0">
@@ -176,22 +174,11 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <span
-                  className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${statusBadgeClass}`}
-                >
-                  {formatOnboardingStatus(employee.onboardingStatus)}
-                </span>
-                <Link
-                  className={employeeBtnOutlineSmClass}
-                  href={`/employees/${employeeId}`}
-                >
-                  View profile
-                </Link>
-                <Link className={employeeBtnOutlineSmClass} href="/employees">
-                  Back to list
-                </Link>
-              </div>
+              <span
+                className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full shrink-0 ${statusBadgeClass}`}
+              >
+                {formatOnboardingStatus(employee.onboardingStatus)}
+              </span>
             </div>
           </div>
 
@@ -202,10 +189,16 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
               sideContent={sideContent}
               onTimelineLoaded={setTimeline}
               onUpdated={async () => {
-                const emp = await fetchEmployeeById(employeeId);
+                const [emp, profile, onboarding] = await Promise.all([
+                  fetchEmployeeById(employeeId),
+                  fetchEmployeeOnboardingProfile(employeeId),
+                  fetchEmployeeOnboarding(employeeId),
+                ]);
                 setEmployee(emp);
-                const profile = await fetchEmployeeOnboardingProfile(employeeId);
-                setProfileValues(computeOnboardingReadiness(profile).formValues);
+                setProfileValues(
+                  computeOnboardingReadiness(profile).formValues,
+                );
+                setTimeline(onboarding);
               }}
               onOnboardingCompleted={() => {
                 router.push("/employees");

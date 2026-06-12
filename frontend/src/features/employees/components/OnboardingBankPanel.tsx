@@ -123,7 +123,7 @@ export default function OnboardingBankPanel({
     <OnboardingReviewSection
       step={3}
       title="Bank account details"
-      description=""
+      description="Enter and approve payroll bank information."
       status={state?.bankApprovedAt ? "complete" : stepStatus}
     >
       <div className="space-y-4">

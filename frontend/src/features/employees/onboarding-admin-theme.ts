@@ -35,7 +35,7 @@ export const onboardingPrimaryBtnClass =
   "inline-flex items-center justify-center w-full px-4 py-2.5 text-sm font-semibold rounded-lg text-white bg-slate-800 hover:bg-slate-900 border-0 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
 
 export const onboardingChecklistItemClass =
-  "flex items-center gap-2 text-xs text-gray-600";
+  "flex items-center gap-2.5 text-sm text-gray-700";
 
 export const onboardingChecklistDoneClass = "text-emerald-800";
 
@@ -44,3 +44,9 @@ export const onboardingChecklistIconDoneClass =
 
 export const onboardingChecklistIconPendingClass =
   "h-3.5 w-3.5 shrink-0 text-gray-300";
+
+export const onboardingChecklistMarkDoneClass =
+  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white";
+
+export const onboardingChecklistMarkPendingClass =
+  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-white";
