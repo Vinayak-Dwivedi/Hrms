@@ -75,7 +75,7 @@ function readAccrualConfig(
 interface CreditAttempt {
   employeeId: number;
   leaveTypeId: number;
-  policyId: number;
+  policyId: number | null;
   amount: number;
   kind: CreditKind;
   period: string;
@@ -166,6 +166,52 @@ async function applyCredit(c: CreditAttempt): Promise<"applied" | "skipped"> {
     }
     return "applied";
   });
+}
+
+/** Manually credit a fixed amount of one leave type to every active employee
+ *  in a Department or Sub-Department. Idempotent per (employee, type, period,
+ *  kind=Adjustment): re-running the same period skips already-credited staff,
+ *  so you can't accidentally double-credit. */
+export async function runManualCredit(opts: {
+  leaveTypeId: number;
+  amount: number;
+  scopeType: "Department" | "SubDepartment";
+  scopeId: number;
+  period: string;
+  reason: string;
+  actorUserId: string | null;
+}): Promise<{ applied: number; skipped: number; total: number }> {
+  const col =
+    opts.scopeType === "Department"
+      ? employees.departmentId
+      : employees.subDepartmentId;
+  const emps = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(
+      and(
+        inArray(employees.employeeStatus, ["Active", "Probation", "Notice"]),
+        eq(col, opts.scopeId),
+      ),
+    );
+
+  let applied = 0;
+  let skipped = 0;
+  for (const e of emps) {
+    const r = await applyCredit({
+      employeeId: e.id,
+      leaveTypeId: opts.leaveTypeId,
+      policyId: null,
+      amount: opts.amount,
+      kind: "Adjustment",
+      period: opts.period,
+      reason: opts.reason,
+      actorUserId: opts.actorUserId,
+    });
+    if (r === "applied") applied += 1;
+    else skipped += 1;
+  }
+  return { applied, skipped, total: emps.length };
 }
 
 interface RunOptions {

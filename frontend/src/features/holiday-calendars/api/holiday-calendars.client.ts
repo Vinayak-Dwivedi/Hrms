@@ -17,6 +17,7 @@ export type ScopeType =
   | "Branch"
   | "Location"
   | "Department"
+  | "SubDepartment"
   | "Designation"
   | "Grade"
   | "EmploymentType"

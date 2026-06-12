@@ -53,7 +53,7 @@ export default function AddTeamDialog({
   const [error, setError] = useState<string | null>(null);
 
   const [departments, setDepartments] = useState<LookupRow[] | null>(null);
-  const [designations, setDesignations] = useState<LookupRow[] | null>(null);
+  const [subDepartments, setSubDepartments] = useState<LookupRow[] | null>(null);
 
   // Load org lookups once when dialog opens.
   useEffect(() => {
@@ -61,9 +61,11 @@ export default function AddTeamDialog({
     let cancelled = false;
     (async () => {
       try {
-        const [deptRes, desigRes] = await Promise.all([
+        const [deptRes, subRes] = await Promise.all([
           fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
-          fetch("/api/hrms/designations?limit=500", { credentials: "include" }),
+          fetch("/api/hrms/sub-departments?limit=500", {
+            credentials: "include",
+          }),
         ]);
         if (deptRes.ok) {
           const body = (await deptRes.json()) as {
@@ -71,16 +73,16 @@ export default function AddTeamDialog({
           };
           if (!cancelled) setDepartments(body.data);
         }
-        if (desigRes.ok) {
-          const body = (await desigRes.json()) as {
-            data: Array<{ id: number; name: string; department_id: number | null }>;
+        if (subRes.ok) {
+          const body = (await subRes.json()) as {
+            data: Array<{ id: number; name: string; departmentId: number | null }>;
           };
           if (!cancelled)
-            setDesignations(
+            setSubDepartments(
               body.data.map((d) => ({
                 id: d.id,
                 name: d.name,
-                departmentId: d.department_id ?? null,
+                departmentId: d.departmentId ?? null,
               })),
             );
         }
@@ -103,7 +105,7 @@ export default function AddTeamDialog({
       let subId: number | null = null;
       for (const s of initial.scope) {
         if (s.scopeType === "Department" && deptId == null) deptId = s.scopeId;
-        if (s.scopeType === "Designation" && subId == null) subId = s.scopeId;
+        if (s.scopeType === "SubDepartment" && subId == null) subId = s.scopeId;
       }
       setDepartmentId(deptId);
       setSubDepartmentId(subId);
@@ -118,21 +120,21 @@ export default function AddTeamDialog({
     setError(null);
   }, [open, initial]);
 
-  // Designations filtered to selected department.
-  const filteredDesignations = useMemo(() => {
-    if (!designations) return [];
-    if (departmentId == null) return designations;
-    return designations.filter(
+  // Sub-departments filtered to selected department.
+  const filteredSubDepartments = useMemo(() => {
+    if (!subDepartments) return [];
+    if (departmentId == null) return subDepartments;
+    return subDepartments.filter(
       (d) => d.departmentId == null || d.departmentId === departmentId,
     );
-  }, [designations, departmentId]);
+  }, [subDepartments, departmentId]);
 
   // If department changes and the picked sub-dept doesn't belong, clear it.
   useEffect(() => {
     if (subDepartmentId == null) return;
-    const match = filteredDesignations.find((d) => d.id === subDepartmentId);
+    const match = filteredSubDepartments.find((d) => d.id === subDepartmentId);
     if (!match) setSubDepartmentId(null);
-  }, [filteredDesignations, subDepartmentId]);
+  }, [filteredSubDepartments, subDepartmentId]);
 
   if (!open) return null;
 
@@ -161,7 +163,7 @@ export default function AddTeamDialog({
         ...(subDepartmentId != null
           ? [
               {
-                scopeType: "Designation" as const,
+                scopeType: "SubDepartment" as const,
                 scopeId: subDepartmentId,
                 priority: 90,
               },
@@ -269,7 +271,7 @@ export default function AddTeamDialog({
                     ? "Pick department first"
                     : "Any sub-department"}
                 </option>
-                {filteredDesignations.map((d) => (
+                {filteredSubDepartments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>

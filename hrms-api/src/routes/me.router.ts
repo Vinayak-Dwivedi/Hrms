@@ -33,6 +33,7 @@ import {
   profilePhotoUpload,
 } from "@/middleware/profile-photo.middleware";
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
+import { resolveWorkflowStages } from "@/routes/approval-workflows.router";
 import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
 import { runWorkflowOnNewRequest } from "@/services/leave-workflow-engine";
 import { validateLeaveApplication } from "@/services/leave-validation";
@@ -770,6 +771,10 @@ meRouter.post("/leave-requests", async (req, res, next) => {
       return;
     }
 
+    // Snapshot the approval-workflow stages from the employee's leave policy so
+    // the request walks them one approver at a time (defaults to Manager-only).
+    const workflowStages = await resolveWorkflowStages(emp.id);
+
     const [row] = await db
       .insert(leaveRequests)
       .values({
@@ -782,6 +787,8 @@ meRouter.post("/leave-requests", async (req, res, next) => {
         reason: body.reason,
         status: "Pending",
         managerId: emp.reportingManagerId ?? null,
+        workflowStages,
+        currentStage: 0,
       })
       .returning();
 

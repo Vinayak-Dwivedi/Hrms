@@ -147,8 +147,24 @@ export function weeklyOffDatesInRange(
   if (config.mode === "Fixed") {
     const days = (config.settings.days as DayName[] | undefined) ?? [];
     const dayIndices = new Set(days.map((d) => DAY_ORDER.indexOf(d)));
+    // Alternate-week days (e.g. 2nd & 4th Saturday): off only on the listed
+    // nth occurrences (1–5) of that weekday within the month.
+    const alternateDays =
+      (config.settings.alternateDays as
+        | { day: DayName; weeks: number[] }[]
+        | undefined) ?? [];
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-      if (dayIndices.has(d.getUTCDay())) out.add(d.toISOString().slice(0, 10));
+      const weekday = d.getUTCDay();
+      if (dayIndices.has(weekday)) {
+        out.add(d.toISOString().slice(0, 10));
+        continue;
+      }
+      // nth occurrence of this weekday within its month (1-based).
+      const nth = Math.floor((d.getUTCDate() - 1) / 7) + 1;
+      const matches = alternateDays.some(
+        (r) => DAY_ORDER.indexOf(r.day) === weekday && r.weeks.includes(nth),
+      );
+      if (matches) out.add(d.toISOString().slice(0, 10));
     }
     return out;
   }

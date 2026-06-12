@@ -216,6 +216,15 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
     }
     const days =
       duration === "Full Day" ? Math.max(1, workingDays) : 0.5;
+    // Enforce the seeded balance from the resolved leave policy. Only when we
+    // have real balances (not the dev mock fallback).
+    const selectedType = types[leaveTypeIdx];
+    if (leaveBalances.length > 0 && selectedType && days > selectedType.available) {
+      setSubmitError(
+        `Only ${selectedType.available} day(s) of ${selectedType.name} available — you requested ${days}.`,
+      );
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -268,6 +277,17 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, onSubmit }: Leave
             >
               {leaveOptions.map((o, i) => <option key={o.value} value={i}>{o.label}</option>)}
             </select>
+            {types[leaveTypeIdx] && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span>
+                  <strong style={{ color: types[leaveTypeIdx]!.available > 0 ? "#15803d" : "#b91c1c" }}>
+                    {types[leaveTypeIdx]!.available}
+                  </strong>{" "}
+                  of {types[leaveTypeIdx]!.total} days available
+                </span>
+                {policy && <span>· Policy: {policy.name}</span>}
+              </div>
+            )}
           </div>
 
           {/* Reason */}

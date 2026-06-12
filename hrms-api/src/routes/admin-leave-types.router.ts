@@ -16,10 +16,6 @@ export const adminLeaveTypesRouter: Router = Router();
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(100),
   code: z.string().trim().min(1).max(5),
-  color: z
-    .string()
-    .regex(/^#[0-9A-Fa-f]{6}$/, "color must be a 6-digit hex like #ec4899")
-    .default("#dc143c"),
   description: z.string().trim().max(500).optional().nullable(),
   isActive: z.boolean().default(true),
   isPaid: z.boolean().default(true),
@@ -53,7 +49,6 @@ function shape(row: typeof leaveTypes.$inferSelect) {
     id: row.id,
     name: row.name,
     code: row.code,
-    color: row.color,
     description: row.description ?? null,
     isActive: row.isActive,
     isPaid: row.isPaid,
@@ -99,16 +94,35 @@ adminLeaveTypesRouter.post("/", async (req, res, next) => {
         .returning();
       res.status(201).json({ data: shape(row!) });
     } catch (e) {
-      const m = (e as Error).message;
-      if (m.includes("leave_types_name_unique") || m.includes("leave_types_code_unique")) {
-        throw new ApiError(409, "DUPLICATE", "Name or code already in use.");
-      }
-      throw e;
+      throw duplicateError(e);
     }
   } catch (e) {
     next(e);
   }
 });
+
+// Postgres names a `.unique()` constraint "<table>_<col>_key". Map a duplicate
+// violation to a friendly 409 naming the exact field. The driver wraps the
+// PostgresError as the `.cause` of a DrizzleQueryError, so check both.
+function duplicateError(e: unknown): unknown {
+  const err = e as { message?: string; cause?: { message?: string } };
+  const m = `${err?.message ?? ""} ${err?.cause?.message ?? ""}`;
+  if (/leave_types_code/i.test(m)) {
+    return new ApiError(
+      409,
+      "DUPLICATE_CODE",
+      "That code is already used by another leave type. Pick a different code.",
+    );
+  }
+  if (/leave_types_name/i.test(m)) {
+    return new ApiError(
+      409,
+      "DUPLICATE_NAME",
+      "That name is already used by another leave type.",
+    );
+  }
+  return e;
+}
 
 adminLeaveTypesRouter.patch("/:id", async (req, res, next) => {
   try {
@@ -117,27 +131,32 @@ adminLeaveTypesRouter.patch("/:id", async (req, res, next) => {
       throw new ApiError(400, "BAD_ID", "Numeric id required.");
     }
     const body = upsertSchema.partial().parse(req.body);
-    const [row] = await db
-      .update(leaveTypes)
-      .set({
-        ...body,
-        description:
-          body.description === undefined ? undefined : body.description ?? null,
-        genderRestriction:
-          body.genderRestriction === undefined
-            ? undefined
-            : body.genderRestriction ?? null,
-        requiresProofAfterDays:
-          body.requiresProofAfterDays === undefined
-            ? undefined
-            : body.requiresProofAfterDays ?? null,
-        maxContinuousDays:
-          body.maxContinuousDays === undefined
-            ? undefined
-            : body.maxContinuousDays ?? null,
-      })
-      .where(eq(leaveTypes.id, id))
-      .returning();
+    let row;
+    try {
+      [row] = await db
+        .update(leaveTypes)
+        .set({
+          ...body,
+          description:
+            body.description === undefined ? undefined : body.description ?? null,
+          genderRestriction:
+            body.genderRestriction === undefined
+              ? undefined
+              : body.genderRestriction ?? null,
+          requiresProofAfterDays:
+            body.requiresProofAfterDays === undefined
+              ? undefined
+              : body.requiresProofAfterDays ?? null,
+          maxContinuousDays:
+            body.maxContinuousDays === undefined
+              ? undefined
+              : body.maxContinuousDays ?? null,
+        })
+        .where(eq(leaveTypes.id, id))
+        .returning();
+    } catch (e) {
+      throw duplicateError(e);
+    }
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave type not found.");
     }

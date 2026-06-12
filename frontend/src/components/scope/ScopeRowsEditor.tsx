@@ -142,7 +142,7 @@ function ScopeRowEditor({
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-2">
-      <div className="grid grid-cols-[150px_1fr_72px_auto] gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         <select
           value={row.scopeType}
           onChange={(e) =>
@@ -154,7 +154,7 @@ function ScopeRowEditor({
                   : null,
             })
           }
-          className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+          className="flex-1 min-w-[130px] px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
         >
           {availableTypes.map((t) => (
             <option key={t} value={t}>
@@ -163,54 +163,55 @@ function ScopeRowEditor({
           ))}
         </select>
 
-        {needsValuePicker ? (
-          loading ? (
-            <div className="flex items-center gap-2 text-[12px] text-gray-500 px-2.5">
-              <Loader2 size={12} className="animate-spin" /> Loading…
-            </div>
-          ) : loadError ? (
-            <div className="text-[11.5px] text-rose-600 px-2.5 truncate">
-              {loadError}
-            </div>
+        <div className="flex-1 min-w-[130px]">
+          {needsValuePicker ? (
+            loading ? (
+              <div className="flex items-center gap-2 text-[12px] text-gray-500 px-2.5 py-1.5">
+                <Loader2 size={12} className="animate-spin" /> Loading…
+              </div>
+            ) : loadError ? (
+              <div className="text-[11.5px] text-rose-600 px-2.5 py-1.5 truncate">
+                {loadError}
+              </div>
+            ) : (
+              <select
+                value={row.scopeId ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    scopeId:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
+                }
+                className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              >
+                <option value="">Pick {scopeTypeLabel(row.scopeType)}…</option>
+                {options.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.name}
+                  </option>
+                ))}
+              </select>
+            )
           ) : (
-            <select
-              value={row.scopeId ?? ""}
-              onChange={(e) =>
-                onChange({
-                  scopeId: e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
-              className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-            >
-              <option value="">Pick {scopeTypeLabel(row.scopeType)}…</option>
-              {options.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.name}
-                </option>
-              ))}
-            </select>
-          )
-        ) : (
-          <div className="text-[11.5px] italic text-gray-500 px-2.5">
-            Applies to everyone
-          </div>
-        )}
+            <div className="text-[11.5px] italic text-gray-500 px-2.5 py-1.5">
+              Applies to everyone
+            </div>
+          )}
+        </div>
 
         <input
           type="number"
           min={0}
           value={row.priority}
-          onChange={(e) =>
-            onChange({ priority: Number(e.target.value) || 0 })
-          }
-          className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+          onChange={(e) => onChange({ priority: Number(e.target.value) || 0 })}
+          className="w-16 shrink-0 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
           title="Priority — higher wins when scopes overlap"
         />
 
         <button
           type="button"
           onClick={onRemove}
-          className="text-gray-400 hover:text-rose-600 p-1"
+          className="shrink-0 text-gray-400 hover:text-rose-600 p-1"
           title="Remove scope"
         >
           <Trash2 size={14} />

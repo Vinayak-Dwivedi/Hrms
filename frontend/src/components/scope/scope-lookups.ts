@@ -10,6 +10,7 @@ export type ScopeType =
   | "Branch"
   | "Location"
   | "Department"
+  | "SubDepartment"
   | "Designation"
   | "Grade"
   | "EmploymentType"
@@ -69,6 +70,11 @@ export async function fetchScopeOptions(
         await fetchHrmsList("departments"),
         (r) => str(r.name),
       );
+    case "SubDepartment":
+      return rowsAsOptions(
+        await fetchHrmsList("sub-departments"),
+        (r) => str(r.name),
+      );
     case "Designation":
       return rowsAsOptions(
         await fetchHrmsList("designations"),
@@ -99,6 +105,8 @@ export function scopeTypeLabel(scopeType: ScopeType): string {
   switch (scopeType) {
     case "EmploymentType":
       return "Employment Type";
+    case "SubDepartment":
+      return "Sub-Department";
     default:
       return scopeType;
   }

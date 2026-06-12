@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import LeaveTable from "@/components/leave/LeaveTable";
+import MyCompOff from "@/features/comp-off/MyCompOff";
+import MyLeaveBalances from "@/features/comp-off/MyLeaveBalances";
 import {
   employeeErrorBannerClass,
   employeeLoadingClass,
@@ -57,6 +59,8 @@ export default function LeavePage() {
           Failed to load leave requests: {loadError}
         </div>
       )}
+      <MyLeaveBalances />
+      <MyCompOff />
       {loading ? (
         <div className={employeeLoadingClass}>Loading leave requests…</div>
       ) : (

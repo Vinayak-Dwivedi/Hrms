@@ -924,21 +924,21 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const usedLeaves = (balances ?? []).reduce((s, l) => s + l.used, 0);
   const balLeaves = totalLeaves - usedLeaves;
 
-  // Leave Distribution: skip Compensatory Off entirely (it's almost always
-  // 0 and clutters the legend). The Leave Balance rings above still include
-  // every leave type — the filter is only for this chart.
-  const usedByType = (balances ?? [])
-    .filter((b) => !/^comp(ensatory)?\s*off$/i.test(b.name.trim()))
+  // Leave Distribution shows every leave type the employee currently holds a
+  // balance for — their assigned-policy allocation plus any earned comp-off —
+  // by available days. Any leave added to their policy shows up automatically.
+  const grantedByType = (balances ?? [])
+    .filter((b) => b.available > 0)
     .map((b, i) => {
       const palette = CHART_COLORS[i % CHART_COLORS.length];
       return {
         label: b.name,
-        value: b.used,
+        value: b.available,
         stroke: palette.stroke,
         dotClass: palette.dot,
       };
     });
-  const usedTotal = usedByType.reduce((s, x) => s + x.value, 0);
+  const grantedTotal = grantedByType.reduce((s, x) => s + x.value, 0);
 
   const initials = identity?.initials ?? "··";
 
@@ -1451,22 +1451,22 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <Donut
               size={220}
               segments={
-                usedTotal > 0
-                  ? usedByType.map((s) => ({ value: s.value, color: s.stroke }))
+                grantedTotal > 0
+                  ? grantedByType.map((s) => ({ value: s.value, color: s.stroke }))
                   : [{ value: 1, color: "#e5e7eb" }]
               }
               center={{
-                label: usedTotal > 0 ? String(usedTotal) : "0",
-                sub: "Total",
+                label: grantedTotal > 0 ? String(grantedTotal) : "0",
+                sub: "Available",
               }}
             />
             <div className="w-full sm:flex-1 min-w-0 flex flex-col justify-center gap-2">
-              {usedByType.length === 0 && (
+              {grantedByType.length === 0 && (
                 <p className="text-xs text-gray-400 text-center m-0">
-                  Loading balances…
+                  No leaves granted yet.
                 </p>
               )}
-              {usedByType.map((s) => (
+              {grantedByType.map((s) => (
                 <div
                   key={s.label}
                   className="flex items-center justify-between gap-3"

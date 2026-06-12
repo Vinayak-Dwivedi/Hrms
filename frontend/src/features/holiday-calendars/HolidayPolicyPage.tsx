@@ -33,7 +33,8 @@ import {
   type HolidayCalendarSummary,
 } from "./api/holiday-calendars.client";
 import AddTeamDialog from "./AddTeamDialog";
-import AddHolidayDialog from "./AddHolidayDialog";
+import HolidaysManager from "./HolidaysManager";
+import TeamHolidaysDialog from "./TeamHolidaysDialog";
 
 interface TeamRow extends HolidayCalendarSummary {
   departmentName: string | null;
@@ -55,26 +56,32 @@ export default function HolidayPolicyPage() {
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<HolidayCalendarDetail | null>(null);
-  const [holidayDialogOpen, setHolidayDialogOpen] = useState(false);
+
+  // "teams" = main team table; "holidays" = full-screen Holidays manager.
+  const [view, setView] = useState<"teams" | "holidays">("teams");
+  // Team whose assigned-holidays dialog is open.
+  const [viewingTeam, setViewingTeam] = useState<
+    { id: number; name: string; status: string } | null
+  >(null);
 
   // Org-setup lookups (for name resolution on each row).
   const [departmentNames, setDepartmentNames] = useState<Map<number, string>>(
     new Map(),
   );
-  const [designationNames, setDesignationNames] = useState<Map<number, string>>(
-    new Map(),
-  );
+  const [subDepartmentNames, setSubDepartmentNames] = useState<
+    Map<number, string>
+  >(new Map());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       // Fetch teams + holidays + lookups in parallel.
-      const [teamSummaries, holidayList, deptRes, desigRes] = await Promise.all([
+      const [teamSummaries, holidayList, deptRes, subRes] = await Promise.all([
         listHolidayCalendars(),
         listGlobalHolidays(),
         fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
-        fetch("/api/hrms/designations?limit=500", { credentials: "include" }),
+        fetch("/api/hrms/sub-departments?limit=500", { credentials: "include" }),
       ]);
       setTeams(teamSummaries);
       setHolidays(holidayList);
@@ -82,9 +89,9 @@ export default function HolidayPolicyPage() {
         const body = (await deptRes.json()) as { data: Array<{ id: number; name: string }> };
         setDepartmentNames(new Map(body.data.map((r) => [r.id, r.name])));
       }
-      if (desigRes.ok) {
-        const body = (await desigRes.json()) as { data: Array<{ id: number; name: string }> };
-        setDesignationNames(new Map(body.data.map((r) => [r.id, r.name])));
+      if (subRes.ok) {
+        const body = (await subRes.json()) as { data: Array<{ id: number; name: string }> };
+        setSubDepartmentNames(new Map(body.data.map((r) => [r.id, r.name])));
       }
 
       // Hydrate team details for the table (need scope + holidayIds per row).
@@ -119,7 +126,7 @@ export default function HolidayPolicyPage() {
       if (detail) {
         for (const s of detail.scope) {
           if (s.scopeType === "Department" && deptId == null) deptId = s.scopeId;
-          if (s.scopeType === "Designation" && subDeptId == null)
+          if (s.scopeType === "SubDepartment" && subDeptId == null)
             subDeptId = s.scopeId;
         }
       }
@@ -127,11 +134,13 @@ export default function HolidayPolicyPage() {
         ...t,
         departmentName: deptId != null ? departmentNames.get(deptId) ?? `#${deptId}` : null,
         subDepartmentName:
-          subDeptId != null ? designationNames.get(subDeptId) ?? `#${subDeptId}` : null,
+          subDeptId != null
+            ? subDepartmentNames.get(subDeptId) ?? `#${subDeptId}`
+            : null,
         holidayCount,
       };
     });
-  }, [teams, teamDetails, departmentNames, designationNames]);
+  }, [teams, teamDetails, departmentNames, subDepartmentNames]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -161,6 +170,18 @@ export default function HolidayPolicyPage() {
   function resetFilters() {
     setSearch("");
     setStatusFilter("");
+  }
+
+  // Full-screen Holidays manager (Add Holiday + all-holidays table).
+  if (view === "holidays") {
+    return (
+      <HolidaysManager
+        holidays={holidays}
+        teams={teams}
+        onBack={() => setView("teams")}
+        onChanged={refresh}
+      />
+    );
   }
 
   return (
@@ -211,7 +232,7 @@ export default function HolidayPolicyPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setHolidayDialogOpen(true)}
+              onClick={() => setView("holidays")}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-[#FF014F] bg-white border border-[#FF014F] hover:bg-pink-50"
             >
               <Plus size={13} /> Add Holiday
@@ -277,7 +298,21 @@ export default function HolidayPolicyPage() {
                   key={r.id}
                   className="border-t border-gray-100 hover:bg-gray-50/50"
                 >
-                  <Td className="font-semibold text-gray-900">{r.name}</Td>
+                  <Td>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewingTeam({
+                          id: r.id,
+                          name: r.name,
+                          status: r.status,
+                        })
+                      }
+                      className="font-semibold text-gray-900 hover:text-[#FF014F] hover:underline text-left"
+                    >
+                      {r.name}
+                    </button>
+                  </Td>
                   <Td className="text-gray-700">
                     {r.departmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
@@ -296,14 +331,14 @@ export default function HolidayPolicyPage() {
                     <div className="inline-flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          const d = teamDetails.get(r.id);
-                          if (d) {
-                            setEditingTeam(d);
-                            setTeamDialogOpen(true);
-                          }
-                        }}
-                        title="View"
+                        onClick={() =>
+                          setViewingTeam({
+                            id: r.id,
+                            name: r.name,
+                            status: r.status,
+                          })
+                        }
+                        title="View holidays"
                         className="text-emerald-600 hover:text-emerald-800"
                       >
                         <Eye size={14} />
@@ -362,13 +397,11 @@ export default function HolidayPolicyPage() {
         }}
       />
 
-      <AddHolidayDialog
-        open={holidayDialogOpen}
-        onClose={() => setHolidayDialogOpen(false)}
-        onSaved={() => {
-          setHolidayDialogOpen(false);
-          refresh();
-        }}
+      <TeamHolidaysDialog
+        team={viewingTeam}
+        holidays={holidays}
+        onClose={() => setViewingTeam(null)}
+        onChanged={refresh}
       />
     </div>
   );

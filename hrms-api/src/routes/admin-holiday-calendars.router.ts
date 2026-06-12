@@ -28,6 +28,7 @@ const SCOPE_TYPES = [
   "Branch",
   "Location",
   "Department",
+  "SubDepartment",
   "Designation",
   "Grade",
   "EmploymentType",

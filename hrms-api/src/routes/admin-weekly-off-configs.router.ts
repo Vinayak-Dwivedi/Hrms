@@ -43,8 +43,16 @@ const DAY_NAMES = [
 
 // ───── Zod schemas ────────────────────────────────────────────────────────
 
+// A day that is off only on specific week-of-month occurrences (1–5), e.g.
+// 2nd & 4th Saturday → { day: "Saturday", weeks: [2, 4] }.
+const alternateDayRuleSchema = z.object({
+  day: z.enum(DAY_NAMES),
+  weeks: z.array(z.number().int().min(1).max(5)).default([]),
+});
+
 const fixedSettingsSchema = z.object({
   days: z.array(z.enum(DAY_NAMES)).default([]),
+  alternateDays: z.array(alternateDayRuleSchema).optional(),
 });
 
 const rotationalSettingsSchema = z.object({

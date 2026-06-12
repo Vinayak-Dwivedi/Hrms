@@ -4,23 +4,28 @@ import { useState } from "react";
 import CompOffSection from "./CompOffSection";
 import ApprovalSection from "./ApprovalSection";
 import MasterLeaveTypesSection from "./MasterLeaveTypesSection";
+import LeavePoliciesSection from "./LeavePoliciesSection";
 
-// Leave Policy is a 3-tab settings page. The tab indicator slides under the
+// Leave Policy is a tabbed settings page. The tab indicator slides under the
 // active label, and the panel content slides + cross-fades when switching.
+//
+// Config flow order: define the catalog (Leave Types) → bundle quotas into
+// Leave Policies → tune Comp-Off → set Approval routing.
 //
 // Theme: matches the existing employee-portal cards — white card with subtle
 // gray border, brand pink (#FF014F / #be185d) for accents and active states.
 
-type Tab = "comp-off" | "approval" | "master";
-const TAB_ORDER: Tab[] = ["comp-off", "approval", "master"];
+type Tab = "master" | "policies" | "comp-off" | "approval";
+const TAB_ORDER: Tab[] = ["master", "policies", "comp-off", "approval"];
 const TAB_LABEL: Record<Tab, string> = {
+  master: "Leave Types",
+  policies: "Leave Policies",
   "comp-off": "Compensatory Off",
   approval: "Approval",
-  master: "Master Leave Types",
 };
 
 export default function LeavePolicyPage() {
-  const [tab, setTab] = useState<Tab>("comp-off");
+  const [tab, setTab] = useState<Tab>("master");
   // Direction of slide for the new panel: forward when going comp-off → approval,
   // backward when going the other way. Drives the CSS transform.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
@@ -55,9 +60,10 @@ export default function LeavePolicyPage() {
               : "animate-slide-in-left",
           ].join(" ")}
         >
+          {tab === "master" && <MasterLeaveTypesSection />}
+          {tab === "policies" && <LeavePoliciesSection />}
           {tab === "comp-off" && <CompOffSection />}
           {tab === "approval" && <ApprovalSection />}
-          {tab === "master" && <MasterLeaveTypesSection />}
         </div>
       </div>
 

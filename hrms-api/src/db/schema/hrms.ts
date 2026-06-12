@@ -316,6 +316,26 @@ export const designations = pgTable(
   ],
 );
 
+// Sub-departments (a.k.a. processes / campaigns in a BPO) — e.g. Beetel,
+// Credit B — sitting under a Department. Distinct from designations (job
+// titles). Currently used for holiday-team scoping; employees aren't linked
+// to a sub-department yet.
+export const subDepartments = pgTable("sub_departments", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull().unique(),
+  code: varchar("code", { length: 20 }).unique(),
+  departmentId: integer("department_id").references(() => departments.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 2 — CORE EMPLOYEE
 // ───────────────────────────────────────────────────────────────────────────
@@ -376,6 +396,12 @@ export const employees = pgTable(
     departmentId: integer("department_id").references(() => departments.id, {
       onDelete: "set null",
     }),
+    // Optional sub-department (process/campaign) the employee belongs to.
+    // Enables sub-department scoping for policies / approval workflows.
+    subDepartmentId: integer("sub_department_id").references(
+      () => subDepartments.id,
+      { onDelete: "set null" },
+    ),
     designationId: integer("designation_id").references(() => designations.id, {
       onDelete: "set null",
     }),
@@ -847,8 +873,6 @@ export const leaveTypes = pgTable("leave_types", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 100 }).notNull().unique(),
   code: varchar("code", { length: 5 }).notNull().unique(),
-  // Accent color for the catalog row icon — hex with '#'.
-  color: varchar("color", { length: 10 }).notNull().default("#dc143c"),
   description: text("description"),
   // Soft delete / disable toggle. Inactive types stay in history but don't
   // appear in apply-leave dropdowns or accrual calculations.
@@ -978,6 +1002,142 @@ export const leaveCreditTransactions = pgTable("leave_credit_transactions", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
+}, (table) => [
+  // Idempotency: one credit per (employee, type, period, kind). The accrual
+  // engine's onConflictDoNothing targets exactly these columns.
+  uniqueIndex("leave_credit_uq").on(
+    table.employeeId,
+    table.leaveTypeId,
+    table.period,
+    table.kind,
+  ),
+]);
+
+// ───── Approval Workflows (Phase: multi-stage leave approval) ────────────
+//
+// A named, ordered chain of approver stages. Assigned to a leave plan; a leave
+// request snapshots the stages and walks them one approver at a time.
+// Stage values: 'Manager' | 'DeptHead' | 'HR'.
+export const approvalWorkflows = pgTable("approval_workflows", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull().unique(),
+  description: text("description"),
+  stages: jsonb("stages").notNull().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// ───── Leave Plans (Phase 4: multi-type policy bundles) ──────────────────
+//
+// A leave_plan is the admin-facing "Leave Policy" bundle: a named package that
+// allocates an annual quota per leave type, optionally links a weekly-off
+// config and toggles comp-off, and is assigned to an employee group via scope.
+// Distinct from the per-leave-type `leave_policies` above (which drive Comp Off
+// and Approval rules).
+
+export const leavePlans = pgTable("leave_plans", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull().unique(),
+  description: text("description"),
+  // 'Draft' | 'Active' | 'Archived'
+  status: varchar("status", { length: 20 }).notNull().default("Draft"),
+  isDefault: boolean("is_default").notNull().default(false),
+  weeklyOffConfigId: integer("weekly_off_config_id").references(
+    (): AnyPgColumn => weeklyOffConfigs.id,
+    { onDelete: "set null" },
+  ),
+  compOffEnabled: boolean("comp_off_enabled").notNull().default(false),
+  // 'Annual' = full quota granted up front; 'Monthly' = accrued pro-rata to
+  // the current month.
+  accrualMethod: varchar("accrual_method", { length: 10 })
+    .notNull()
+    .default("Annual"),
+  // Max days that may carry into next year. null = no carry-forward.
+  carryForwardCap: integer("carry_forward_cap"),
+  // Scale a joiner's first-year quota by the fraction of the year remaining.
+  proRataJoiners: boolean("pro_rata_joiners").notNull().default(false),
+  // Multi-stage approval workflow applied to leave requests under this policy.
+  approvalWorkflowId: integer("approval_workflow_id").references(
+    () => approvalWorkflows.id,
+    { onDelete: "set null" },
+  ),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const leavePlanAllocations = pgTable(
+  "leave_plan_allocations",
+  {
+    id: serial("id").primaryKey(),
+    planId: integer("plan_id")
+      .notNull()
+      .references(() => leavePlans.id, { onDelete: "cascade" }),
+    leaveTypeId: integer("leave_type_id")
+      .notNull()
+      .references(() => leaveTypes.id, { onDelete: "cascade" }),
+    // Annual quota in days (e.g. CL = 12).
+    annualQuota: numeric("annual_quota", { precision: 6, scale: 2 })
+      .notNull()
+      .default("0"),
+  },
+  (table) => [
+    uniqueIndex("leave_plan_alloc_uq").on(table.planId, table.leaveTypeId),
+  ],
+);
+
+export const leavePlanScope = pgTable("leave_plan_scope", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id")
+    .notNull()
+    .references(() => leavePlans.id, { onDelete: "cascade" }),
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  scopeId: integer("scope_id"),
+  priority: integer("priority").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// Comp-off requests (Phase 14). An employee who worked on a holiday / weekly
+// off raises a request; on approval the CO leave balance is credited. Kept
+// deliberately simple: 1 row = 1 worked day, default 1 day of credit.
+export const compOffRequests = pgTable("comp_off_requests", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  // Reporting manager at request time (the approver). Null = route to HR only.
+  managerId: integer("manager_id").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  // The holiday / week-off date that was worked.
+  workedDate: date("worked_date").notNull(),
+  days: numeric("days", { precision: 4, scale: 1 }).notNull().default("1"),
+  reason: text("reason").notNull(),
+  // 'Pending' | 'Approved' | 'Rejected'
+  status: varchar("status", { length: 20 }).notNull().default("Pending"),
+  decidedBy: integer("decided_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const leaveBalances = pgTable(
@@ -1050,6 +1210,11 @@ export const leaveRequests = pgTable(
     hrDecision: hrDecisionEnum("hr_decision"),
     hrDecidedAt: timestamp("hr_decided_at", { withTimezone: true }),
     hrRemarks: text("hr_remarks"),
+    // Multi-stage approval workflow snapshot (ordered approver stages) and the
+    // index of the stage currently awaiting action. Null stages = legacy /
+    // no workflow (falls back to a single Manager stage).
+    workflowStages: jsonb("workflow_stages"),
+    currentStage: integer("current_stage").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

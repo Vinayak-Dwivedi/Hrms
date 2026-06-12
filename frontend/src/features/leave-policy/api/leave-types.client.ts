@@ -7,7 +7,6 @@ export interface LeaveType {
   id: number;
   name: string;
   code: string;
-  color: string;
   description: string | null;
   isActive: boolean;
   isPaid: boolean;

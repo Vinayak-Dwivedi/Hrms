@@ -32,8 +32,19 @@ export interface WeeklyOffScopeRow {
   priority: number;
 }
 
+/** A day that is off only on certain occurrences within the month — e.g.
+ *  "2nd & 4th Saturday" is { day: "Saturday", weeks: [2, 4] }. `weeks` lists
+ *  the nth occurrence (1–5) of that weekday in the month that is non-working. */
+export interface AlternateDayRule {
+  day: DayName;
+  weeks: number[];
+}
+
 export interface FixedSettings {
+  /** Off every week. */
   days: DayName[];
+  /** Off only on specific week-of-month occurrences (e.g. alternate Saturdays). */
+  alternateDays?: AlternateDayRule[];
 }
 
 export interface RotationalSettings {

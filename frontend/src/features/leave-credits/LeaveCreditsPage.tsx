@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Coins, Loader2, Play, RotateCcw, ScrollText } from "lucide-react";
+import ManualCredit from "./ManualCredit";
 import {
   listAccrualPolicies,
   listCreditTransactions,
@@ -124,6 +125,9 @@ export default function LeaveCreditsPage() {
           Leave Credits
         </h1>
       </div>
+
+      {/* Manual credit by Department / Sub-Department */}
+      <ManualCredit onCredited={refreshTransactions} />
 
       {/* ── Run cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

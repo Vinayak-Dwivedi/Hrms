@@ -15,6 +15,7 @@ import {
   regularisationRequests,
   resignations,
   roles,
+  subDepartments,
 } from "@/db/schema/hrms";
 import { createCrudRouter } from "@/lib/crud-factory";
 import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
@@ -43,6 +44,7 @@ hrmsRouter.use("/departments",               orgSetupAccess, createCrudRouter("d
 hrmsRouter.use("/grades",                    orgSetupAccess, createCrudRouter("grade", grades));
 hrmsRouter.use("/employment-types",          orgSetupAccess, createCrudRouter("employment type", employmentTypes));
 hrmsRouter.use("/designations",              orgSetupAccess, createCrudRouter("designation", designations));
+hrmsRouter.use("/sub-departments",           orgSetupAccess, createCrudRouter("sub-department", subDepartments));
 hrmsRouter.use("/employees", employeesRouter);
 hrmsRouter.use("/employees",                 createCrudRouter("employee", employees, { excludedColumns: EMPLOYEE_CRUD_EXCLUDED_COLUMNS }));
 hrmsRouter.use("/resignations",              createCrudRouter("resignation", resignations));

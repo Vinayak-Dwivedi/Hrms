@@ -15,12 +15,24 @@ import { z } from "zod";
 import {
   listAccrualPolicies,
   listCreditTransactions,
+  runManualCredit,
   runMonthlyAccrual,
   runYearlyGrant,
 } from "@/services/leave-credit-engine";
 import { ApiError } from "@/middleware/error";
 
 export const adminLeaveCreditsRouter: Router = Router();
+
+const manualBody = z
+  .object({
+    leaveTypeId: z.number().int().positive(),
+    amount: z.coerce.number().min(0.5).max(366),
+    scopeType: z.enum(["Department", "SubDepartment"]),
+    scopeId: z.number().int().positive(),
+    period: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "period must be YYYY-MM"),
+    reason: z.string().trim().max(300).optional(),
+  })
+  .strict();
 
 const runBody = z
   .object({
@@ -64,6 +76,28 @@ adminLeaveCreditsRouter.get("/transactions", async (req, res, next) => {
     });
     res.json({ data: rows });
   } catch (e) {
+    next(e);
+  }
+});
+
+adminLeaveCreditsRouter.post("/run/manual", async (req, res, next) => {
+  try {
+    const body = manualBody.parse(req.body ?? {});
+    const result = await runManualCredit({
+      leaveTypeId: body.leaveTypeId,
+      amount: body.amount,
+      scopeType: body.scopeType,
+      scopeId: body.scopeId,
+      period: body.period,
+      reason: body.reason ?? "Manual credit",
+      actorUserId: req.user?.id ?? null,
+    });
+    res.json({ data: result });
+  } catch (e) {
+    if (e instanceof z.ZodError) {
+      next(new ApiError(400, "BAD_INPUT", e.issues[0]?.message ?? "Invalid body"));
+      return;
+    }
     next(e);
   }
 });

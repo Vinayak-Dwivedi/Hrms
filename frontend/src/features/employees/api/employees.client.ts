@@ -23,6 +23,7 @@ export type EmployeeListItem = {
   workEmail: string | null;
   phone: string;
   departmentId: number | null;
+  subDepartmentId: number | null;
   designationId: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
@@ -106,6 +107,7 @@ export type CreateEmployeePayload = {
   password?: string;
   roleId: number;
   departmentId?: number;
+  subDepartmentId?: number | null;
   designationId?: number;
   gradeId?: number;
   branchId?: number;
@@ -127,6 +129,7 @@ export type UpdateEmployeePayload = {
   joiningDate: string;
   employeeStatus: EmployeeStatus;
   departmentId?: number | null;
+  subDepartmentId?: number | null;
   designationId?: number | null;
   gradeId?: number | null;
   branchId?: number | null;
@@ -213,6 +216,7 @@ type RawEmployeeRow = {
   maritalStatus: "Single" | "Married" | null;
   spouseName: string | null;
   departmentId: number | null;
+  subDepartmentId: number | null;
   designationId: number | null;
   gradeId: number | null;
   branchId: number | null;
@@ -243,6 +247,7 @@ function toDetail(row: RawEmployeeRow): EmployeeDetail {
     maritalStatus: row.maritalStatus,
     spouseName: row.spouseName,
     departmentId: row.departmentId,
+    subDepartmentId: row.subDepartmentId,
     designationId: row.designationId,
     gradeId: row.gradeId,
     branchId: row.branchId,
@@ -267,6 +272,7 @@ function toListItem(row: RawEmployeeRow): EmployeeListItem {
     workEmail: row.workEmail,
     phone: row.phone,
     departmentId: row.departmentId,
+    subDepartmentId: row.subDepartmentId,
     designationId: row.designationId,
     employeeStatus: row.employeeStatus,
     joiningDate: row.joiningDate,
@@ -469,6 +475,10 @@ async function fetchLookup(path: string): Promise<LookupItem[]> {
 
 export function fetchDepartments(): Promise<LookupItem[]> {
   return fetchLookup("/departments");
+}
+
+export function fetchSubDepartments(): Promise<LookupItem[]> {
+  return fetchLookup("/sub-departments");
 }
 
 export function fetchDesignations(): Promise<LookupItem[]> {

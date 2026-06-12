@@ -8,11 +8,13 @@ import {
   deleteWeeklyOff,
   getWeeklyOff,
   updateWeeklyOff,
+  type AlternateDayRule,
   type DayName,
   type FixedSettings,
   type RosterSettings,
   type RotationalSettings,
   type WeeklyOffMode,
+  type WeeklyOffSettings,
   type WeeklyOffStatus,
   type WeeklyOffSummary,
   type WeeklyOffUpsert,
@@ -26,16 +28,6 @@ type Target = WeeklyOffSummary | "new" | null;
 
 const STATUSES: WeeklyOffStatus[] = ["Draft", "Published", "Archived"];
 const MODES: WeeklyOffMode[] = ["Fixed", "Rotational", "Roster"];
-
-const DAY_NAMES: DayName[] = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
 
 const SCOPE_TYPES: ScopeType[] = [
   "Company",
@@ -285,6 +277,9 @@ export default function WeeklyOffEditor({
           />
         )}
 
+        {/* ── Live preview (next 4 weeks) ───────────────────────────── */}
+        <WeeklyOffPreview mode={form.mode} settings={form.settings} />
+
         {/* ── Scope assignment ──────────────────────────────────────── */}
         <div className="border-t border-gray-100 pt-3">
           <ScopeRowsEditor
@@ -360,6 +355,57 @@ export default function WeeklyOffEditor({
 
 // ─── mode-specific editors ─────────────────────────────────────────────────
 
+// Saturday is governed by its own cadence control (below), so the weekly grid
+// only offers the other six days.
+const WEEKLY_GRID_DAYS: DayName[] = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Sunday",
+];
+
+type SatCadence = "every" | "1_3" | "2_4" | "none";
+
+const SAT_OPTIONS: { value: SatCadence; label: string }[] = [
+  { value: "every", label: "Every" },
+  { value: "1_3", label: "1st & 3rd" },
+  { value: "2_4", label: "2nd & 4th" },
+  { value: "none", label: "Working" },
+];
+
+function satCadenceOf(settings: FixedSettings): SatCadence {
+  if (settings.days.includes("Saturday")) return "every";
+  const rule = settings.alternateDays?.find((r) => r.day === "Saturday");
+  if (rule) {
+    const w = [...rule.weeks].sort((a, b) => a - b).join(",");
+    if (w === "1,3") return "1_3";
+    if (w === "2,4") return "2_4";
+  }
+  return "none";
+}
+
+function applySatCadence(
+  settings: FixedSettings,
+  cadence: SatCadence,
+): FixedSettings {
+  const daysNoSat = settings.days.filter((d) => d !== "Saturday");
+  const altNoSat = (settings.alternateDays ?? []).filter(
+    (r) => r.day !== "Saturday",
+  );
+  let days: DayName[] = daysNoSat;
+  let alt: AlternateDayRule[] = altNoSat;
+  if (cadence === "every") {
+    days = [...daysNoSat, "Saturday"];
+  } else if (cadence === "1_3") {
+    alt = [...altNoSat, { day: "Saturday", weeks: [1, 3] }];
+  } else if (cadence === "2_4") {
+    alt = [...altNoSat, { day: "Saturday", weeks: [2, 4] }];
+  }
+  return { days, ...(alt.length > 0 ? { alternateDays: alt } : {}) };
+}
+
 function FixedSettingsEditor({
   settings,
   onChange,
@@ -370,32 +416,61 @@ function FixedSettingsEditor({
   function toggle(day: DayName) {
     const has = settings.days.includes(day);
     onChange({
-      days: has ? settings.days.filter((d) => d !== day) : [...settings.days, day],
+      ...settings,
+      days: has
+        ? settings.days.filter((d) => d !== day)
+        : [...settings.days, day],
     });
   }
+  const cadence = satCadenceOf(settings);
   return (
-    <Field label="Off Days">
-      <div className="grid grid-cols-7 gap-1.5">
-        {DAY_NAMES.map((d) => {
-          const active = settings.days.includes(d);
-          return (
-            <button
-              type="button"
-              key={d}
-              onClick={() => toggle(d)}
-              className={[
-                "px-2 py-2 rounded-lg border text-[11.5px] font-semibold transition-all",
-                active
-                  ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-[#FF014F]/40",
-              ].join(" ")}
-            >
-              {d.slice(0, 3)}
-            </button>
-          );
-        })}
-      </div>
-    </Field>
+    <div className="flex flex-col gap-3">
+      <Field label="Off Days (every week)">
+        <div className="grid grid-cols-6 gap-1.5">
+          {WEEKLY_GRID_DAYS.map((d) => {
+            const active = settings.days.includes(d);
+            return (
+              <button
+                type="button"
+                key={d}
+                onClick={() => toggle(d)}
+                className={[
+                  "px-2 py-2 rounded-lg border text-[11.5px] font-semibold transition-all",
+                  active
+                    ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-[#FF014F]/40",
+                ].join(" ")}
+              >
+                {d.slice(0, 3)}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+
+      <Field label="Saturdays">
+        <div className="grid grid-cols-4 gap-1.5">
+          {SAT_OPTIONS.map((opt) => {
+            const active = cadence === opt.value;
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => onChange(applySatCadence(settings, opt.value))}
+                className={[
+                  "px-2 py-2 rounded-lg border text-[11.5px] font-semibold transition-all",
+                  active
+                    ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-[#FF014F]/40",
+                ].join(" ")}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+    </div>
   );
 }
 
@@ -458,6 +533,127 @@ function RosterSettingsEditor({
         rows={3}
         className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
       />
+    </Field>
+  );
+}
+
+// ─── live preview (next 4 weeks) ────────────────────────────────────────────
+
+const DOW_INDEX: Record<DayName, number> = {
+  Sunday: 0,
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+  Saturday: 6,
+};
+
+const WEEK_HEADER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function startOfWeekMonday(d: Date): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = (x.getDay() + 6) % 7; // days since Monday
+  x.setDate(x.getDate() - diff);
+  return x;
+}
+
+function isOffDay(
+  date: Date,
+  start: Date,
+  mode: WeeklyOffMode,
+  settings: WeeklyOffSettings,
+): boolean {
+  const wd = date.getDay();
+  if (mode === "Fixed") {
+    const s = settings as FixedSettings;
+    if (s.days.some((d) => DOW_INDEX[d] === wd)) return true;
+    const nth = Math.floor((date.getDate() - 1) / 7) + 1;
+    return (s.alternateDays ?? []).some(
+      (r) => DOW_INDEX[r.day] === wd && r.weeks.includes(nth),
+    );
+  }
+  if (mode === "Rotational") {
+    const s = settings as RotationalSettings;
+    if (s.pattern && s.pattern.length > 0) {
+      const weeksFromStart = Math.floor(
+        (date.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000),
+      );
+      const week = s.pattern[weeksFromStart % s.pattern.length] ?? [];
+      return week.some((d) => DOW_INDEX[d] === wd);
+    }
+    return wd === 0; // no explicit pattern → approximated as Sunday (matches resolver)
+  }
+  return false; // Roster — no automated expansion yet
+}
+
+function WeeklyOffPreview({
+  mode,
+  settings,
+}: {
+  mode: WeeklyOffMode;
+  settings: WeeklyOffSettings;
+}) {
+  const start = startOfWeekMonday(new Date());
+  const weeks = Array.from({ length: 4 }, (_, w) =>
+    Array.from({ length: 7 }, (_, day) => {
+      const cell = new Date(start);
+      cell.setDate(start.getDate() + w * 7 + day);
+      return cell;
+    }),
+  );
+  const note =
+    mode === "Roster"
+      ? "Roster mode has no automatic off-days — handled per published roster."
+      : mode === "Rotational" &&
+          !(settings as RotationalSettings).pattern?.length
+        ? "No rotation pattern set — approximated as Sundays."
+        : null;
+
+  return (
+    <Field label="Preview — next 4 weeks">
+      <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {WEEK_HEADER.map((h) => (
+            <div
+              key={h}
+              className="text-center text-[9.5px] font-bold uppercase tracking-wide text-gray-400"
+            >
+              {h}
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1">
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid grid-cols-7 gap-1">
+              {week.map((cell) => {
+                const off = isOffDay(cell, start, mode, settings);
+                return (
+                  <div
+                    key={cell.toISOString()}
+                    title={cell.toDateString()}
+                    className={[
+                      "h-7 rounded-md flex items-center justify-center text-[11px] font-semibold border",
+                      off
+                        ? "bg-[#FF014F] text-white border-[#FF014F]"
+                        : "bg-white text-gray-500 border-gray-200",
+                    ].join(" ")}
+                  >
+                    {cell.getDate()}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mt-2 text-[10.5px] text-gray-500">
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#FF014F] inline-block" />
+            Off day
+          </span>
+          {note && <span className="italic text-amber-600">{note}</span>}
+        </div>
+      </div>
     </Field>
   );
 }

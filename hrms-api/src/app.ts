@@ -15,9 +15,15 @@ import { healthRouter } from "@/routes/health.router";
 import { hrmsRouter } from "@/routes/hrms.router";
 import { managerRouter } from "@/routes/manager.router";
 import { meRouter } from "@/routes/me.router";
+import { compOffRouter } from "@/routes/comp-off.router";
+import {
+  adminApprovalWorkflowsRouter,
+  workflowApprovalsRouter,
+} from "@/routes/approval-workflows.router";
 import { attendanceRouter } from "@/routes/attendance.router";
 import { adminLeaveTypesRouter } from "@/routes/admin-leave-types.router";
 import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
+import { adminLeavePlansRouter } from "@/routes/admin-leave-plans.router";
 import { adminHolidayCalendarsRouter } from "@/routes/admin-holiday-calendars.router";
 import { adminHolidaysRouter } from "@/routes/admin-holidays.router";
 import { adminWeeklyOffConfigsRouter } from "@/routes/admin-weekly-off-configs.router";
@@ -108,11 +114,15 @@ export function createApp() {
   );
 
   app.use("/api/me",      requireAuth, meRouter);
+  app.use("/api/comp-off", requireAuth, compOffRouter);
+  app.use("/api/admin/approval-workflows", requireAuth, adminApprovalWorkflowsRouter);
+  app.use("/api/workflow-approvals", requireAuth, workflowApprovalsRouter);
   app.use("/api/manager", requireAuth, managerRouter);
   app.use("/api/hrms",    requireAuth, hrmsRouter);
   app.use("/api/attendance", requireAuth, attendanceRouter);
   app.use("/api/admin/leave-types", requireAuth, adminLeaveTypesRouter);
   app.use("/api/admin/leave-policies", requireAuth, adminLeavePoliciesRouter);
+  app.use("/api/admin/leave-plans", requireAuth, adminLeavePlansRouter);
   app.use("/api/admin/holiday-calendars", requireAuth, adminHolidayCalendarsRouter);
   app.use("/api/admin/holidays", requireAuth, adminHolidaysRouter);
   app.use("/api/admin/weekly-off-configs", requireAuth, adminWeeklyOffConfigsRouter);
