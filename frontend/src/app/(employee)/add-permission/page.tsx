@@ -7,10 +7,12 @@ import EditPermissionModal from "@/features/access-control/components/EditPermis
 import PermissionsTable from "@/features/access-control/components/PermissionsTable";
 import ViewPermissionModal from "@/features/access-control/components/ViewPermissionModal";
 import {
+  deletePermission,
   fetchPermissions,
   PERMISSION_MODULES,
   type PermissionListItem,
 } from "@/features/access-control/api/permissions.client";
+import { toast } from "sonner";
 import {
   employeeBtnSmClass,
   employeeCardClass,
@@ -105,6 +107,25 @@ export default function AddPermissionPage() {
     setEditId(id);
   }
 
+  async function handleDelete(id: number) {
+    if (
+      !window.confirm(
+        "Delete this permission permanently? It will be removed from all roles.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await deletePermission(id);
+      toast.success("Permission deleted.");
+      if (viewId === id) setViewId(null);
+      if (editId === id) setEditId(null);
+      await loadPermissions();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
@@ -191,6 +212,7 @@ export default function AddPermissionPage() {
       ) : (
         <PermissionsTable
           key={`${search}-${moduleFilter}-${statusFilter}`}
+          onDelete={(id) => void handleDelete(id)}
           onEdit={openEdit}
           onView={openView}
           permissions={filteredPermissions}

@@ -297,7 +297,8 @@ function breadcrumbFor(pathname: string): string {
   return derived || "Dashboard";
 }
 
-function rootLabelFor(role: Role): string {
+function rootLabelFor(role: Role, authRole?: string): string {
+  if (authRole === "master") return "Master";
   if (role === "manager") return "Manager";
   if (role === "admin") return "Admin";
   return "Employee";

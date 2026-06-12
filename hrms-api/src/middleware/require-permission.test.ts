@@ -4,6 +4,7 @@ import { authRoleToRbacCode } from "@/middleware/require-permission";
 
 describe("require-permission role mapping", () => {
   it("maps jwt roles to rbac role codes", () => {
+    assert.equal(authRoleToRbacCode("master"), "master");
     assert.equal(authRoleToRbacCode("admin"), "admin");
     assert.equal(authRoleToRbacCode("manager"), "manager");
     assert.equal(authRoleToRbacCode("hr"), "hr");

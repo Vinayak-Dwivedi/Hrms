@@ -7,10 +7,12 @@ import EditRoleModal from "@/features/access-control/components/EditRoleModal";
 import RolesTable from "@/features/access-control/components/RolesTable";
 import ViewRoleModal from "@/features/access-control/components/ViewRoleModal";
 import {
+  deleteRole,
   fetchRolePermissionMap,
   fetchRoles,
   type RoleListItem,
 } from "@/features/access-control/api/roles.client";
+import { toast } from "sonner";
 import {
   employeeBtnSmClass,
   employeeCardClass,
@@ -24,6 +26,7 @@ import {
 } from "@/features/employees/employee-theme";
 
 const ALL_STATUS = "All";
+const SYSTEM_ROLE_CODES = new Set(["master", "admin", "employee", "manager", "hr"]);
 
 export default function UserRolesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -109,6 +112,30 @@ export default function UserRolesPage() {
     setEditId(id);
   }
 
+  async function handleDelete(id: number) {
+    const target = roles.find((r) => r.id === id);
+    if (target && SYSTEM_ROLE_CODES.has(target.code)) {
+      toast.error("System roles cannot be deleted.");
+      return;
+    }
+    if (
+      !window.confirm(
+        "Delete this role permanently? All permission assignments for this role will be removed.",
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteRole(id);
+      toast.success("Role deleted.");
+      if (viewId === id) setViewId(null);
+      if (editId === id) setEditId(null);
+      await loadRoles();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
@@ -176,6 +203,7 @@ export default function UserRolesPage() {
       ) : (
         <RolesTable
           key={`${search}-${statusFilter}`}
+          onDelete={(id) => void handleDelete(id)}
           onEdit={openEdit}
           onView={openView}
           permissionCounts={permissionCounts}

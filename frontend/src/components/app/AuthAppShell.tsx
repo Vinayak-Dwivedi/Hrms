@@ -5,7 +5,7 @@ import { AuthProvider, RouteGuard, useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
 
 function mapAuthRoleToUiRole(authRole: string): Role {
-  if (authRole === "admin") return "admin";
+  if (authRole === "master" || authRole === "admin") return "admin";
   if (authRole === "manager") return "manager";
   return "employee";
 }

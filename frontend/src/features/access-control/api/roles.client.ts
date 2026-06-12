@@ -121,6 +121,10 @@ export async function updateRole(
   return toListItem(res.data);
 }
 
+export async function deleteRole(id: number): Promise<void> {
+  await jsonFetch(`/roles/${id}`, { method: "DELETE" });
+}
+
 export async function fetchRolePermissionIds(roleId: number): Promise<number[]> {
   const res = await jsonFetch<{ data: { permissionIds: number[] } }>(
     `/roles/${roleId}/permissions`,

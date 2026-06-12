@@ -1,5 +1,6 @@
 /** Map RBAC `roles.code` to JWT `users.role` for login / session. */
 export function rbacCodeToAuthRole(code: string): string {
+  if (code === "master") return "master";
   if (code === "admin") return "admin";
   if (code === "manager") return "manager";
   if (code === "hr") return "hr";
@@ -9,6 +10,7 @@ export function rbacCodeToAuthRole(code: string): string {
 
 /** Map JWT `users.role` to RBAC `roles.code` when loading permissions. */
 export function authRoleToRbacCode(jwtRole: string): string {
+  if (jwtRole === "master") return "master";
   if (jwtRole === "user") return "employee";
   return jwtRole;
 }

@@ -48,7 +48,8 @@ function breadcrumbFor(pathname: string): string {
   return derived || "Dashboard";
 }
 
-function rootLabelFor(role: Role): string {
+function rootLabelFor(role: Role, authRole?: string): string {
+  if (authRole === "master") return "Master";
   if (role === "manager") return "Manager";
   if (role === "admin") return "Admin";
   return "Employee";
@@ -156,7 +157,7 @@ export default function AppHeader({
     <>
       <header className="flex items-center justify-between px-6 h-16">
         <nav className="flex items-center gap-2 text-sm">
-          <span className="text-gray-400">{rootLabelFor(role)}</span>
+          <span className="text-gray-400">{rootLabelFor(role, sessionUser.role)}</span>
           <span className="text-gray-300">/</span>
           <span className="font-semibold text-gray-800">{crumb}</span>
         </nav>
@@ -203,7 +204,7 @@ export default function AppHeader({
                     {displayName}
                   </p>
                   <p className="text-[11px] text-gray-400 truncate">
-                    {identity?.role ?? rootLabelFor(role)}
+                    {identity?.role ?? rootLabelFor(role, sessionUser.role)}
                   </p>
                 </div>
                 <button

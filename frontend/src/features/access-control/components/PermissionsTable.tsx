@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { PermissionListItem } from "../api/permissions.client";
 import {
@@ -24,6 +24,7 @@ interface Props {
   permissions: PermissionListItem[];
   onView: (id: number) => void;
   onEdit: (id: number) => void;
+  onDelete: (id: number) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -32,6 +33,7 @@ export default function PermissionsTable({
   permissions,
   onView,
   onEdit,
+  onDelete,
 }: Props) {
   const [page, setPage] = useState(1);
 
@@ -111,6 +113,15 @@ export default function PermissionsTable({
                         type="button"
                       >
                         <Pencil className={employeeIconSm} />
+                      </button>
+                      <button
+                        aria-label={`Delete ${perm.name}`}
+                        className={employeeEditIconBtnClass}
+                        onClick={() => onDelete(perm.id)}
+                        title="Delete"
+                        type="button"
+                      >
+                        <Trash2 className={employeeIconSm} />
                       </button>
                     </div>
                   </td>

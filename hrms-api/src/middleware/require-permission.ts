@@ -23,6 +23,16 @@ async function loadPermissionsForJwtRole(jwtRole: string): Promise<Set<string>> 
   const empty = new Set<string>();
 
   try {
+    if (rbacCode === "master") {
+      const rows = await db
+        .select({ code: permissions.code })
+        .from(permissions)
+        .where(eq(permissions.isActive, true));
+      const codes = new Set(rows.map((r) => r.code));
+      permissionCache.set(jwtRole, { codes, expiresAt: Date.now() + CACHE_TTL_MS });
+      return codes;
+    }
+
     const [role] = await db
       .select({ id: roles.id })
       .from(roles)
