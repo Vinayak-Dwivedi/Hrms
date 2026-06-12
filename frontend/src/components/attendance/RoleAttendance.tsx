@@ -40,7 +40,7 @@ import type {
 } from "@/components/attendance/AttendanceCalendar";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
 import AttendanceTable from "@/components/attendance/AttendanceTable";
-import type { DayAttendance, LeaveType } from "@/lib/dashboard";
+import type { DayAttendance, LeaveRequest, LeaveType } from "@/lib/dashboard";
 import {
   mergeHolidaysIntoDays,
   mergeLeavesIntoDays,
