@@ -3,13 +3,17 @@ import { describe, it } from "node:test";
 import {
   type CreateEmployeeFormValues,
   createEmployeeFormSchema,
+  detailToFormValues,
   loginPasswordFieldSchema,
   PASSWORD_MIN_MESSAGE,
   phoneFieldSchema,
   personalEmailFieldSchema,
   sanitizePhoneInput,
   toApiPayload,
+  toUpdateApiPayload,
+  updateEmployeeFormSchema,
 } from "./employee.schema";
+import type { EmployeeDetail } from "../api/employees.client";
 
 const baseValues: CreateEmployeeFormValues = {
   empId: "IASPL00099",
@@ -109,5 +113,100 @@ describe("toApiPayload", () => {
       42,
     );
     assert.equal(payload.password, "Welcome@123");
+  });
+});
+
+const baseUpdateValues = {
+  empId: "IASPL00099",
+  firstName: "Test",
+  middleName: "",
+  lastName: "User",
+  personalEmail: "personal@example.com",
+  workEmail: "work@example.com",
+  phone: "9876543210",
+  dob: "1990-01-01",
+  gender: "Male" as const,
+  joiningDate: "2024-01-01",
+  employeeStatus: "Active" as const,
+  roleId: "1",
+  orgHierarchyDepartmentId: "1",
+  orgHierarchySubDepartmentId: "2",
+  orgHierarchyDesignationId: "3",
+  branchId: "1",
+  reportingManagerId: "1",
+  maritalStatus: "" as const,
+  spouseName: "",
+  password: "",
+  confirmPassword: "",
+};
+
+describe("update employee validation", () => {
+  it("requires org hierarchy department, sub-department, and designation", () => {
+    const result = updateEmployeeFormSchema.safeParse({
+      ...baseUpdateValues,
+      orgHierarchyDepartmentId: "",
+    });
+    assert.equal(result.success, false);
+  });
+});
+
+describe("toUpdateApiPayload", () => {
+  it("includes orgHierarchyStructureId", () => {
+    const payload = toUpdateApiPayload(baseUpdateValues, 42);
+    assert.equal(payload.orgHierarchyStructureId, 42);
+    assert.equal("departmentId" in payload, false);
+    assert.equal("designationId" in payload, false);
+    assert.equal("gradeId" in payload, false);
+  });
+
+  it("omits password when the field is blank", () => {
+    const payload = toUpdateApiPayload(baseUpdateValues, 42);
+    assert.equal("password" in payload, false);
+  });
+
+  it("includes roleId when provided", () => {
+    const payload = toUpdateApiPayload(baseUpdateValues, 42);
+    assert.equal(payload.roleId, 1);
+  });
+});
+
+describe("detailToFormValues", () => {
+  it("prefills org hierarchy fields when provided", () => {
+    const employee = {
+      id: 1,
+      empId: "IASPL00099",
+      firstName: "Test",
+      middleName: null,
+      lastName: "User",
+      workEmail: "work@example.com",
+      phone: "9876543210",
+      departmentId: null,
+      designationId: null,
+      employeeStatus: "Active",
+      joiningDate: "2024-01-01",
+      personalEmail: "personal@example.com",
+      dob: "1990-01-01",
+      gender: "Male",
+      nationality: "Indian",
+      maritalStatus: null,
+      spouseName: null,
+      gradeId: null,
+      branchId: 1,
+      reportingManagerId: 1,
+      orgHierarchyStructureId: 99,
+      roleId: 2,
+      roleName: "HR",
+    } satisfies EmployeeDetail;
+
+    const values = detailToFormValues(employee, {
+      orgHierarchyDepartmentId: "10",
+      orgHierarchySubDepartmentId: "20",
+      orgHierarchyDesignationId: "30",
+    });
+
+    assert.equal(values.orgHierarchyDepartmentId, "10");
+    assert.equal(values.orgHierarchySubDepartmentId, "20");
+    assert.equal(values.orgHierarchyDesignationId, "30");
+    assert.equal(values.roleId, "2");
   });
 });

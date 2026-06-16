@@ -1,54 +1,18 @@
 "use client";
 
 import {
-  CalendarPlus,
-  Calendar as CalendarIcon,
-  CheckSquare,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
-  FileText,
-  GraduationCap,
-  History,
-  LayoutDashboard,
   RefreshCw,
   UserRound,
-  Users,
 } from "lucide-react";
-
-// Slack glyph — old `lucide-react@1.x` doesn't ship the Slack icon, so we
-// inline a stripped-down version. The four-hash silhouette is recognizable
-// even in monochrome (we recolor via the parent's text color).
-function SlackIcon({
-  size = 24,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect x="2.5" y="9" width="3" height="6" rx="1.5" />
-      <rect x="9" y="2.5" width="6" height="3" rx="1.5" />
-      <rect x="18.5" y="9" width="3" height="6" rx="1.5" />
-      <rect x="9" y="18.5" width="6" height="3" rx="1.5" />
-      <rect x="9" y="9" width="6" height="6" rx="1" />
-    </svg>
-  );
-}
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import HrDashboardSection, {
+  type HrDashboardData,
+} from "@/components/dashboard/HrDashboardSection";
 import type {
   AttendanceRecord,
   Employee,
@@ -56,6 +20,17 @@ import type {
   LeaveType,
 } from "@/lib/dashboard";
 import type { Role } from "@/lib/roles";
+import {
+  dashboardModulesFor,
+  quickLinksFor,
+} from "@/lib/role-config";
+import { useAuth } from "@/lib/auth-context";
+import { fetchEmployees } from "@/features/employees/api/employees.client";
+import {
+  fetchCompletionStats,
+  fetchPendingReviewEmployees,
+  type PendingReviewEmployee,
+} from "@/features/employees/api/hr-onboarding.client";
 import { EmployeeEmailSummary } from "@/features/employees/components/EmployeeEmailStatus";
 import {
   employeeBtnSmClass,
@@ -72,6 +47,7 @@ import {
   fetchManagerTodayAttendance,
   fetchMyLeaveBalances,
   fetchMyLeaveRequests,
+  fetchOrgLeaveRequests,
   fetchTodayAttendance,
   fetchUpcomingHolidays,
   fetchWeekAttendance,
@@ -87,6 +63,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { formatDayCount } from "@/lib/format-day-count";
 
 const SHIFT_MINUTES = 540;
 
@@ -411,11 +388,6 @@ function fmtHm(mins: number): string {
   return `${h}h ${m}m`;
 }
 
-function formatDayCount(days: number) {
-  const display = Number.isInteger(days) ? String(days) : days.toFixed(1);
-  const unit = days <= 1 ? "Day" : "Days";
-  return `${display} ${unit}`;
-}
 
 function todayYmd(): string {
   return new Date().toISOString().slice(0, 10);
@@ -473,65 +445,12 @@ const STATUS_PILL: Record<StatusKey, { bg: string; text: string }> = {
   Pending: { bg: "bg-[#ffedd5]", text: "text-[#9a3412]" },
 };
 
-// ─── role-specific routing for view-all/quick-link hrefs ────────────────────
 function leaveHref(_role: Role): string {
   return "/leave";
 }
+
 function approvalsHref(): string {
   return "/manager/approvals";
-}
-
-// ─── role-specific Quick Links ──────────────────────────────────────────────
-// Icon can be either a lucide-react component or any locally-defined SVG
-// component that accepts `size` + `className` (e.g. the inline SlackIcon).
-type QuickLinkIcon = React.ComponentType<{
-  size?: number;
-  className?: string;
-}>;
-type QuickLink = {
-  icon: QuickLinkIcon;
-  label: string;
-  href: string;
-  // When true, the tile renders as an external link (target=_blank, rel set).
-  external?: boolean;
-};
-
-function quickLinksFor(role: Role): QuickLink[] {
-  if (role === "manager") {
-    return [
-      { icon: CheckSquare, label: "Approvals", href: approvalsHref() },
-      {
-        icon: LayoutDashboard,
-        label: "Team Dashboard",
-        href: "/manager/team-dashboard",
-      },
-      { icon: History, label: "Punch History", href: "/attendance" },
-      { icon: Users, label: "Company Directory", href: "/directory" },
-      { icon: CalendarIcon, label: "Apply Leave", href: "/leave/new" },
-      { icon: FileText, label: "My Requests", href: "/requests" },
-    ];
-  }
-  if (role === "admin") {
-    return [
-      { icon: Users, label: "Employees", href: "/employees" },
-      { icon: CheckSquare, label: "Approvals", href: "/manager/approvals" },
-      { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-      { icon: Users, label: "Directory", href: "/directory" },
-    ];
-  }
-  return [
-    { icon: CalendarPlus, label: "Apply Leave", href: "/leave/new" },
-    { icon: FileText, label: "My Requests", href: "/requests" },
-    {
-      icon: SlackIcon,
-      label: "Slack",
-      href: "https://slack.com/signin#/signin",
-      external: true,
-    },
-    { icon: History, label: "Punch History", href: "/attendance" },
-    { icon: Users, label: "Company Directory", href: "/directory" },
-    { icon: GraduationCap, label: "L&D Portal", href: "/lnd" },
-  ];
 }
 
 // ─── role-specific data plumbing ────────────────────────────────────────────
@@ -541,28 +460,35 @@ type RoleAdapters = {
   fetchLeaveBalances: () => Promise<LeaveType[]>;
 };
 
-function adaptersFor(role: Role): RoleAdapters {
-  if (role === "manager") {
-    return {
-      fetchIdentity: fetchCurrentManager,
-      fetchAttendanceToday: fetchManagerTodayAttendance,
-      fetchLeaveBalances: fetchManagerLeaveBalances,
-    };
+const employeeAdapters: RoleAdapters = {
+  fetchIdentity: fetchCurrentEmployee,
+  fetchAttendanceToday: fetchTodayAttendance,
+  fetchLeaveBalances: fetchMyLeaveBalances,
+};
+
+const managerAdapters: RoleAdapters = {
+  fetchIdentity: fetchCurrentManager,
+  fetchAttendanceToday: fetchManagerTodayAttendance,
+  fetchLeaveBalances: fetchManagerLeaveBalances,
+};
+
+function adaptersFor(role: Role, managerApisAvailable: boolean): RoleAdapters {
+  if (role === "manager" && managerApisAvailable) {
+    return managerAdapters;
   }
-  // Employee + admin both load their own employee identity for now;
-  // admin's bottom-table data source is a separate concern (see RoleBottomTable).
-  return {
-    fetchIdentity: fetchCurrentEmployee,
-    fetchAttendanceToday: fetchTodayAttendance,
-    fetchLeaveBalances: fetchMyLeaveBalances,
-  };
+  return employeeAdapters;
 }
 
 // ─── Bottom table — switches by role ────────────────────────────────────────
 type OwnLeaveRows = { kind: "own"; rows: LeaveRequest[] | null };
 type TeamLeaveRows = { kind: "team"; rows: ApprovalLeaveRequest[] | null };
-type AdminLeaveRows = { kind: "admin"; rows: null };
-type BottomData = OwnLeaveRows | TeamLeaveRows | AdminLeaveRows;
+type AdminLeaveRows = { kind: "admin"; rows: ApprovalLeaveRequest[] | null };
+type HrOnboardingRows = { kind: "hr"; rows: PendingReviewEmployee[] | null };
+type BottomData =
+  | OwnLeaveRows
+  | TeamLeaveRows
+  | AdminLeaveRows
+  | HrOnboardingRows;
 
 function RoleBottomTable({
   data,
@@ -572,30 +498,45 @@ function RoleBottomTable({
   role: Role;
 }) {
   const headers =
-    data.kind === "team"
-      ? ["TEAM MEMBER", "LEAVE TYPE", "FROM", "DAYS", "STATUS"]
-      : ["LEAVE TYPE", "FROM", "DAYS", "STATUS"];
+    data.kind === "team" || data.kind === "admin"
+      ? ["EMPLOYEE", "LEAVE TYPE", "FROM", "DAYS", "STATUS"]
+      : data.kind === "hr"
+        ? ["EMPLOYEE", "SUBMITTED", "STATUS", "ACTION"]
+        : ["LEAVE TYPE", "FROM", "DAYS", "STATUS"];
   const colSpan = headers.length;
 
   const title =
     data.kind === "team"
       ? "Recent Team Leave Requests"
       : data.kind === "admin"
-        ? "Recent Company Leave Requests"
-        : "Recent Leave Requests";
+        ? "Recent Leave Requests"
+        : data.kind === "hr"
+          ? "Onboarding Pending Review"
+          : "Recent Leave Requests";
 
   const viewHref =
     data.kind === "team"
       ? approvalsHref()
       : data.kind === "admin"
-        ? "/admin/approvals"
-        : leaveHref(role);
-  const viewLabel = data.kind === "team" ? "Review all →" : "View all →";
+        ? "/manager/approvals"
+        : data.kind === "hr"
+          ? "/employees"
+          : leaveHref(role);
+  const viewLabel =
+    data.kind === "team"
+      ? "Review all →"
+      : data.kind === "hr"
+        ? "All employees →"
+        : "View all →";
 
   const pendingCount =
     data.kind === "team"
       ? (data.rows?.filter((r) => r.status === "Pending").length ?? 0)
-      : 0;
+      : data.kind === "admin"
+        ? (data.rows?.filter((r) => r.status === "Pending").length ?? 0)
+        : data.kind === "hr"
+          ? (data.rows?.length ?? 0)
+          : 0;
 
   return (
     <div className={cn(dashboardCardClass, "w-full min-w-0")}>
@@ -627,18 +568,7 @@ function RoleBottomTable({
           </tr>
         </thead>
         <tbody>
-          {data.kind === "admin" && (
-            <tr>
-              <td
-                colSpan={colSpan}
-                className="py-4 text-center text-[12px] text-gray-400"
-              >
-                Admin view — company-wide table coming soon.
-              </td>
-            </tr>
-          )}
-
-          {data.kind !== "admin" && data.rows === null && (
+          {data.rows === null && (
             <tr>
               <td
                 colSpan={colSpan}
@@ -649,20 +579,22 @@ function RoleBottomTable({
             </tr>
           )}
 
-          {data.kind !== "admin" &&
-            data.rows !== null &&
-            data.rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={colSpan}
-                  className="py-4 text-center text-[12px] text-gray-400"
-                >
-                  {data.kind === "team"
-                    ? "No team leave requests yet."
-                    : "No leave requests yet."}
-                </td>
-              </tr>
-            )}
+          {data.rows !== null && data.rows.length === 0 && (
+            <tr>
+              <td
+                colSpan={colSpan}
+                className="py-4 text-center text-[12px] text-gray-400"
+              >
+                {data.kind === "team"
+                  ? "No team leave requests yet."
+                  : data.kind === "admin"
+                    ? "No company leave requests yet."
+                    : data.kind === "hr"
+                      ? "No onboarding submissions awaiting review."
+                      : "No leave requests yet."}
+              </td>
+            </tr>
+          )}
 
           {data.kind === "own" &&
             data.rows?.slice(0, 5).map((req) => {
@@ -682,7 +614,7 @@ function RoleBottomTable({
                     })}
                   </td>
                   <td className="py-2.5 text-[13px] text-gray-600">
-                    {req.duration}
+                    {formatDayCount(req.duration)}
                   </td>
                   <td className="py-2.5">
                     <span
@@ -695,7 +627,7 @@ function RoleBottomTable({
               );
             })}
 
-          {data.kind === "team" &&
+          {(data.kind === "team" || data.kind === "admin") &&
             data.rows?.slice(0, 5).map((req) => {
               const pill = STATUS_PILL[req.status as StatusKey];
               return (
@@ -723,7 +655,7 @@ function RoleBottomTable({
                     })}
                   </td>
                   <td className="py-2.5 text-[13px] text-gray-600">
-                    {req.days}
+                    {formatDayCount(Number(req.days))}
                   </td>
                   <td className="py-2.5">
                     <span
@@ -735,6 +667,45 @@ function RoleBottomTable({
                 </tr>
               );
             })}
+
+          {data.kind === "hr" &&
+            data.rows?.slice(0, 5).map((emp) => (
+              <tr key={emp.id} className="border-b border-gray-100">
+                <td className="py-2.5 text-[13px] text-gray-800">
+                  <div className="flex flex-col">
+                    <span className="font-semibold">
+                      {emp.firstName} {emp.lastName}
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      {emp.empId}
+                    </span>
+                  </div>
+                </td>
+                <td className="py-2.5 text-[13px] text-gray-600">
+                  {emp.onboardingSubmittedAt
+                    ? new Date(emp.onboardingSubmittedAt).toLocaleDateString(
+                        undefined,
+                        {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        },
+                      )
+                    : "—"}
+                </td>
+                <td className="py-2.5 text-[13px] text-gray-600">
+                  {emp.onboardingStatus.replace(/_/g, " ")}
+                </td>
+                <td className="py-2.5 text-right">
+                  <Link
+                    href={`/employees/${emp.id}/onboarding`}
+                    className="text-[11px] font-semibold text-[#be185d] no-underline hover:underline"
+                  >
+                    Review
+                  </Link>
+                </td>
+              </tr>
+            ))}
         </tbody>
       </table>
     </div>
@@ -744,7 +715,14 @@ function RoleBottomTable({
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RoleDashboard({ role }: { role: Role }) {
-  const adapters = adaptersFor(role);
+  const { hasPermission } = useAuth();
+  const [managerApisAvailable, setManagerApisAvailable] = useState(
+    role === "manager",
+  );
+  const adapters = useMemo(
+    () => adaptersFor(role, managerApisAvailable),
+    [role, managerApisAvailable],
+  );
 
   const [identity, setIdentity] = useState<Employee | null>(null);
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null);
@@ -759,6 +737,18 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const [teamLeaves, setTeamLeaves] = useState<
     ApprovalLeaveRequest[] | null
   >(null);
+  const [orgLeaves, setOrgLeaves] = useState<ApprovalLeaveRequest[] | null>(
+    null,
+  );
+  const [hrPendingReview, setHrPendingReview] = useState<
+    PendingReviewEmployee[] | null
+  >(null);
+  const [hrData, setHrData] = useState<HrDashboardData>({
+    completionStats: null,
+    employeeCount: null,
+    pendingReview: null,
+  });
+  const [hrSectionLoading, setHrSectionLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [punchBusy, setPunchBusy] = useState(false);
   // Resolved Comp-Off policy for the current user — read from
@@ -819,30 +809,76 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
   async function reload() {
     try {
+      if (role === "manager" && managerApisAvailable) {
+        try {
+          await fetchCurrentManager();
+        } catch {
+          setManagerApisAvailable(false);
+          return;
+        }
+      }
+
       const baseTasks: Array<Promise<unknown>> = [
         adapters.fetchIdentity().then(setIdentity),
         adapters.fetchAttendanceToday().then(setAttendance),
         adapters.fetchLeaveBalances().then(setBalances),
         fetchUpcomingHolidays(5).then(setHolidays),
         loadWeek(weekAnchorRef.current),
-        // Resolve the active Comp Off policy. Fire-and-forget — a missing
-        // policy just means the card hides, not a full dashboard error.
         loadResolvedCompOffPolicy(),
       ];
 
-      if (role === "manager") {
+      if (role === "manager" && managerApisAvailable) {
         baseTasks.push(fetchLeaveApprovals("all").then(setTeamLeaves));
-      } else if (role === "employee") {
+      } else if (role === "admin") {
+        baseTasks.push(
+          fetchOrgLeaveRequests({ limit: 10 }).then((r) => {
+            setOrgLeaves(r.requests);
+          }),
+        );
+      } else if (role === "hr") {
+        setHrSectionLoading(true);
+        if (hasPermission("onboarding.view")) {
+          baseTasks.push(
+            fetchCompletionStats().then((stats) =>
+              setHrData((prev) => ({ ...prev, completionStats: stats })),
+            ),
+            fetchPendingReviewEmployees().then((r) => {
+              setHrPendingReview(r.employees);
+              setHrData((prev) => ({
+                ...prev,
+                pendingReview: r.employees,
+              }));
+            }),
+          );
+        } else {
+          baseTasks.push(fetchMyLeaveRequests().then(setOwnLeaves));
+        }
+        if (hasPermission("employees.view")) {
+          baseTasks.push(
+            fetchEmployees().then((emps) =>
+              setHrData((prev) => ({
+                ...prev,
+                employeeCount: emps.length,
+              })),
+            ),
+          );
+        }
+      } else {
         baseTasks.push(fetchMyLeaveRequests().then(setOwnLeaves));
       }
-      // admin role currently has no bottom-table API.
 
       await Promise.all(baseTasks);
       setLoadError(null);
     } catch (e) {
       setLoadError((e as Error).message);
+    } finally {
+      setHrSectionLoading(false);
     }
   }
+
+  useEffect(() => {
+    setManagerApisAvailable(role === "manager");
+  }, [role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -856,7 +892,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+  }, [role, managerApisAvailable]);
 
   // Re-fetch the Attendance Overview when the window dropdown changes.
   // The initial-mount value is already covered by reload() above.
@@ -989,24 +1025,33 @@ export default function RoleDashboard({ role }: { role: Role }) {
     void loadWeek(anchor);
   }
 
+  const modules = useMemo(
+    () => dashboardModulesFor(role, hasPermission),
+    [role, hasPermission],
+  );
+
   const bottomData: BottomData =
-    role === "manager"
+    modules.bottomTableKind === "team" && managerApisAvailable
       ? { kind: "team", rows: teamLeaves }
-      : role === "admin"
-        ? { kind: "admin", rows: null }
-        : { kind: "own", rows: ownLeaves };
+      : modules.bottomTableKind === "admin"
+        ? { kind: "admin", rows: orgLeaves }
+        : modules.bottomTableKind === "hr"
+          ? { kind: "hr", rows: hrPendingReview }
+          : { kind: "own", rows: ownLeaves };
 
-  const quickLinks = quickLinksFor(role);
-
-  const dashboardTitle =
-    role === "manager"
-      ? "Manager Dashboard"
-      : role === "admin"
-        ? "Admin Dashboard"
-        : "My Dashboard";
+  const quickLinks = quickLinksFor(role, hasPermission);
 
   return (
     <div className="w-full min-w-0 space-y-6">
+      {modules.hrSection && (
+        <HrDashboardSection
+          data={hrData}
+          loading={hrSectionLoading}
+          showEmployees={hasPermission("employees.view")}
+          showOnboarding={hasPermission("onboarding.view")}
+        />
+      )}
+
       {loadError && (
         <div className={employeeErrorBannerClass}>
           Failed to load iLeads HRMS data: {loadError}

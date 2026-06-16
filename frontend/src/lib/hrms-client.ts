@@ -476,7 +476,7 @@ export async function fetchMyLeaveRequests(): Promise<UILeaveRequest[]> {
     return {
       id: String(r.id),
       appliedOn: r.appliedOn,
-      leaveType: r.leaveTypeName as UILeaveRequest["leaveType"],
+      leaveType: r.leaveTypeName,
       leaveTypeCode: r.leaveTypeCode,
       startDate: r.fromDate,
       endDate: r.toDate,
@@ -581,20 +581,36 @@ interface RawLeaveBalance {
   openingBalance: string;
   used: string;
   closingBalance: string;
+  allowHalfDay?: boolean;
+  minNoticeDays?: number;
+  allowNegativeBalance?: boolean;
+  requiresProofAfterDays?: number | null;
+  maxContinuousDays?: number | null;
+  isActive?: boolean;
 }
 
-export async function fetchMyLeaveBalances(): Promise<UILeaveType[]> {
-  const data = await jsonFetch<{ balances: RawLeaveBalance[] }>(
-    "/me/leave-balances",
-  );
-  return data.balances.map((b) => ({
+function mapLeaveBalance(b: RawLeaveBalance): UILeaveType {
+  return {
     id: String(b.leaveTypeId),
     name: b.name,
     code: b.code,
     used: Number(b.used),
     total: Number(b.openingBalance),
     available: Number(b.closingBalance),
-  }));
+    allowHalfDay: b.allowHalfDay,
+    minNoticeDays: b.minNoticeDays,
+    allowNegativeBalance: b.allowNegativeBalance,
+    requiresProofAfterDays: b.requiresProofAfterDays,
+    maxContinuousDays: b.maxContinuousDays,
+    isActive: b.isActive,
+  };
+}
+
+export async function fetchMyLeaveBalances(): Promise<UILeaveType[]> {
+  const data = await jsonFetch<{ balances: RawLeaveBalance[] }>(
+    "/me/leave-balances",
+  );
+  return data.balances.map(mapLeaveBalance);
 }
 
 // ────────────────────── upcoming holidays ──────────────────────────────────
@@ -739,7 +755,7 @@ export async function fetchManagerLeaveRequests(): Promise<UILeaveRequest[]> {
   return data.requests.map((r) => ({
     id: String(r.id),
     appliedOn: r.appliedOn,
-    leaveType: r.leaveTypeName as UILeaveRequest["leaveType"],
+    leaveType: r.leaveTypeName,
     leaveTypeCode: r.leaveTypeCode,
     startDate: r.fromDate,
     endDate: r.toDate,
@@ -755,14 +771,7 @@ export async function fetchManagerLeaveBalances(): Promise<UILeaveType[]> {
   const data = await jsonFetch<{ balances: RawLeaveBalance[] }>(
     "/manager/me/leave-balances",
   );
-  return data.balances.map((b) => ({
-    id: String(b.leaveTypeId),
-    name: b.name,
-    code: b.code,
-    used: Number(b.used),
-    total: Number(b.openingBalance),
-    available: Number(b.closingBalance),
-  }));
+  return data.balances.map(mapLeaveBalance);
 }
 
 // ───────────────── Team ─────────────────
@@ -862,6 +871,23 @@ export interface ApprovalLeaveRequest {
   managerDecision: string | null;
   managerDecidedAt: string | null;
   managerRemarks: string | null;
+}
+
+export async function fetchOrgLeaveRequests(args?: {
+  status?: "all" | "pending" | "approved" | "rejected" | "forwarded";
+  limit?: number;
+}): Promise<{ requests: ApprovalLeaveRequest[]; pendingCount: number }> {
+  const params = new URLSearchParams();
+  if (args?.status && args.status !== "all") {
+    params.set("status", args.status);
+  }
+  if (args?.limit != null) {
+    params.set("limit", String(args.limit));
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return jsonFetch<{ requests: ApprovalLeaveRequest[]; pendingCount: number }>(
+    `/leave-requests/recent${qs}`,
+  );
 }
 
 export async function fetchLeaveApprovals(

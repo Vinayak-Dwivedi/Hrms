@@ -4,6 +4,7 @@ import * as ctrl from "@/modules/org-hierarchy/controllers/org-hierarchy.control
 export const orgHierarchyRoutes = Router();
 
 orgHierarchyRoutes.get("/tree", ctrl.getHierarchyTree);
+orgHierarchyRoutes.get("/employee-tree", ctrl.getEmployeeReportingTree);
 
 orgHierarchyRoutes.get("/departments", ctrl.listDepartments);
 orgHierarchyRoutes.post("/departments", ctrl.createDepartment);

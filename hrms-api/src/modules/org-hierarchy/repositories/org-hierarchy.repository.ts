@@ -1,6 +1,7 @@
 import { and, asc, count, eq, type SQL } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import {
+  employees,
   orgHierarchyDepartments,
   orgHierarchyDesignations,
   orgHierarchyLevels,
@@ -420,4 +421,72 @@ export async function listStructureWithJoins(): Promise<StructureJoinRow[]> {
     );
 
   return rows;
+}
+
+export type EmployeeReportingTreeRow = {
+  employeeId: number;
+  empId: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  reportingManagerId: number | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  departmentCode: string | null;
+  subDepartmentId: number | null;
+  subDepartmentName: string | null;
+  designationName: string | null;
+  levelCode: string | null;
+  levelName: string | null;
+  levelSortOrder: number | null;
+};
+
+export async function listEmployeesForReportingTree(): Promise<
+  EmployeeReportingTreeRow[]
+> {
+  return db
+    .select({
+      employeeId: employees.id,
+      empId: employees.empId,
+      firstName: employees.firstName,
+      middleName: employees.middleName,
+      lastName: employees.lastName,
+      reportingManagerId: employees.reportingManagerId,
+      departmentId: orgHierarchyDepartments.id,
+      departmentName: orgHierarchyDepartments.name,
+      departmentCode: orgHierarchyDepartments.code,
+      subDepartmentId: orgHierarchySubDepartments.id,
+      subDepartmentName: orgHierarchySubDepartments.name,
+      designationName: orgHierarchyDesignations.name,
+      levelCode: orgHierarchyLevels.code,
+      levelName: orgHierarchyLevels.name,
+      levelSortOrder: orgHierarchyLevels.sortOrder,
+    })
+    .from(employees)
+    .leftJoin(
+      orgHierarchyStructure,
+      eq(employees.orgHierarchyStructureId, orgHierarchyStructure.id),
+    )
+    .leftJoin(
+      orgHierarchyDepartments,
+      eq(orgHierarchyStructure.departmentId, orgHierarchyDepartments.id),
+    )
+    .leftJoin(
+      orgHierarchySubDepartments,
+      eq(orgHierarchyStructure.subDepartmentId, orgHierarchySubDepartments.id),
+    )
+    .leftJoin(
+      orgHierarchyDesignations,
+      eq(orgHierarchyStructure.designationId, orgHierarchyDesignations.id),
+    )
+    .leftJoin(
+      orgHierarchyLevels,
+      eq(orgHierarchyStructure.levelId, orgHierarchyLevels.id),
+    )
+    .where(eq(employees.employeeStatus, "Active"))
+    .orderBy(
+      asc(orgHierarchyDepartments.name),
+      asc(orgHierarchySubDepartments.name),
+      asc(employees.lastName),
+    );
 }

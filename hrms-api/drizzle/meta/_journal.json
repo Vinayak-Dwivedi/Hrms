@@ -103,40 +103,54 @@
     {
       "idx": 14,
       "version": "7",
+      "when": 1781087400000,
+      "tag": "20260609100000_leave_types_extend",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
       "when": 1781089200000,
       "tag": "20260609110000_phone_verification",
       "breakpoints": true
     },
     {
-      "idx": 15,
+      "idx": 16,
+      "version": "7",
+      "when": 1781091000000,
+      "tag": "20260610100000_leave_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
       "version": "7",
       "when": 1781092800000,
       "tag": "20260610100000_audit_on_behalf_actions",
       "breakpoints": true
     },
     {
-      "idx": 16,
+      "idx": 18,
       "version": "7",
       "when": 1781179200000,
       "tag": "20260611100000_org_hierarchy",
       "breakpoints": true
     },
     {
-      "idx": 17,
+      "idx": 19,
       "version": "7",
       "when": 1781182800000,
       "tag": "20260611110000_org_hierarchy_merge_level_grade",
       "breakpoints": true
     },
     {
-      "idx": 18,
+      "idx": 20,
       "version": "7",
       "when": 1781186400000,
       "tag": "20260611120000_employee_org_hierarchy_structure",
       "breakpoints": true
     },
     {
-      "idx": 19,
+      "idx": 21,
       "version": "7",
       "when": 1781272800000,
       "tag": "20260612100000_onboarding_bank_approval",

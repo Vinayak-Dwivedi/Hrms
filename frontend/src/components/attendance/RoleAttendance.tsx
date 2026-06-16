@@ -1,38 +1,7 @@
 "use client";
 
-import { Calendar as CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-
-// View-toggle icons. Calendar comes from lucide; Table is inlined because
-// lucide-react@1.x doesn't export a Table icon — same trick as the SlackIcon
-// over in RoleDashboard.
-function TableIcon({
-  size = 16,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-      <line x1="3" y1="15" x2="21" y2="15" />
-      <line x1="9" y1="4" x2="9" y2="20" />
-    </svg>
-  );
-}
 import type {
   LeaveSubmission,
   RegularisationHistoryItem,
@@ -40,6 +9,9 @@ import type {
 } from "@/components/attendance/AttendanceCalendar";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
 import AttendanceTable from "@/components/attendance/AttendanceTable";
+import ViewModeToggle, {
+  type ViewMode,
+} from "@/components/attendance/ViewModeToggle";
 import type { DayAttendance, LeaveRequest, LeaveType } from "@/lib/dashboard";
 import {
   mergeHolidaysIntoDays,
@@ -60,6 +32,7 @@ import {
   submitRegularisationRequest,
 } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
+import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-available";
 
 // ─── role adapters ──────────────────────────────────────────────────────────
 // Pick the right data sources per role. Employee and admin share the /me
@@ -75,8 +48,8 @@ type Adapters = {
   leaveSuccessMessage: string;
 };
 
-function adaptersFor(role: Role): Adapters {
-  if (role === "manager") {
+function adaptersFor(role: Role, managerApisAvailable: boolean): Adapters {
+  if (role === "manager" && managerApisAvailable) {
     return {
       fetchMonth: fetchManagerMonthAttendance,
       fetchLeaveBalances: fetchManagerLeaveBalances,
@@ -97,7 +70,10 @@ function adaptersFor(role: Role): Adapters {
 // ─── component ──────────────────────────────────────────────────────────────
 
 export default function RoleAttendance({ role }: { role: Role }) {
-  const adapters = adaptersFor(role);
+  const { available: reportingManager, loading: managerProbeLoading } =
+    useReportingManagerAvailable();
+  const useManagerApis = role === "manager" && reportingManager;
+  const adapters = adaptersFor(role, useManagerApis);
 
   const today = new Date();
   const initialYear = today.getFullYear();
@@ -112,7 +88,7 @@ export default function RoleAttendance({ role }: { role: Role }) {
   const [calYear, setCalYear] = useState(initialYear);
   const [calMonth0, setCalMonth0] = useState(initialMonth0);
   // View mode — calendar (default 70/30 split) or table (full-width summary).
-  const [view, setView] = useState<"calendar" | "table">("calendar");
+  const [view, setView] = useState<ViewMode>("calendar");
 
   async function refreshDays(
     year: number,
@@ -130,6 +106,8 @@ export default function RoleAttendance({ role }: { role: Role }) {
   }
 
   useEffect(() => {
+    if (role === "manager" && managerProbeLoading) return;
+
     let cancelled = false;
     (async () => {
       try {
@@ -154,7 +132,7 @@ export default function RoleAttendance({ role }: { role: Role }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+  }, [role, useManagerApis, managerProbeLoading]);
 
   async function handleMonthChange(year: number, month0: number) {
     setCalYear(year);
@@ -174,8 +152,12 @@ export default function RoleAttendance({ role }: { role: Role }) {
   async function handleSubmitLeave(input: LeaveSubmission) {
     try {
       await submitLeaveRequest(input);
-      const fresh = await refreshDays(calYear, calMonth0);
+      const [fresh, bal] = await Promise.all([
+        refreshDays(calYear, calMonth0),
+        adapters.fetchLeaveBalances(),
+      ]);
       setData(fresh);
+      setBalances(bal);
       toast.success(adapters.leaveSuccessMessage);
     } catch (e) {
       toast.error(`Failed to apply: ${(e as Error).message}`);
@@ -202,47 +184,14 @@ export default function RoleAttendance({ role }: { role: Role }) {
           Failed to load attendance: {loadError}
         </div>
       )}
-      {loading ? (
+      {loading || (role === "manager" && managerProbeLoading) ? (
         <div className="p-6 text-gray-500">Loading attendance…</div>
       ) : (
         <div
           className="flex flex-col gap-3"
           style={{ height: "calc(100vh - 6rem)" }}
         >
-          {/* View toggle — Calendar (default) | Table */}
-          <div className="flex items-center justify-end gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setView("calendar")}
-              aria-label="Calendar view"
-              aria-pressed={view === "calendar"}
-              title="Calendar view"
-              className={[
-                "w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer transition-colors",
-                view === "calendar"
-                  ? "bg-[#fff1f2] text-[#be185d] border border-[#fecdd3]"
-                  : "bg-white text-gray-400 border border-gray-200 hover:bg-gray-50",
-              ].join(" ")}
-            >
-              <CalendarIcon size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setView("table")}
-              aria-label="Table view"
-              aria-pressed={view === "table"}
-              title="Table view"
-              className={[
-                "w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer transition-colors",
-                view === "table"
-                  ? "bg-[#fff1f2] text-[#be185d] border border-[#fecdd3]"
-                  : "bg-white text-gray-400 border border-gray-200 hover:bg-gray-50",
-              ].join(" ")}
-            >
-              <TableIcon size={16} />
-            </button>
-          </div>
-
+          <ViewModeToggle view={view} onChange={setView} />
           {view === "calendar" ? (
             // Calendar-only view — full-width calendar card.
             <div className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col flex-1 min-h-0">

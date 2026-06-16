@@ -1,88 +1,44 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import LeaveTable from "@/components/leave/LeaveTable";
-import MyCompOff from "@/features/comp-off/MyCompOff";
-import MyLeaveBalances from "@/features/comp-off/MyLeaveBalances";
-import {
-  employeeErrorBannerClass,
-  employeeLoadingClass,
-} from "@/features/employees/employee-theme";
-import { type LeaveRequest } from "@/lib/dashboard";
+import { Suspense, useEffect } from "react";
+import AdminLeaveSection from "@/components/leave/AdminLeaveSection";
+import MyLeaveSection from "@/components/leave/MyLeaveSection";
+import ManagerLeaveView, {
+  type LeaveScope,
+} from "@/components/manager/ManagerLeaveView";
 import { useAuth } from "@/lib/auth-context";
-import {
-  cancelLeaveRequest,
-  fetchManagerLeaveRequests,
-  fetchMyLeaveRequests,
-} from "@/lib/hrms-client";
+import { resolveUiRole } from "@/lib/resolve-ui-role";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LeavePage() {
-  const { hasPermission } = useAuth();
-  const useManagerApi = hasPermission("leave.approve");
-
-  const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  async function loadRequests() {
-    return useManagerApi
-      ? fetchManagerLeaveRequests()
-      : fetchMyLeaveRequests();
-  }
+function LeavePageContent() {
+  const { hasPermission, user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const scope: LeaveScope =
+    searchParams.get("scope") === "team" ? "team" : "mine";
+  const uiRole = resolveUiRole(hasPermission, user?.role);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const lr = await loadRequests();
-        if (cancelled) return;
-        setRequests(lr);
-      } catch (e) {
-        if (!cancelled) setLoadError((e as Error).message);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useManagerApi]);
-
-  async function handleCancel(id: string) {
-    setBusyId(id);
-    setLoadError(null);
-    try {
-      await cancelLeaveRequest(id);
-      const fresh = await loadRequests();
-      setRequests(fresh);
-    } catch (e) {
-      setLoadError((e as Error).message);
-    } finally {
-      setBusyId(null);
+    if (uiRole === "admin" && searchParams.get("scope")) {
+      router.replace("/leave", { scroll: false });
     }
+  }, [uiRole, searchParams, router]);
+
+  if (uiRole === "admin") {
+    return <AdminLeaveSection />;
   }
 
+  if (hasPermission("leave.approve")) {
+    return <ManagerLeaveView initialScope={scope} />;
+  }
+
+  return <MyLeaveSection role={uiRole} />;
+}
+
+export default function LeavePage() {
   return (
-    <>
-      {loadError && (
-        <div className={employeeErrorBannerClass}>
-          Failed to load leave requests: {loadError}
-        </div>
-      )}
-      <MyLeaveBalances />
-      <MyCompOff />
-      {loading ? (
-        <div className={employeeLoadingClass}>Loading leave requests…</div>
-      ) : (
-        <LeaveTable
-          attendanceHref="/attendance"
-          busyId={busyId}
-          onCancel={handleCancel}
-          requests={requests}
-        />
-      )}
-    </>
+    <Suspense fallback={<div className="p-6 text-gray-500">Loading leave…</div>}>
+      <LeavePageContent />
+    </Suspense>
   );
 }

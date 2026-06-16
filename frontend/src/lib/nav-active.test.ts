@@ -12,21 +12,31 @@ const userMgmtSection = {
   sectionKey: "user-management",
   entries: [
     { label: "Employees", href: "/employees" },
-    { label: "Hierarchy", href: "/departments/hierarchy" },
+    { label: "Hierarchy", href: "/hierarchy" },
+    { label: "Department Hierarchy", href: "/departments/hierarchy" },
   ],
 };
 
 describe("nav-active", () => {
-  it("highlights the hierarchy nav entry on hierarchy routes", () => {
-    const pathname = "/departments/hierarchy";
+  it("highlights Hierarchy on /hierarchy", () => {
+    const pathname = "/hierarchy";
     assert.equal(isNavActive(userMgmtSection.entries[1], pathname), true);
     assert.equal(
-      navMatchSpecificity(userMgmtSection.entries[1], pathname),
+      resolveActiveEntryId([userMgmtSection], pathname),
+      formatEntryId("USER MANAGEMENT", "Hierarchy"),
+    );
+  });
+
+  it("highlights Department Hierarchy on /departments/hierarchy", () => {
+    const pathname = "/departments/hierarchy";
+    assert.equal(isNavActive(userMgmtSection.entries[2], pathname), true);
+    assert.equal(
+      navMatchSpecificity(userMgmtSection.entries[2], pathname),
       "/departments/hierarchy".length,
     );
     assert.equal(
       resolveActiveEntryId([userMgmtSection], pathname),
-      formatEntryId("USER MANAGEMENT", "Hierarchy"),
+      formatEntryId("USER MANAGEMENT", "Department Hierarchy"),
     );
   });
 });

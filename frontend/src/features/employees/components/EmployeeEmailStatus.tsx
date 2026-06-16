@@ -1,21 +1,17 @@
 "use client";
 
-import { Briefcase, Check, Mail, Phone } from "lucide-react";
+import { Briefcase, Check, Mail, Phone, X } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export function EmailUnverifiedBadge() {
   return (
     <span
-      className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200"
+      className="inline-flex shrink-0 items-center justify-center w-4 h-4 rounded-full bg-red-50 border border-red-200"
       title="Not verified"
+      aria-label="Not verified"
     >
-      <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-red-300 bg-white">
-        <Check className="w-2 h-2 text-red-500" strokeWidth={3} aria-hidden />
-      </span>
-      <span className="text-[9px] font-semibold uppercase tracking-wide leading-none text-red-600">
-        Unverified
-      </span>
+      <X className="w-2.5 h-2.5 text-red-600" strokeWidth={3} aria-hidden />
     </span>
   );
 }

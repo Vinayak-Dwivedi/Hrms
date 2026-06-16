@@ -72,6 +72,30 @@ export type HierarchyTreeDepartment = {
   subDepartments: HierarchyTreeSubDepartment[];
 };
 
+export type EmployeeReportingNode = {
+  id: number;
+  empId: string;
+  name: string;
+  designation: string | null;
+  levelCode: string | null;
+  levelName: string | null;
+  levelSortOrder: number | null;
+  directReports: EmployeeReportingNode[];
+};
+
+export type EmployeeReportingTreeSubDepartment = {
+  id: number;
+  name: string;
+  roots: EmployeeReportingNode[];
+};
+
+export type EmployeeReportingTreeDepartment = {
+  id: number;
+  name: string;
+  code: string;
+  subDepartments: EmployeeReportingTreeSubDepartment[];
+};
+
 type ApiErrorBody = {
   error?: { code?: string; message?: string; details?: unknown };
 };
@@ -137,6 +161,15 @@ const BASE = "/org-hierarchy";
 export async function fetchHierarchyTree(): Promise<HierarchyTreeDepartment[]> {
   const res = await jsonFetch<ListResponse<HierarchyTreeDepartment>>(
     `${BASE}/tree`,
+  );
+  return res.data;
+}
+
+export async function fetchEmployeeReportingTree(): Promise<
+  EmployeeReportingTreeDepartment[]
+> {
+  const res = await jsonFetch<ListResponse<EmployeeReportingTreeDepartment>>(
+    `${BASE}/employee-tree`,
   );
   return res.data;
 }

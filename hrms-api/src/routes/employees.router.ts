@@ -141,6 +141,7 @@ const updateEmployeeSchema = z
       "Notice",
       "Exited",
     ]),
+    orgHierarchyStructureId: nullableId.optional(),
     departmentId: nullableId.optional(),
     designationId: nullableId.optional(),
     gradeId: nullableId.optional(),
@@ -150,6 +151,7 @@ const updateEmployeeSchema = z
     maritalStatus: z.enum(["Single", "Married"]).optional().nullable(),
     spouseName: z.string().trim().max(200).optional().nullable(),
     password: optionalPasswordFieldSchema,
+    roleId: z.coerce.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
     const dob = new Date(`${data.dob}T00:00:00`);
@@ -179,7 +181,7 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
     }
 
     const body = updateEmployeeSchema.parse(req.body);
-    const { password, reportingChain, ...rest } = body;
+    const { password, reportingChain, roleId, ...rest } = body;
 
     if (
       rest.reportingManagerId != null &&
@@ -203,6 +205,10 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
       }
     }
 
+    if (rest.orgHierarchyStructureId) {
+      await resolveOrgHierarchyStructure(rest.orgHierarchyStructureId);
+    }
+
     const nextReportingChain =
       reportingChain ??
       (rest.reportingManagerId ? [rest.reportingManagerId] : []);
@@ -220,6 +226,7 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
       gender: rest.gender,
       joiningDate: rest.joiningDate,
       employeeStatus: rest.employeeStatus,
+      orgHierarchyStructureId: rest.orgHierarchyStructureId ?? null,
       departmentId: rest.departmentId ?? null,
       designationId: rest.designationId ?? null,
       gradeId: rest.gradeId ?? null,
@@ -250,17 +257,29 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
         .where(eq(employees.id, id));
 
       if (existing.userId) {
+        const userPatch: {
+          email: string;
+          name: string;
+          updatedAt: Date;
+          role?: string;
+          userTypeId?: number;
+        } = {
+          email: employeePatch.workEmail,
+          name: formatEmployeeFullName({
+            firstName: employeePatch.firstName,
+            middleName: employeePatch.middleName,
+            lastName: employeePatch.lastName,
+          }),
+          updatedAt: now,
+        };
+        if (roleId !== undefined) {
+          const authRole = await resolveAuthRole(roleId);
+          userPatch.role = authRole;
+          userPatch.userTypeId = userTypeIdFromAuthRole(authRole);
+        }
         await tx
           .update(users)
-          .set({
-            email: employeePatch.workEmail,
-            name: formatEmployeeFullName({
-              firstName: employeePatch.firstName,
-              middleName: employeePatch.middleName,
-              lastName: employeePatch.lastName,
-            }),
-            updatedAt: now,
-          })
+          .set(userPatch)
           .where(eq(users.id, existing.userId));
       }
 

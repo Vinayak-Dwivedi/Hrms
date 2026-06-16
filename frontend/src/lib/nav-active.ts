@@ -12,6 +12,7 @@ export type NavSectionLike = {
 
 export const USER_MGMT_HREFS = [
   "/employees",
+  "/hierarchy",
   "/departments",
   "/add-employee",
   "/add-permission",

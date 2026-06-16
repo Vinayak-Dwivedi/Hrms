@@ -172,6 +172,80 @@ export interface ResolvedHoliday {
   type: string;
   isHalfDay: boolean;
   description: string | null;
+  branchId?: number | null;
+}
+
+let cachedHolidayCalendarSchemaReady: boolean | null = null;
+
+function normalizeExecuteRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (
+    result &&
+    typeof result === "object" &&
+    "rows" in result &&
+    Array.isArray((result as { rows: unknown }).rows)
+  ) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+
+async function holidayCalendarSchemaReady(): Promise<boolean> {
+  if (cachedHolidayCalendarSchemaReady !== null) {
+    return cachedHolidayCalendarSchemaReady;
+  }
+  const result = await db.execute<{ exists: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_name = 'holiday_calendar_scope'
+    ) AS exists
+  `);
+  const [row] = normalizeExecuteRows<{ exists: boolean }>(result);
+  cachedHolidayCalendarSchemaReady = Boolean(row?.exists);
+  return cachedHolidayCalendarSchemaReady;
+}
+
+function formatHolidayDate(date: unknown): string {
+  return typeof date === "string"
+    ? date
+    : new Date(date as string).toISOString().slice(0, 10);
+}
+
+async function legacyHolidaysForEmployee(
+  emp: EmployeeDimensions,
+  fromDate: string,
+  toDate: string,
+): Promise<ResolvedHoliday[]> {
+  const rows = await db
+    .select({
+      id: holidays.id,
+      date: holidays.date,
+      name: holidays.name,
+      type: holidays.type,
+      branchId: holidays.branchId,
+      isHalfDay: holidays.isHalfDay,
+      description: holidays.description,
+    })
+    .from(holidays);
+
+  return rows
+    .filter((r) => r.branchId === null || r.branchId === emp.branchId)
+    .filter((r) => {
+      const dateStr = formatHolidayDate(r.date);
+      return dateStr >= fromDate && dateStr <= toDate;
+    })
+    .map((r) => ({
+      id: r.id,
+      date: formatHolidayDate(r.date),
+      name: r.name,
+      type: r.type,
+      isHalfDay: r.isHalfDay,
+      description: r.description,
+      branchId: r.branchId,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 interface PerHolidayScopeRow {
@@ -216,9 +290,15 @@ export async function holidaysForEmployee(
   const emp = await loadEmployeeDimensions(employeeId);
   if (!emp) return [];
 
+  if (!(await holidayCalendarSchemaReady())) {
+    return legacyHolidaysForEmployee(emp, fromDate, toDate);
+  }
+
   // Step 1 — every published calendar whose scope matches the employee.
   const calendarIds = await resolveAllCalendarsForEmployee(emp);
-  if (calendarIds.length === 0) return [];
+  if (calendarIds.length === 0) {
+    return legacyHolidaysForEmployee(emp, fromDate, toDate);
+  }
 
   // Step 2 — holidays linked to any of those calendars, in range, joined to
   // grab fields. distinctOn the holiday id is the cheapest way to de-dupe
@@ -243,20 +323,23 @@ export async function holidaysForEmployee(
       ),
     );
 
-  return rows
+  const calendarHolidays = rows
     .filter((r) => holidayScopeAllowsEmployee(r.scope, emp))
     .map((r) => ({
       id: r.id,
-      date:
-        typeof r.date === "string"
-          ? r.date
-          : new Date(r.date as unknown as string).toISOString().slice(0, 10),
+      date: formatHolidayDate(r.date),
       name: r.name,
       type: r.type,
       isHalfDay: r.isHalfDay,
       description: r.description,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (calendarHolidays.length === 0) {
+    return legacyHolidaysForEmployee(emp, fromDate, toDate);
+  }
+
+  return calendarHolidays;
 }
 
 /** All published calendars whose scope rows include this employee. Unlike

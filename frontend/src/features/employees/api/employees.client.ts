@@ -40,6 +40,9 @@ export type EmployeeDetail = EmployeeListItem & {
   gradeId: number | null;
   branchId: number | null;
   reportingManagerId: number | null;
+  orgHierarchyStructureId?: number | null;
+  roleId: number | null;
+  roleName: string | null;
   onboardingTokenExpiry?: string | null;
   onboardingTokenUsed?: boolean;
   onboardingCompletedAt?: string | null;
@@ -129,16 +132,14 @@ export type UpdateEmployeePayload = {
   gender: "Male" | "Female" | "Other";
   joiningDate: string;
   employeeStatus: EmployeeStatus;
-  departmentId?: number | null;
-  subDepartmentId?: number | null;
-  designationId?: number | null;
-  gradeId?: number | null;
+  orgHierarchyStructureId?: number | null;
   branchId?: number | null;
   reportingManagerId?: number | null;
   reportingChain?: number[];
   maritalStatus?: "Single" | "Married" | null;
   spouseName?: string | null;
   password?: string;
+  roleId?: number;
 };
 
 export type ApiErrorBody = {
@@ -222,6 +223,7 @@ type RawEmployeeRow = {
   gradeId: number | null;
   branchId: number | null;
   reportingManagerId: number | null;
+  orgHierarchyStructureId?: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
   passwordHash?: string;
@@ -230,6 +232,8 @@ type RawEmployeeRow = {
   onboardingCompletedAt?: string | null;
   onboardingStatus?: OnboardingPipelineStatus;
   onboardingSubmittedAt?: string | null;
+  roleId?: number | null;
+  roleName?: string | null;
 };
 
 function toDetail(row: RawEmployeeRow): EmployeeDetail {
@@ -253,6 +257,7 @@ function toDetail(row: RawEmployeeRow): EmployeeDetail {
     gradeId: row.gradeId,
     branchId: row.branchId,
     reportingManagerId: row.reportingManagerId,
+    orgHierarchyStructureId: row.orgHierarchyStructureId ?? null,
     employeeStatus: row.employeeStatus,
     joiningDate: row.joiningDate,
     onboardingTokenExpiry: row.onboardingTokenExpiry ?? null,
@@ -260,6 +265,8 @@ function toDetail(row: RawEmployeeRow): EmployeeDetail {
     onboardingCompletedAt: row.onboardingCompletedAt ?? null,
     onboardingStatus: row.onboardingStatus,
     onboardingSubmittedAt: row.onboardingSubmittedAt ?? null,
+    roleId: row.roleId ?? null,
+    roleName: row.roleName ?? null,
   };
 }
 

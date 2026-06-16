@@ -1,8 +1,8 @@
 import { ArrowRight, CalendarPlus } from "lucide-react";
 
-// The actual apply-leave dialog lives inside the Attendance calendar (click
-// any day in the future). This page just routes users there so the
-// "Apply Leave" quick link has a real destination.
+// The apply-leave dialog lives inside the Attendance calendar (click any day
+// in the future). This page routes users there so the "Apply Leave" quick
+// link has a real destination.
 export default function ApplyLeaveLanding() {
   return (
     <div
@@ -26,9 +26,9 @@ export default function ApplyLeaveLanding() {
           className="text-sm max-w-md"
           style={{ color: "#6b7280", lineHeight: 1.5 }}
         >
-          Pick the date(s) on the Attendance calendar and use the Apply
-          Leave dialog. You can choose a leave type, mark a half day, and
-          attach a reason from there.
+          Pick the date(s) on the Attendance calendar and use the Apply Leave
+          dialog. You can choose a leave type, mark a half day, and attach a
+          reason from there.
         </p>
 
         <a
@@ -56,7 +56,7 @@ export default function ApplyLeaveLanding() {
           >
             Leave
           </a>{" "}
-          page where you can cancel pending ones.
+          page where you can view and cancel pending ones.
         </p>
       </div>
     </div>

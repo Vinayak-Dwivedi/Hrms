@@ -28,6 +28,12 @@ export interface LeaveType {
   used: number;
   total: number;
   available: number;
+  allowHalfDay?: boolean;
+  minNoticeDays?: number;
+  allowNegativeBalance?: boolean;
+  requiresProofAfterDays?: number | null;
+  maxContinuousDays?: number | null;
+  isActive?: boolean;
 }
 
 export type HolidayType =
@@ -78,17 +84,11 @@ export interface DayAttendance {
 // ── Leave Requests ────────────────────────────────────────────────────────────
 
 export type LeaveStatus = "Pending" | "Approved" | "Cancelled" | "Rejected";
-export type LeaveTypeName =
-  | "Earned Leave"
-  | "Casual Leave"
-  | "Sick Leave"
-  | "Compensatory Off"
-  | "Unpaid Leave";
 
 export interface LeaveRequest {
   id: string;
   appliedOn: string; // ISO datetime
-  leaveType: LeaveTypeName;
+  leaveType: string;
   leaveTypeCode: string;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD

@@ -386,3 +386,16 @@ export async function getHierarchyTree(
     next(e);
   }
 }
+
+export async function getEmployeeReportingTree(
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const data = await orgHierarchy.getEmployeeReportingTree();
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+}
