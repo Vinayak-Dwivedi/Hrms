@@ -91,7 +91,14 @@ export async function resolvePolicyForEmployee(
   if (!type) return null;
 
   const [emp] = await db
-    .select()
+    .select({
+      id: employees.id,
+      designationId: employees.designationId,
+      gradeId: employees.gradeId,
+      departmentId: employees.departmentId,
+      branchId: employees.branchId,
+      employmentTypeId: employees.employmentTypeId,
+    })
     .from(employees)
     .where(eq(employees.id, employeeId))
     .limit(1);

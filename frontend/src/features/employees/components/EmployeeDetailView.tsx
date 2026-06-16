@@ -2,6 +2,11 @@
 
 import { Mail, Pencil } from "lucide-react";
 import Link from "next/link";
+import { useMemo } from "react";
+import {
+  resolveOrgHierarchyRoleDisplay,
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 import {
   formatEmployeeDisplayName,
   getOnboardingInvitationStatus,
@@ -14,10 +19,8 @@ import { employeeCardClass, employeeEditIconBtnClass, employeeFieldLabelClass, e
 
 interface Props {
   employee: EmployeeDetail;
-  departments: LookupItem[];
-  designations: LookupItem[];
+  orgLookups: OrgHierarchyRoleLookups;
   branches: LookupItem[];
-  grades: LookupItem[];
   managerLabel: string;
   variant?: "page" | "modal";
   onboardingHref?: string;
@@ -63,10 +66,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default function EmployeeDetailView({
   employee,
-  departments,
-  designations,
+  orgLookups,
   branches,
-  grades,
   managerLabel,
   variant = "page",
   onboardingHref,
@@ -77,6 +78,14 @@ export default function EmployeeDetailView({
   const isModal = variant === "modal";
   const wrapperClass = isModal ? "p-6" : `${employeeCardClass} p-6`;
   const invitation = getOnboardingInvitationStatus(employee);
+  const orgRole = useMemo(
+    () =>
+      resolveOrgHierarchyRoleDisplay(
+        employee.orgHierarchyStructureId,
+        orgLookups,
+      ),
+    [employee.orgHierarchyStructureId, orgLookups],
+  );
 
   return (
     <div className={wrapperClass}>
@@ -150,22 +159,21 @@ export default function EmployeeDetailView({
         <DetailRow label="Last name" value={employee.lastName} />
         <DetailRow label="Personal email" value={employee.personalEmail} />
         <DetailRow label="Work email" value={employee.workEmail ?? "—"} />
+        <DetailRow
+          label="System access role"
+          value={employee.roleName ?? "—"}
+        />
         <DetailRow label="Phone" value={employee.phone} />
         <DetailRow label="Date of birth" value={fmtDate(employee.dob)} />
         <DetailRow label="Gender" value={employee.gender} />
         <DetailRow label="Nationality" value={employee.nationality} />
         <DetailRow label="Joining date" value={fmtDate(employee.joiningDate)} />
-        <DetailRow
-          label="Department"
-          value={lookupName(employee.departmentId, departments)}
-        />
-        <DetailRow
-          label="Designation"
-          value={lookupName(employee.designationId, designations)}
-        />
-        <DetailRow label="Grade" value={lookupName(employee.gradeId, grades)} />
-        <DetailRow label="Branch" value={lookupName(employee.branchId, branches)} />
+        <DetailRow label="Department" value={orgRole.department} />
+        <DetailRow label="Sub department" value={orgRole.subDepartment} />
+        <DetailRow label="Designation" value={orgRole.designation} />
+        <DetailRow label="Level / grade" value={orgRole.levelGrade} />
         <DetailRow label="Reporting manager" value={managerLabel} />
+        <DetailRow label="Branch" value={lookupName(employee.branchId, branches)} />
         <DetailRow label="Marital status" value={employee.maritalStatus ?? "—"} />
         <DetailRow label="Spouse name" value={employee.spouseName ?? "—"} />
       </div>

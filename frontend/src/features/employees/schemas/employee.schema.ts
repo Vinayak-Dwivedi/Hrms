@@ -112,6 +112,20 @@ function roleIdField(validRoleIds: number[]) {
   });
 }
 
+function optionalRoleIdField(validRoleIds: number[]) {
+  return z.string().superRefine((value, ctx) => {
+    if (!value || value.length === 0) return;
+    const id = Number(value);
+    if (
+      !Number.isInteger(id) ||
+      id <= 0 ||
+      (validRoleIds.length > 0 && !validRoleIds.includes(id))
+    ) {
+      ctx.addIssue({ code: "custom", message: "Select a valid role." });
+    }
+  });
+}
+
 export const personalEmailFieldSchema = requiredEmail("Personal email");
 export const workEmailFieldSchema = requiredEmail("Work email");
 export const phoneFieldSchema = z
@@ -386,7 +400,7 @@ export const optionalReportingManagerFieldSchema = optionalSelectFieldSchema(
   "reporting manager",
 );
 
-export function createUpdateEmployeeFieldValidators() {
+export function createUpdateEmployeeFieldValidators(validRoleIds: number[] = []) {
   return {
     empId: fieldValidators(empIdFieldSchema),
     firstName: fieldValidators(firstNameFieldSchema),
@@ -399,59 +413,69 @@ export function createUpdateEmployeeFieldValidators() {
     dob: fieldValidators(dobFieldSchema),
     gender: fieldValidators(genderFieldSchema),
     joiningDate: fieldValidators(joiningDateFieldSchema),
-    departmentId: fieldValidators(optionalDepartmentFieldSchema),
-    designationId: fieldValidators(optionalDesignationFieldSchema),
-    gradeId: fieldValidators(optionalGradeFieldSchema),
+    roleId: fieldValidators(optionalRoleIdField(validRoleIds)),
+    orgHierarchyDepartmentId: fieldValidators(orgHierarchyDepartmentFieldSchema),
+    orgHierarchySubDepartmentId: fieldValidators(
+      orgHierarchySubDepartmentFieldSchema,
+    ),
+    orgHierarchyDesignationId: fieldValidators(
+      orgHierarchyDesignationFieldSchema,
+    ),
     branchId: fieldValidators(optionalBranchFieldSchema),
     reportingManagerId: fieldValidators(optionalReportingManagerFieldSchema),
   };
 }
 
-export const updateEmployeeFormSchema = z
-  .object({
-    empId: empIdFieldSchema,
-    firstName: firstNameFieldSchema,
-    middleName: middleNameFieldSchema,
-    lastName: lastNameFieldSchema,
-    personalEmail: personalEmailFieldSchema,
-    workEmail: workEmailFieldSchema,
-    phone: phoneFieldSchema,
-    dob: dobFieldSchema,
-    gender: genderFieldSchema,
-    joiningDate: joiningDateFieldSchema,
-    employeeStatus: employeeStatusFieldSchema,
-    departmentId: optionalDepartmentFieldSchema,
-    designationId: optionalDesignationFieldSchema,
-    gradeId: optionalGradeFieldSchema,
-    branchId: optionalBranchFieldSchema,
-    reportingManagerId: optionalReportingManagerFieldSchema,
-    maritalStatus: z.enum(["Single", "Married", ""]).optional(),
-    spouseName: z.string().trim().max(200).optional(),
-    password: z.string().optional(),
-    confirmPassword: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const dob = new Date(`${data.dob}T00:00:00`);
-    const cutoff = new Date();
-    cutoff.setFullYear(cutoff.getFullYear() - 18);
-    if (data.dob && dob > cutoff) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Employee must be at least 18 years old.",
-        path: ["dob"],
-      });
-    }
+export function createUpdateEmployeeFormSchema(validRoleIds: number[] = []) {
+  return z
+    .object({
+      empId: empIdFieldSchema,
+      firstName: firstNameFieldSchema,
+      middleName: middleNameFieldSchema,
+      lastName: lastNameFieldSchema,
+      personalEmail: personalEmailFieldSchema,
+      workEmail: workEmailFieldSchema,
+      phone: phoneFieldSchema,
+      dob: dobFieldSchema,
+      gender: genderFieldSchema,
+      joiningDate: joiningDateFieldSchema,
+      employeeStatus: employeeStatusFieldSchema,
+      roleId: optionalRoleIdField(validRoleIds),
+      orgHierarchyDepartmentId: orgHierarchyDepartmentFieldSchema,
+      orgHierarchySubDepartmentId: orgHierarchySubDepartmentFieldSchema,
+      orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
+      branchId: optionalBranchFieldSchema,
+      reportingManagerId: optionalReportingManagerFieldSchema,
+      maritalStatus: z.enum(["Single", "Married", ""]).optional(),
+      spouseName: z.string().trim().max(200).optional(),
+      password: z.string().optional(),
+      confirmPassword: z.string().optional(),
+    })
+    .superRefine((data, ctx) => {
+      const dob = new Date(`${data.dob}T00:00:00`);
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - 18);
+      if (data.dob && dob > cutoff) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Employee must be at least 18 years old.",
+          path: ["dob"],
+        });
+      }
 
-    if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Spouse name is required when marital status is Married.",
-        path: ["spouseName"],
-      });
-    }
+      if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Spouse name is required when marital status is Married.",
+          path: ["spouseName"],
+        });
+      }
 
-    refineOptionalPasswordPair(data, ctx);
-  });
+      refineOptionalPasswordPair(data, ctx);
+    });
+}
+
+export const updateEmployeeFormSchema = createUpdateEmployeeFormSchema();
 
 // Use z.input — the form holds the *unparsed* shape (string IDs, "" for
 // optional fields). z.infer would give the post-transform shape (number IDs)
@@ -468,6 +492,7 @@ function idToNumberOrNull(value: string | undefined): number | null {
 
 export function toUpdateApiPayload(
   values: UpdateEmployeeFormValues,
+  orgHierarchyStructureId: number,
 ): UpdateEmployeePayload {
   const maritalStatus: "Single" | "Married" | null =
     values.maritalStatus === "Single" || values.maritalStatus === "Married"
@@ -488,9 +513,7 @@ export function toUpdateApiPayload(
     gender: values.gender,
     joiningDate: values.joiningDate,
     employeeStatus: values.employeeStatus,
-    departmentId: idToNumberOrNull(values.departmentId),
-    designationId: idToNumberOrNull(values.designationId),
-    gradeId: idToNumberOrNull(values.gradeId),
+    orgHierarchyStructureId,
     branchId: idToNumberOrNull(values.branchId),
     reportingManagerId,
     reportingChain: reportingManagerId ? [reportingManagerId] : [],
@@ -501,6 +524,10 @@ export function toUpdateApiPayload(
 
   if (values.password?.trim()) {
     payload.password = values.password.trim();
+  }
+
+  if (values.roleId?.trim()) {
+    payload.roleId = Number(values.roleId);
   }
 
   return payload;
@@ -531,6 +558,11 @@ export function formatEmployeeValidationErrors(details: unknown): string | null 
 
 export function detailToFormValues(
   employee: EmployeeDetail,
+  orgHierarchy?: {
+    orgHierarchyDepartmentId: string;
+    orgHierarchySubDepartmentId: string;
+    orgHierarchyDesignationId: string;
+  },
 ): UpdateEmployeeFormValues {
   return {
     empId: employee.empId,
@@ -544,10 +576,10 @@ export function detailToFormValues(
     gender: employee.gender,
     joiningDate: employee.joiningDate,
     employeeStatus: employee.employeeStatus,
-    departmentId: employee.departmentId != null ? String(employee.departmentId) : "",
-    designationId:
-      employee.designationId != null ? String(employee.designationId) : "",
-    gradeId: employee.gradeId != null ? String(employee.gradeId) : "",
+    roleId: employee.roleId != null ? String(employee.roleId) : "",
+    orgHierarchyDepartmentId: orgHierarchy?.orgHierarchyDepartmentId ?? "",
+    orgHierarchySubDepartmentId: orgHierarchy?.orgHierarchySubDepartmentId ?? "",
+    orgHierarchyDesignationId: orgHierarchy?.orgHierarchyDesignationId ?? "",
     branchId: employee.branchId != null ? String(employee.branchId) : "",
     reportingManagerId:
       employee.reportingManagerId != null

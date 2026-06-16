@@ -39,6 +39,9 @@ export type ColumnSupport = {
   /** employees.onboarding_bank_approved_at exists */
   onboardingBankApproval: boolean;
 
+  /** employees.sub_department_id exists */
+  subDepartmentId: boolean;
+
   /** employees.onboarding_reviewed_by exists */
   onboardingReview: boolean;
 
@@ -92,6 +95,7 @@ const TRACKED_COLUMNS = [
   "phone_verified",
 
   "phone_verified_at",
+  "sub_department_id",
 ] as const;
 
 
@@ -257,6 +261,8 @@ export async function getEmployeeColumnSupport(): Promise<ColumnSupport> {
     phoneVerified: cols.has("phone_verified"),
 
     phoneVerificationOtps: phoneOtpTableRows[0]?.exists === true,
+
+    subDepartmentId: cols.has("sub_department_id"),
   };
 
   return cachedColumns;
@@ -517,6 +523,8 @@ export function employeeListSelect(support: ColumnSupport) {
 
     reportingManagerId: employees.reportingManagerId,
 
+    orgHierarchyStructureId: employees.orgHierarchyStructureId,
+
     employeeStatus: employees.employeeStatus,
 
     joiningDate: employees.joiningDate,
@@ -555,6 +563,10 @@ export function employeeListSelect(support: ColumnSupport) {
 
     fields.onboardingCompletedAt = employees.onboardingCompletedAt;
 
+  }
+
+  if (support.subDepartmentId) {
+    fields.subDepartmentId = employees.subDepartmentId;
   }
 
   return fields;

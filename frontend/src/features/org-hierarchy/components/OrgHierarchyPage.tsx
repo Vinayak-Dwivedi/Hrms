@@ -5,14 +5,18 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   deleteOrgStructure,
+  fetchEmployeeReportingTree,
   fetchHierarchyTree,
   fetchOrgLevels,
+  type EmployeeReportingTreeDepartment,
   type HierarchyTreeDepartment,
   type OrgLevel,
 } from "@/features/org-hierarchy/api/org-hierarchy.client";
-import HierarchyTabBar, {
-  type HierarchyTabId,
+import {
+  DepartmentHierarchyTabBar,
+  type DepartmentHierarchyTabId,
 } from "@/features/org-hierarchy/components/HierarchyTabBar";
+import EmployeeHierarchyView from "@/features/org-hierarchy/components/EmployeeHierarchyView";
 import HierarchyTreeView from "@/features/org-hierarchy/components/HierarchyTreeView";
 import OrgHierarchyMasters from "@/features/org-hierarchy/components/OrgHierarchyMasters";
 import StructureMappingPanel from "@/features/org-hierarchy/components/StructureMappingPanel";
@@ -24,34 +28,52 @@ import {
   employeeListResetBtnClass,
 } from "@/features/employees/employee-theme";
 
+export type OrgHierarchyScope = "employee" | "department";
+
 type Props = {
+  scope: OrgHierarchyScope;
   variant?: "admin" | "hr";
 };
 
-export default function OrgHierarchyPage({ variant: _variant = "admin" }: Props) {
+export default function OrgHierarchyPage({
+  scope,
+  variant: _variant = "admin",
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tree, setTree] = useState<HierarchyTreeDepartment[]>([]);
+  const [employeeTree, setEmployeeTree] = useState<
+    EmployeeReportingTreeDepartment[]
+  >([]);
   const [levels, setLevels] = useState<OrgLevel[]>([]);
   const [editStructureId, setEditStructureId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<HierarchyTabId>("tree");
+  const [activeTab, setActiveTab] = useState<DepartmentHierarchyTabId>("tree");
 
   const loadTree = useCallback(async () => {
     try {
-      const [treeData, levelData] = await Promise.all([
-        fetchHierarchyTree(),
-        fetchOrgLevels(),
-      ]);
-      setTree(treeData);
-      setLevels(levelData);
+      if (scope === "employee") {
+        const [employeeTreeData, levelData] = await Promise.all([
+          fetchEmployeeReportingTree(),
+          fetchOrgLevels(),
+        ]);
+        setEmployeeTree(employeeTreeData);
+        setLevels(levelData);
+      } else {
+        const [treeData, levelData] = await Promise.all([
+          fetchHierarchyTree(),
+          fetchOrgLevels(),
+        ]);
+        setTree(treeData);
+        setLevels(levelData);
+      }
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     void loadTree();
@@ -77,13 +99,44 @@ export default function OrgHierarchyPage({ variant: _variant = "admin" }: Props)
     }
   }
 
+  const loadingLabel =
+    scope === "employee"
+      ? "Loading hierarchy…"
+      : "Loading department hierarchy…";
+  const errorLabel =
+    scope === "employee"
+      ? "Failed to load hierarchy"
+      : "Failed to load department hierarchy";
+
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
-        <HierarchyTabBar active={activeTab} onChange={setActiveTab} />
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+        {scope === "department" && (
+          <DepartmentHierarchyTabBar
+            active={activeTab}
+            onChange={setActiveTab}
+          />
+        )}
+        <div
+          className={[
+            "flex items-center justify-between",
+            scope === "department" ? "mt-4 pt-4 border-t border-gray-100" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {scope === "employee" && (
+            <p className="text-[13px] font-semibold text-gray-900 m-0">
+              Employee reporting hierarchy
+            </p>
+          )}
           <button
-            className={employeeListResetBtnClass}
+            className={[
+              employeeListResetBtnClass,
+              scope === "employee" ? "ml-auto" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             onClick={handleRefresh}
             type="button"
           >
@@ -95,14 +148,14 @@ export default function OrgHierarchyPage({ variant: _variant = "admin" }: Props)
 
       {error && (
         <div className={employeeListErrorBannerClass}>
-          Failed to load department hierarchy: {error}
+          {errorLabel}: {error}
         </div>
       )}
 
       {loading ? (
-        <div className={employeeListLoadingClass}>
-          Loading department hierarchy…
-        </div>
+        <div className={employeeListLoadingClass}>{loadingLabel}</div>
+      ) : scope === "employee" ? (
+        <EmployeeHierarchyView tree={employeeTree} levels={levels} />
       ) : (
         <>
           {activeTab === "tree" && (

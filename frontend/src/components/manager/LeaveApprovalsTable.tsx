@@ -29,15 +29,17 @@ interface Props {
   requests: ApprovalLeaveRequest[];
   busyId?: number | null;
   embedded?: boolean;
-  onApprove: (id: number) => void;
-  onForward: (id: number) => void;
-  onOpenReject: (id: number) => void;
+  readOnly?: boolean;
+  onApprove?: (id: number) => void;
+  onForward?: (id: number) => void;
+  onOpenReject?: (id: number) => void;
 }
 
 export default function LeaveApprovalsTable({
   requests,
   busyId,
   embedded = false,
+  readOnly = false,
   onApprove,
   onForward,
   onOpenReject,
@@ -55,6 +57,29 @@ export default function LeaveApprovalsTable({
   const rangeStart = requests.length === 0 ? 0 : start + 1;
   const rangeEnd = Math.min(start + PAGE_SIZE, requests.length);
 
+  const headers = readOnly
+    ? [
+        "Employee",
+        "Emp ID",
+        "Leave Type",
+        "Period",
+        "Duration",
+        "Reason",
+        "Applied",
+        "Status",
+      ]
+    : [
+        "Employee",
+        "Emp ID",
+        "Leave Type",
+        "Period",
+        "Duration",
+        "Reason",
+        "Applied",
+        "Status",
+        "Action",
+      ];
+
   return (
     <div
       className={embedded ? "overflow-hidden" : `${employeeCardClass} overflow-hidden`}
@@ -63,17 +88,7 @@ export default function LeaveApprovalsTable({
         <table className="w-full min-w-[1100px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-nowrap">
-              {[
-                "Employee",
-                "Emp ID",
-                "Leave Type",
-                "Period",
-                "Duration",
-                "Reason",
-                "Applied",
-                "Status",
-                "Action",
-              ].map((h) => (
+              {headers.map((h) => (
                 <th key={h} className={tableHeadCellClass}>
                   {h}
                 </th>
@@ -85,7 +100,7 @@ export default function LeaveApprovalsTable({
               <tr>
                 <td
                   className="px-6 py-10 text-center text-sm text-gray-400"
-                  colSpan={9}
+                  colSpan={headers.length}
                 >
                   No requests found.
                 </td>
@@ -145,44 +160,46 @@ export default function LeaveApprovalsTable({
                       {req.status}
                     </span>
                   </td>
-                  <td className={tableBodyCellClass}>
-                    {req.status === "Pending" ? (
-                      <div className="flex items-center gap-3">
-                        <button
-                          aria-label={`Approve leave for ${req.firstName} ${req.lastName}`}
-                          className={approveIconBtnClass}
-                          disabled={busyId === req.id}
-                          onClick={() => onApprove(req.id)}
-                          title="Approve"
-                          type="button"
-                        >
-                          <Check className={employeeIconMd} />
-                        </button>
-                        <button
-                          aria-label={`Reject leave for ${req.firstName} ${req.lastName}`}
-                          className={rejectIconBtnClass}
-                          disabled={busyId === req.id}
-                          onClick={() => onOpenReject(req.id)}
-                          title="Reject"
-                          type="button"
-                        >
-                          <XCircle className={employeeIconMd} />
-                        </button>
-                        <button
-                          aria-label={`Forward leave for ${req.firstName} ${req.lastName}`}
-                          className={forwardIconBtnClass}
-                          disabled={busyId === req.id}
-                          onClick={() => onForward(req.id)}
-                          title="Forward to HR"
-                          type="button"
-                        >
-                          <ArrowUpRight className={employeeIconMd} />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">—</span>
-                    )}
-                  </td>
+                  {!readOnly && (
+                    <td className={tableBodyCellClass}>
+                      {req.status === "Pending" ? (
+                        <div className="flex items-center gap-3">
+                          <button
+                            aria-label={`Approve leave for ${req.firstName} ${req.lastName}`}
+                            className={approveIconBtnClass}
+                            disabled={busyId === req.id}
+                            onClick={() => onApprove?.(req.id)}
+                            title="Approve"
+                            type="button"
+                          >
+                            <Check className={employeeIconMd} />
+                          </button>
+                          <button
+                            aria-label={`Reject leave for ${req.firstName} ${req.lastName}`}
+                            className={rejectIconBtnClass}
+                            disabled={busyId === req.id}
+                            onClick={() => onOpenReject?.(req.id)}
+                            title="Reject"
+                            type="button"
+                          >
+                            <XCircle className={employeeIconMd} />
+                          </button>
+                          <button
+                            aria-label={`Forward leave for ${req.firstName} ${req.lastName}`}
+                            className={forwardIconBtnClass}
+                            disabled={busyId === req.id}
+                            onClick={() => onForward?.(req.id)}
+                            title="Forward to HR"
+                            type="button"
+                          >
+                            <ArrowUpRight className={employeeIconMd} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))
             )}

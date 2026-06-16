@@ -18,12 +18,9 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/attendance": "Attendance",
   "/leave": "Leave",
   "/leave/new": "Apply Leave",
-  "/requests": "My Requests",
   "/payslips": "My Payslips",
   "/directory": "Directory",
   "/holidays": "Holidays",
-  "/manager/team-dashboard": "Team Dashboard",
-  "/manager/team-attendance-report": "Team Attendance",
   "/manager/approvals": "Approvals",
   "/admin/dashboard": "Dashboard",
   "/admin/attendance": "My Attendance",
@@ -34,7 +31,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/admin/reports": "Reports",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
-  "/departments/hierarchy": "Departments / Hierarchy",
+  "/hierarchy": "Hierarchy",
+  "/departments/hierarchy": "Department Hierarchy",
 };
 
 function breadcrumbFor(pathname: string): string {
@@ -52,6 +50,7 @@ function rootLabelFor(role: Role, authRole?: string): string {
   if (authRole === "master") return "Master";
   if (role === "manager") return "Manager";
   if (role === "admin") return "Admin";
+  if (role === "hr") return "HR";
   return "Employee";
 }
 

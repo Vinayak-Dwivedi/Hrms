@@ -407,3 +407,19 @@ export function fetchCompletionStats() {
     completionRate: number;
   }>("/onboarding/reports/completion-stats");
 }
+
+export type PendingReviewEmployee = {
+  id: number;
+  empId: string;
+  firstName: string;
+  lastName: string;
+  workEmail: string | null;
+  onboardingStatus: string;
+  onboardingSubmittedAt: string | null;
+};
+
+export function fetchPendingReviewEmployees() {
+  return jsonFetch<{ employees: PendingReviewEmployee[] }>(
+    "/onboarding/employees/pending-review",
+  );
+}

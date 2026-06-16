@@ -12,7 +12,6 @@ import {
   employees,
   employmentTypes,
   grades,
-  holidays,
   leaveBalances,
   leaveRequests,
   leaveTypes,
@@ -43,6 +42,11 @@ import {
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
 import { resolveWorkflowStages } from "@/routes/approval-workflows.router";
 import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
+import { loadLeaveTypeRulesById } from "@/lib/leave-type-schema-compat";
+import {
+  fetchEmployeeLeaveBalances,
+  validateLeaveRequest,
+} from "@/services/leave-request-validation";
 import { runWorkflowOnNewRequest } from "@/services/leave-workflow-engine";
 import { validateLeaveApplication } from "@/services/leave-validation";
 import { holidaysForEmployee } from "@/services/holiday-calendar-resolver";
@@ -533,52 +537,16 @@ meRouter.get("/holidays", async (req, res, next) => {
     const fromDate = q.from ?? today;
     const toDate = q.to ?? oneYearStr;
 
-    // Primary: calendar-aware resolution.
-    const calendarHolidays = await holidaysForEmployee(emp.id, fromDate, toDate);
+    const resolvedHolidays = await holidaysForEmployee(emp.id, fromDate, toDate);
 
-    let result = calendarHolidays.map((h) => ({
+    let result = resolvedHolidays.map((h) => ({
       id: h.id,
       date: h.date,
       name: h.name,
       type: h.type,
-      branchId: null as number | null,
+      branchId: h.branchId ?? null,
       isHalfDay: h.isHalfDay,
     }));
-
-    // Fallback for the case where no calendar is scoped to this employee
-    // yet — surface the legacy single-table data.
-    if (result.length === 0) {
-      const rows = await db
-        .select({
-          id: holidays.id,
-          date: holidays.date,
-          name: holidays.name,
-          type: holidays.type,
-          branchId: holidays.branchId,
-          isHalfDay: holidays.isHalfDay,
-        })
-        .from(holidays);
-
-      result = rows
-        .filter(
-          (r) => r.branchId === null || r.branchId === emp.branchId,
-        )
-        .filter((r) => {
-          const dateStr = typeof r.date === "string" ? r.date : String(r.date);
-          return dateStr >= fromDate && dateStr <= toDate;
-        })
-        .map((r) => ({
-          id: r.id,
-          date:
-            typeof r.date === "string"
-              ? r.date
-              : new Date(r.date as unknown as string).toISOString().slice(0, 10),
-          name: r.name,
-          type: r.type,
-          branchId: r.branchId,
-          isHalfDay: r.isHalfDay,
-        }));
-    }
 
     // Upcoming-only filter (defaults to upcoming when neither from nor
     // upcoming flags are supplied — preserves the old endpoint contract).
@@ -725,7 +693,13 @@ meRouter.get("/leave-policy", async (req, res, next) => {
     if (!result) {
       throw new ApiError(404, "NOT_FOUND", "Leave type not found.");
     }
-    res.json({ data: result });
+    const typeRow = await loadLeaveTypeRulesById(result.leaveTypeId);
+    res.json({
+      data: {
+        ...result,
+        leaveType: typeRow,
+      },
+    });
   } catch (e) {
     next(e);
   }
@@ -734,18 +708,7 @@ meRouter.get("/leave-policy", async (req, res, next) => {
 meRouter.get("/leave-balances", async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
-    const rows = await db
-      .select({
-        leaveTypeId: leaveTypes.id,
-        name: leaveTypes.name,
-        code: leaveTypes.code,
-        openingBalance: leaveBalances.openingBalance,
-        used: leaveBalances.used,
-        closingBalance: leaveBalances.closingBalance,
-      })
-      .from(leaveBalances)
-      .innerJoin(leaveTypes, eq(leaveBalances.leaveTypeId, leaveTypes.id))
-      .where(eq(leaveBalances.employeeId, emp.id));
+    const rows = await fetchEmployeeLeaveBalances(emp.id);
     res.json({ balances: rows });
   } catch (e) {
     next(e);
@@ -781,46 +744,23 @@ meRouter.post("/leave-requests", async (req, res, next) => {
       throw new ApiError(400, "UNKNOWN_LEAVE_TYPE", "leaveTypeCode did not match any leave_type.");
     }
 
-    // M4 — Run the validation engine. Hard errors → 422 with structured
-    // issues; warnings (e.g. dates overlap a holiday) flow through to the
-    // response so the UI can show an inline notice on the created row.
-    const validation = await validateLeaveApplication({
+    const validated = await validateLeaveRequest({
       employeeId: emp.id,
+      branchId: emp.branchId,
       leaveTypeId,
       fromDate: body.fromDate,
-      toDate: body.toDate,
-      days: Number(body.days),
-      // Existing endpoint doesn't yet accept attachments — wire when the
-      // document-upload feature lands. For now skip the attachment check by
-      // claiming "true" so attachmentRequired leave-types don't block.
-      hasAttachment: true,
+      toDate: body.durationType === "Full Day" ? body.toDate : body.fromDate,
+      durationType: body.durationType,
     });
-    if (!validation.ok) {
-      res.status(422).json({
-        error: {
-          code: "VALIDATION_FAILED",
-          message: "Leave request did not pass validation.",
-          details: {
-            errors: validation.errors,
-            warnings: validation.warnings,
-          },
-        },
-      });
-      return;
-    }
-
-    // Snapshot the approval-workflow stages from the employee's leave policy so
-    // the request walks them one approver at a time (defaults to Manager-only).
-    const workflowStages = await resolveWorkflowStages(emp.id);
 
     const [row] = await db
       .insert(leaveRequests)
       .values({
         employeeId: emp.id,
-        leaveTypeId,
+        leaveTypeId: validated.leaveTypeId,
         fromDate: body.fromDate,
-        toDate: body.toDate,
-        days: String(body.days),
+        toDate: body.durationType === "Full Day" ? body.toDate : body.fromDate,
+        days: String(validated.days),
         durationType: body.durationType,
         reason: body.reason,
         status: "Pending",
@@ -835,8 +775,8 @@ meRouter.post("/leave-requests", async (req, res, next) => {
     const workflowResult = await runWorkflowOnNewRequest({
       requestId: row!.id,
       employeeId: emp.id,
-      leaveTypeId,
-      days: Number(body.days),
+      leaveTypeId: validated.leaveTypeId,
+      days: validated.days,
       durationType: body.durationType,
       reason: body.reason,
       actorUserId: req.user!.id,

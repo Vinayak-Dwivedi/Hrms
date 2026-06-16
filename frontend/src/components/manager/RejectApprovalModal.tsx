@@ -1,70 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  employeeBtnOutlineSmClass,
-  employeeFieldLabelClass,
-  employeeInputClass,
-} from "@/features/employees/employee-theme";
-import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
-import { rejectBtnClass } from "./approvals-shared";
-
-interface Props {
-  open: boolean;
-  employeeName: string;
-  onClose: () => void;
-  onConfirm: (remarks: string) => void;
-  busy?: boolean;
-}
+import { useState } from "react";
 
 export default function RejectApprovalModal({
-  open,
-  employeeName,
+  title,
+  subtitle,
   onClose,
   onConfirm,
   busy,
-}: Props) {
+}: {
+  title: string;
+  subtitle: React.ReactNode;
+  onClose: () => void;
+  onConfirm: (remarks: string) => void;
+  busy: boolean;
+}) {
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
-    if (open) setReason("");
-  }, [open]);
-
   return (
-    <EmployeeModalShell
-      maxWidthClass="max-w-md"
-      onClose={onClose}
-      open={open}
-      title="Reject request"
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}
     >
-      <div className="px-6 py-5">
-        <p className="text-sm text-gray-600 m-0 mb-4">
-          Rejecting request for{" "}
-          <span className="font-semibold text-gray-900">{employeeName}</span>.
-          Share context with the employee.
-        </p>
-        <label className="block mb-4">
-          <span className={employeeFieldLabelClass}>Reason for rejection</span>
+      <div
+        className="bg-white rounded-2xl w-full max-w-md p-7 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg font-bold text-gray-900 m-0 mb-1.5">{title}</h2>
+        <p className="text-sm text-gray-500 mb-5 m-0">{subtitle}</p>
+        <label className="block mb-5">
+          <span className="text-[13px] font-semibold text-gray-700 block mb-1.5">
+            Reason for rejection
+          </span>
           <textarea
-            className={`${employeeInputClass} resize-none`}
-            disabled={busy}
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 resize-y outline-none focus:border-[#FF014F] focus:ring-1 focus:ring-[#FF014F]"
             onChange={(e) => setReason(e.target.value)}
             placeholder="Share context with the employee..."
             rows={3}
             value={reason}
           />
         </label>
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2.5">
           <button
-            className={employeeBtnOutlineSmClass}
-            disabled={busy}
+            className="px-5 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
             onClick={onClose}
             type="button"
           >
             Cancel
           </button>
           <button
-            className={rejectBtnClass}
+            className="px-5 py-2 text-sm font-semibold rounded-lg border-0 bg-[#dc143c] text-white hover:bg-[#b91c1c] cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             disabled={busy}
             onClick={() => onConfirm(reason)}
             type="button"
@@ -73,6 +58,6 @@ export default function RejectApprovalModal({
           </button>
         </div>
       </div>
-    </EmployeeModalShell>
+    </div>
   );
 }

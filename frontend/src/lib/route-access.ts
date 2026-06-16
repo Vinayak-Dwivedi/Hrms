@@ -64,19 +64,13 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
     return ["leave.view"];
   }
   if (pathname.startsWith("/manager/approvals")) return ["leave.approve"];
-  if (pathname.startsWith("/manager/team-")) return ["leave.approve"];
   if (pathname.startsWith("/manager/")) {
     return ["leave.approve", "attendance.view"];
   }
   if (pathname === "/attendance" || pathname.startsWith("/attendance/")) {
     return ["attendance.view"];
   }
-  if (
-    pathname === "/leave" ||
-    pathname.startsWith("/leave/") ||
-    pathname === "/requests" ||
-    pathname.startsWith("/requests/")
-  ) {
+  if (pathname === "/leave" || pathname.startsWith("/leave/")) {
     return ["leave.view"];
   }
   if (pathname === "/payslips" || pathname.startsWith("/payslips/")) {
@@ -85,6 +79,8 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   if (
     pathname === "/directory" ||
     pathname.startsWith("/directory/") ||
+    pathname === "/hierarchy" ||
+    pathname.startsWith("/hierarchy/") ||
     pathname === "/departments" ||
     pathname.startsWith("/departments/")
   ) {

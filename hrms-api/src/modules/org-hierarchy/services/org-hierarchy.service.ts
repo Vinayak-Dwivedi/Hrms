@@ -13,6 +13,7 @@ import type {
   UpdateStructureInput,
   UpdateSubDepartmentInput,
 } from "@/modules/org-hierarchy/schemas/org-hierarchy.schema";
+import { buildEmployeeReportingTree } from "@/modules/org-hierarchy/services/employee-reporting-tree";
 import { buildHierarchyTree } from "@/modules/org-hierarchy/services/org-hierarchy-tree";
 
 type ListFilters = {
@@ -376,5 +377,11 @@ export async function getHierarchyTree() {
   return buildHierarchyTree(rows);
 }
 
+export async function getEmployeeReportingTree() {
+  const rows = await repo.listEmployeesForReportingTree();
+  return buildEmployeeReportingTree(rows);
+}
+
 // Re-export for tests
 export { buildHierarchyTree } from "@/modules/org-hierarchy/services/org-hierarchy-tree";
+export { buildEmployeeReportingTree } from "@/modules/org-hierarchy/services/employee-reporting-tree";

@@ -93,6 +93,13 @@ function getDayName(ymd: string) {
   return DAY_NAMES[new Date(y, m - 1, d).getDay()];
 }
 
+function canApplyLeaveForDay(entry: DayAttendance | undefined): boolean {
+  if (!entry) return true;
+  if (entry.status === "Leave" || entry.status === "LeavePending") return false;
+  if (entry.status === "Holiday" || entry.status === "Weekend") return false;
+  return true;
+}
+
 // ── Leave Application Form ────────────────────────────────────────────────────
 
 interface LeaveFormProps {
@@ -114,14 +121,11 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Policy resolved for the picked leave type. null = no policy / still loading
-  // / fetch failed (in which case we treat as "no restrictions" — permissive).
-  const [policy, setPolicy] = useState<{
-    allowHalfDay: boolean;
-    minNoticeDays: number;
-    requireReason: boolean;
-    name: string;
-  } | null>(null);
+  const [policyName, setPolicyName] = useState<string | null>(null);
+
+  const selectedType = types[leaveTypeIdx];
+  const allowHalfDay = selectedType?.allowHalfDay ?? true;
+  const minNoticeDays = selectedType?.minNoticeDays ?? 0;
 
   const workingDays = countLeaveDays(fromDate, toDate, holidayDateSet(holidays));
 
@@ -151,13 +155,11 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
     );
   }
 
-  // Re-fetch the resolved policy whenever the selected leave type changes.
-  // We hit /api/me/leave-policy?leaveTypeCode=... and only consume settings
-  // we actually care about for this form.
+  // Resolved policy name for display (rules come from leave_types via balances).
   useEffect(() => {
     const code = types[leaveTypeIdx]?.code;
     if (!code) {
-      setPolicy(null);
+      setPolicyName(null);
       return;
     }
     let cancelled = false;
@@ -167,20 +169,9 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           "@/features/leave-policy/api/leave-policies.client"
         );
         const r = await getMyResolvedPolicy(code);
-        if (cancelled) return;
-        if (!r.policy) {
-          setPolicy(null);
-          return;
-        }
-        const s = (r.policy.settings ?? {}) as Record<string, unknown>;
-        setPolicy({
-          allowHalfDay: Boolean(s.allowHalfDay ?? true),
-          minNoticeDays: Number(s.minNoticeDays ?? 0),
-          requireReason: Boolean(s.requireReason ?? true),
-          name: r.policy.name,
-        });
+        if (!cancelled) setPolicyName(r.policy?.name ?? null);
       } catch {
-        if (!cancelled) setPolicy(null);
+        if (!cancelled) setPolicyName(null);
       }
     })();
     return () => {
@@ -188,12 +179,11 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
     };
   }, [leaveTypeIdx, types]);
 
-  // If the picked leave type forbids half-day, snap back to "Full Day".
   useEffect(() => {
-    if (policy && !policy.allowHalfDay && duration !== "Full Day") {
+    if (!allowHalfDay && duration !== "Full Day") {
       setDuration("Full Day");
     }
-  }, [policy, duration]);
+  }, [allowHalfDay, duration]);
 
   const leaveOptions = types.map((l) => ({
     label: `${l.name} — ${l.available} days left`,
@@ -215,15 +205,14 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       setSubmitError("Pick a leave type.");
       return;
     }
-    // Min-notice enforcement from the resolved policy.
-    if (policy && policy.minNoticeDays > 0) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    if (minNoticeDays > 0) {
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
       const start = new Date(`${fromDate}T00:00:00`);
-      const diffDays = Math.floor((start.getTime() - today.getTime()) / 86400000);
-      if (diffDays < policy.minNoticeDays) {
+      const diffDays = Math.floor((start.getTime() - todayDate.getTime()) / 86400000);
+      if (diffDays < minNoticeDays) {
         setSubmitError(
-          `Policy "${policy.name}" requires at least ${policy.minNoticeDays} day(s) notice. Pick a later "From" date.`,
+          `${selectedType?.name ?? "This leave type"} requires at least ${minNoticeDays} day(s) notice. Pick a later "From" date.`,
         );
         return;
       }
@@ -325,7 +314,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>Duration</label>
             <div style={{ display: "flex", gap: 0, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb" }}>
               {(["Full Day", "First Half", "Second Half"] as const).map((opt) => {
-                const halfBlocked = policy && !policy.allowHalfDay && opt !== "Full Day";
+                const halfBlocked = !allowHalfDay && opt !== "Full Day";
                 return (
                 <button
                   key={opt}
@@ -345,11 +334,17 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                 );
               })}
             </div>
-            {policy && (
+            {policyName && (
               <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
-                Policy: <strong>{policy.name}</strong>
-                {policy.minNoticeDays > 0 && ` · min ${policy.minNoticeDays}-day notice`}
-                {!policy.allowHalfDay && " · half-day disabled"}
+                Policy: <strong>{policyName}</strong>
+                {minNoticeDays > 0 && ` · min ${minNoticeDays}-day notice`}
+                {!allowHalfDay && " · half-day disabled"}
+              </p>
+            )}
+            {!policyName && minNoticeDays > 0 && (
+              <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+                Min {minNoticeDays}-day notice required
+                {!allowHalfDay && " · half-day disabled"}
               </p>
             )}
           </div>
@@ -695,10 +690,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
   const isAbsent = entry.status === "Absent";
   const isPending = entry.status === "LeavePending";
   const canRegularise = isToday || isAbsent;
-  // Apply-Leave is offered for today as long as a leave isn't already
-  // approved/pending for this day. Same-day leave is a legitimate need
-  // (sudden illness, emergency) — the calendar shouldn't gate it.
-  const canApplyLeave = isToday && !isLeave;
+  const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave);
 
   const cards = [
     { label: "Punch In",    value: entry.punchIn ?? "—" },
@@ -854,26 +846,19 @@ export default function AttendanceCalendar({
     onMonthChange?.(newYear, newMonth);
   }
 
+  function openLeaveFormForDate(ymd: string) {
+    setUpcomingYmd(ymd);
+    setShowLeaveForm(true);
+  }
+
   function handleCellClick(date: Date, inMonth: boolean) {
     if (!inMonth) return;
     const ymd = toYMD(date);
     const entry = dataMap.get(ymd);
     if (entry) {
-      const isPast = ymd < today;
-      const isAbsent = entry.status === "Absent";
-      const isLate = !!entry.lateBy;
-      // Past absent/late → straight into Regularisation form.
-      // Today → DayModal first (with a "Request Regularisation" button inside).
-      // Other past entries → DayModal (no reg button).
-      if (isPast && (isAbsent || isLate)) {
-        setRegDate(ymd);
-      } else {
-        setSelected(entry);
-      }
-    } else if (ymd > today) {
-      // Future date with no attendance — jump straight into Apply for Leave.
-      setUpcomingYmd(ymd);
-      setShowLeaveForm(true);
+      setSelected(entry);
+    } else {
+      openLeaveFormForDate(ymd);
     }
   }
 
@@ -892,6 +877,24 @@ export default function AttendanceCalendar({
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            {onSubmitLeave && leaveBalances.length > 0 && (
+              <button
+                type="button"
+                onClick={() => openLeaveFormForDate(today)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #fecdd3",
+                  background: "#fff1f2",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#be185d",
+                  cursor: "pointer",
+                }}
+              >
+                Apply Leave
+              </button>
+            )}
             <NavBtn onClick={prev}>&#8249;</NavBtn>
             <span style={{ fontSize: 15, fontWeight: 600, color: "#111827", minWidth: 115, textAlign: "center" }}>
               {MONTHS[month]} {year}
@@ -921,7 +924,7 @@ export default function AttendanceCalendar({
                 const isWeekend = entry?.status === "Weekend";
                 const badge     = entry?.status ? STATUS_BADGE[entry.status] : undefined;
                 const isUpcoming = inMonth && !entry && ymd > today;
-                const isClickable = inMonth && (!!entry || isUpcoming);
+                const isClickable = inMonth;
 
                 let bg = "#fff";
                 if (!inMonth)                                              bg = "#f9fafb";

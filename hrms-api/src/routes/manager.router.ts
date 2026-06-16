@@ -21,17 +21,7 @@ import {
   todayYmd,
   ymd,
 } from "@/lib/employee";
-import { ApiError } from "@/middleware/error";
-import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
-import {
-  loadLeaveRequestParticipants,
-  requiresHRApprovalForEmployee,
-} from "@/services/leave-routing";
-import {
-  notifyEmployeeOnApproval,
-  notifyEmployeeOnRejection,
-  notifyHROnForward,
-} from "@/services/leave-notifications";
+import { fetchEmployeeLeaveBalances } from "@/services/leave-request-validation";
 
 export const managerRouter: Router = Router();
 
@@ -180,18 +170,7 @@ managerRouter.get("/me/leave-requests", async (req, res, next) => {
 managerRouter.get("/me/leave-balances", async (req, res, next) => {
   try {
     const mgr = await loadCurrentManager(req.user!.id);
-    const rows = await db
-      .select({
-        leaveTypeId: leaveTypes.id,
-        name: leaveTypes.name,
-        code: leaveTypes.code,
-        openingBalance: leaveBalances.openingBalance,
-        used: leaveBalances.used,
-        closingBalance: leaveBalances.closingBalance,
-      })
-      .from(leaveBalances)
-      .innerJoin(leaveTypes, eq(leaveBalances.leaveTypeId, leaveTypes.id))
-      .where(eq(leaveBalances.employeeId, mgr.id));
+    const rows = await fetchEmployeeLeaveBalances(mgr.id);
     res.json({ balances: rows });
   } catch (e) {
     next(e);

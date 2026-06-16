@@ -23,6 +23,7 @@ import { requirePermission } from "@/middleware/require-permission";
 import { hrOnboardingRoutes } from "@/modules/hr-onboarding/routes/onboarding.routes";
 import { orgHierarchyRoutes } from "@/modules/org-hierarchy/routes/org-hierarchy.routes";
 import { employeesRouter } from "@/routes/employees.router";
+import { leaveRequestsRouter } from "@/routes/leave-requests.router";
 import { rolesRouter } from "@/routes/roles.router";
 
 const orgSetupAccess = requirePermission("employees.view", "onboarding.manage");
@@ -52,6 +53,7 @@ hrmsRouter.use("/employees",                 createCrudRouter("employee", employ
 hrmsRouter.use("/resignations",              createCrudRouter("resignation", resignations));
 hrmsRouter.use("/regularisation-requests",   createCrudRouter("regularisation request", regularisationRequests));
 hrmsRouter.use("/leave-types",               createCrudRouter("leave type", leaveTypes));
+hrmsRouter.use("/leave-requests",            leaveRequestsRouter);
 hrmsRouter.use("/leave-requests",            createCrudRouter("leave request", leaveRequests));
 hrmsRouter.use("/notifications",             createCrudRouter("notification", notifications));
 hrmsRouter.use("/broadcasts",                createCrudRouter("broadcast", broadcasts));

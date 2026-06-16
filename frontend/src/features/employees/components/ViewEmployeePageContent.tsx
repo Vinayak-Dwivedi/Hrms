@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  fetchOrgHierarchyRoleLookups,
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 import EmployeeDetailView from "./EmployeeDetailView";
 import {
   employeeBtnOutlineSmClass,
@@ -12,11 +16,8 @@ import { hasOnboardingPanelAccess } from "./OnboardingAdminPanel";
 import { useAuth } from "@/lib/auth-context";
 import {
   fetchBranches,
-  fetchDepartments,
-  fetchDesignations,
   fetchEmployeeById,
   fetchEmployees,
-  fetchGrades,
   resendOnboardingInvitation,
   type EmployeeDetail,
   type LookupItem,
@@ -33,10 +34,14 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
-  const [departments, setDepartments] = useState<LookupItem[]>([]);
-  const [designations, setDesignations] = useState<LookupItem[]>([]);
+  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups>({
+    departments: [],
+    subDepartments: [],
+    designations: [],
+    levels: [],
+    structures: [],
+  });
   const [branches, setBranches] = useState<LookupItem[]>([]);
-  const [grades, setGrades] = useState<LookupItem[]>([]);
   const [allEmployees, setAllEmployees] = useState<
     Awaited<ReturnType<typeof fetchEmployees>>
   >([]);
@@ -52,20 +57,16 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
 
     (async () => {
       try {
-        const [emp, depts, desigs, brs, grds, emps] = await Promise.all([
+        const [emp, org, brs, emps] = await Promise.all([
           fetchEmployeeById(employeeId),
-          fetchDepartments(),
-          fetchDesignations(),
+          fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
-          fetchGrades(),
           fetchEmployees(),
         ]);
         if (cancelled) return;
         setEmployee(emp);
-        setDepartments(depts);
-        setDesignations(desigs);
+        setOrgLookups(org);
         setBranches(brs);
-        setGrades(grds);
         setAllEmployees(emps);
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
@@ -131,11 +132,9 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
           )}
           <EmployeeDetailView
             branches={branches}
-            departments={departments}
-            designations={designations}
             employee={employee}
-            grades={grades}
             managerLabel={managerLabel}
+            orgLookups={orgLookups}
             onboardingHref={
               showOnboardingLink
                 ? `/employees/${employee.id}/onboarding`

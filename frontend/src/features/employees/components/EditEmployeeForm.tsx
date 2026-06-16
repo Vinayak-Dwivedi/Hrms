@@ -12,13 +12,18 @@ import {
   SelectField,
   TextField,
 } from "@/components/form/form-field";
+import OrgHierarchyRoleFields, {
+  fetchOrgHierarchyRoleLookups,
+  orgHierarchyFormValuesFromStructure,
+  orgStructureNotFoundMessage,
+  resolveOrgStructureId,
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 import {
   EmployeeApiError,
   fetchBranches,
-  fetchDepartments,
-  fetchDesignations,
-  fetchGrades,
   fetchManagerOptions,
+  fetchRoleOptions,
   toManagerSelectOptions,
   toSelectOptions,
   type EmployeeDetail,
@@ -28,17 +33,18 @@ import {
 } from "../api/employees.client";
 import {
   createUpdateEmployeeFieldValidators,
+  createUpdateEmployeeFormSchema,
   detailToFormValues,
   formatEmployeeValidationErrors,
   maxDateOfBirthForAdult,
   PASSWORD_MIN_MESSAGE,
   sanitizePhoneInput,
   toUpdateApiPayload,
-  updateEmployeeFormSchema,
   zodFormFieldErrors,
 } from "../schemas/employee.schema";
 import {
   employeeCardClass,
+  employeeFormNativeSelectClass,
   employeeFormSectionsGridClass,
   employeeListBtnClass,
   employeeListBtnOutlineClass,
@@ -62,62 +68,65 @@ interface Props {
   onCancel?: () => void;
 }
 
-export default function EditEmployeeForm({
+type FormLookups = OrgHierarchyRoleLookups & {
+  branches: Awaited<ReturnType<typeof fetchBranches>>;
+  managers: ManagerOption[];
+  roleOptions: LookupItem[];
+  lookupsError: string | null;
+};
+
+function EditEmployeeFormContent({
   employee,
   embedded = false,
   onSuccess,
   onCancel,
-}: Props) {
+  departments,
+  subDepartments,
+  designations,
+  levels,
+  structures,
+  branches,
+  managers,
+  roleOptions,
+  lookupsError,
+}: Props & FormLookups) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [revealErrors, setRevealErrors] = useState(false);
-  const [lookupsLoading, setLookupsLoading] = useState(true);
-  const [lookupsError, setLookupsError] = useState<string | null>(null);
-  const [departments, setDepartments] = useState<LookupItem[]>([]);
-  const [designations, setDesignations] = useState<LookupItem[]>([]);
-  const [branches, setBranches] = useState<LookupItem[]>([]);
-  const [grades, setGrades] = useState<LookupItem[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [depts, desigs, brs, grds, mgrs] = await Promise.all([
-          fetchDepartments(),
-          fetchDesignations(),
-          fetchBranches(),
-          fetchGrades(),
-          fetchManagerOptions(),
-        ]);
-        if (cancelled) return;
-        setDepartments(depts);
-        setDesignations(desigs);
-        setBranches(brs);
-        setGrades(grds);
-        setManagers(mgrs.filter((m) => m.id !== employee.id));
-      } catch (e) {
-        if (!cancelled) setLookupsError((e as Error).message);
-      } finally {
-        if (!cancelled) setLookupsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [employee.id]);
+  const validRoleIds = useMemo(
+    () => roleOptions.map((role) => role.id),
+    [roleOptions],
+  );
+
+  const updateSchema = useMemo(
+    () => createUpdateEmployeeFormSchema(validRoleIds),
+    [validRoleIds],
+  );
 
   const fieldValidators = useMemo(
-    () => createUpdateEmployeeFieldValidators(),
-    [],
+    () => createUpdateEmployeeFieldValidators(validRoleIds),
+    [validRoleIds],
+  );
+
+  const defaultValues = useMemo(
+    () =>
+      detailToFormValues(
+        employee,
+        orgHierarchyFormValuesFromStructure(
+          employee.orgHierarchyStructureId,
+          structures,
+        ),
+      ),
+    [employee, structures],
   );
 
   const form = useForm({
-    defaultValues: detailToFormValues(employee),
+    defaultValues,
     validators: {
-      onChange: zodFormFieldErrors(updateEmployeeFormSchema),
-      onBlur: zodFormFieldErrors(updateEmployeeFormSchema),
-      onSubmit: zodFormFieldErrors(updateEmployeeFormSchema),
+      onChange: zodFormFieldErrors(updateSchema),
+      onBlur: zodFormFieldErrors(updateSchema),
+      onSubmit: zodFormFieldErrors(updateSchema),
     },
     onSubmitInvalid: () => {
       setRevealErrors(true);
@@ -125,7 +134,7 @@ export default function EditEmployeeForm({
     },
     onSubmit: async ({ value }) => {
       setSubmitError(null);
-      const parsed = updateEmployeeFormSchema.safeParse(value);
+      const parsed = updateSchema.safeParse(value);
       if (!parsed.success) {
         setRevealErrors(true);
         setSubmitError(
@@ -135,19 +144,33 @@ export default function EditEmployeeForm({
         return;
       }
 
+      const reportingManagerId = Number(parsed.data.reportingManagerId);
       if (
-        parsed.data.reportingManagerId != null &&
-        parsed.data.reportingManagerId === employee.id
+        Number.isInteger(reportingManagerId) &&
+        reportingManagerId > 0 &&
+        reportingManagerId === employee.id
       ) {
         setSubmitError("Employee cannot be their own reporting manager.");
         return;
       }
 
+      const structureId = resolveOrgStructureId(
+        structures,
+        Number(parsed.data.orgHierarchyDepartmentId),
+        Number(parsed.data.orgHierarchySubDepartmentId),
+        Number(parsed.data.orgHierarchyDesignationId),
+      );
+      if (structureId == null) {
+        setRevealErrors(true);
+        setSubmitError(orgStructureNotFoundMessage());
+        return;
+      }
+
       try {
-        // toUpdateApiPayload accepts the raw form input (string IDs etc.)
-        // and does its own coercion to the API's typed payload. parsed.data
-        // is only used above for validation/error surfacing.
-        await updateEmployee(employee.id, toUpdateApiPayload(parsed.data));
+        await updateEmployee(
+          employee.id,
+          toUpdateApiPayload(parsed.data, structureId),
+        );
         toast.success("Employee updated successfully.");
         if (onSuccess) {
           onSuccess();
@@ -170,10 +193,6 @@ export default function EditEmployeeForm({
       }
     },
   });
-
-  if (lookupsLoading) {
-    return <div className={employeeLoadingClass}>Loading form options…</div>;
-  }
 
   return (
     <FormValidationRevealProvider reveal={revealErrors}>
@@ -211,28 +230,6 @@ export default function EditEmployeeForm({
             <form.Field name="firstName" validators={fieldValidators.firstName}>
               {(field) => (
                 <TextField {...employeeFieldControl} field={field} label="First name" />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field
-              name="employeeStatus"
-              validators={fieldValidators.employeeStatus}
-            >
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  field={field}
-                  label="Status"
-                  options={[
-                    { value: "Active", label: "Active" },
-                    { value: "Inactive", label: "Inactive" },
-                    { value: "Probation", label: "Probation" },
-                    { value: "Notice", label: "Notice" },
-                    { value: "Exited", label: "Exited" },
-                  ]}
-                />
               )}
             </form.Field>
           </EmployeeFormField>
@@ -366,52 +363,30 @@ export default function EditEmployeeForm({
             </form.Field>
           </EmployeeFormField>
 
+          <OrgHierarchyRoleFields
+            controlClassName={employeeFormNativeSelectClass}
+            departments={departments}
+            designations={designations}
+            fieldValidators={fieldValidators}
+            form={form}
+            levels={levels}
+            structures={structures}
+            subDepartments={subDepartments}
+          />
+
           <EmployeeFormField>
             <form.Field
-              name="departmentId"
-              validators={fieldValidators.departmentId}
+              name="reportingManagerId"
+              validators={fieldValidators.reportingManagerId}
             >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
                   emptyOptionLabel="None"
                   field={field}
-                  label="Department"
-                  options={toSelectOptions(departments)}
-                  placeholder="Select department"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field
-              name="designationId"
-              validators={fieldValidators.designationId}
-            >
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Designation"
-                  options={toSelectOptions(designations)}
-                  placeholder="Select designation"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="gradeId" validators={fieldValidators.gradeId}>
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Grade"
-                  options={toSelectOptions(grades)}
-                  placeholder="Select grade"
+                  label="Reporting manager"
+                  options={toManagerSelectOptions(managers)}
+                  placeholder="Select manager"
                 />
               )}
             </form.Field>
@@ -434,17 +409,21 @@ export default function EditEmployeeForm({
 
           <EmployeeFormField>
             <form.Field
-              name="reportingManagerId"
-              validators={fieldValidators.reportingManagerId}
+              name="employeeStatus"
+              validators={fieldValidators.employeeStatus}
             >
               {(field) => (
                 <SelectField
                   {...employeeFieldControl}
-                  emptyOptionLabel="None"
                   field={field}
-                  label="Reporting manager"
-                  options={toManagerSelectOptions(managers)}
-                  placeholder="Select manager"
+                  label="Status"
+                  options={[
+                    { value: "Active", label: "Active" },
+                    { value: "Inactive", label: "Inactive" },
+                    { value: "Probation", label: "Probation" },
+                    { value: "Notice", label: "Notice" },
+                    { value: "Exited", label: "Exited" },
+                  ]}
                 />
               )}
             </form.Field>
@@ -452,6 +431,26 @@ export default function EditEmployeeForm({
         </EmployeeFormSection>
 
         <EmployeeFormSection compact icon={KeyRound} title="Account & Access">
+          <EmployeeFormField>
+            <form.Field name="roleId" validators={fieldValidators.roleId}>
+              {(field) => (
+                <SelectField
+                  {...employeeFieldControl}
+                  description={
+                    employee.roleId == null
+                      ? "No login account linked"
+                      : undefined
+                  }
+                  disabled={employee.roleId == null}
+                  field={field}
+                  label="System access role"
+                  options={toSelectOptions(roleOptions)}
+                  placeholder="Select role"
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
           <EmployeeFormField>
             <form.Field name="password">
               {(field) => (
@@ -515,5 +514,69 @@ export default function EditEmployeeForm({
       </div>
     </form>
     </FormValidationRevealProvider>
+  );
+}
+
+export default function EditEmployeeForm({
+  employee,
+  embedded = false,
+  onSuccess,
+  onCancel,
+}: Props) {
+  const [lookupsLoading, setLookupsLoading] = useState(true);
+  const [lookupsError, setLookupsError] = useState<string | null>(null);
+  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups>({
+    departments: [],
+    subDepartments: [],
+    designations: [],
+    levels: [],
+    structures: [],
+  });
+  const [branches, setBranches] = useState<Awaited<ReturnType<typeof fetchBranches>>>([]);
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [org, brs, mgrs, roles] = await Promise.all([
+          fetchOrgHierarchyRoleLookups(),
+          fetchBranches(),
+          fetchManagerOptions(),
+          fetchRoleOptions(),
+        ]);
+        if (cancelled) return;
+        setOrgLookups(org);
+        setBranches(brs);
+        setManagers(mgrs.filter((m) => m.id !== employee.id));
+        setRoleOptions(roles);
+      } catch (e) {
+        if (!cancelled) setLookupsError((e as Error).message);
+      } finally {
+        if (!cancelled) setLookupsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [employee.id]);
+
+  if (lookupsLoading) {
+    return <div className={employeeLoadingClass}>Loading form options…</div>;
+  }
+
+  return (
+    <EditEmployeeFormContent
+      {...orgLookups}
+      branches={branches}
+      employee={employee}
+      embedded={embedded}
+      lookupsError={lookupsError}
+      managers={managers}
+      roleOptions={roleOptions}
+      onCancel={onCancel}
+      onSuccess={onSuccess}
+    />
   );
 }

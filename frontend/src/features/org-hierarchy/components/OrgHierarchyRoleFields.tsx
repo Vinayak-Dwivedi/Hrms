@@ -12,8 +12,8 @@ import {
 } from "@/features/employees/employee-theme";
 import { cn } from "@/lib/utils";
 import type {
-  CreateEmployeeFormValues,
   createEmployeeFieldValidators,
+  createUpdateEmployeeFieldValidators,
 } from "@/features/employees/schemas/employee.schema";
 import {
   fetchOrgDepartments,
@@ -47,8 +47,35 @@ export function orgStructureNotFoundMessage(): string {
   return "This role is not defined in Departments / Hierarchy. Add the structure mapping there first.";
 }
 
+export type OrgHierarchyFormFieldValues = {
+  orgHierarchyDepartmentId: string;
+  orgHierarchySubDepartmentId: string;
+  orgHierarchyDesignationId: string;
+};
+
+const emptyOrgHierarchyFormValues: OrgHierarchyFormFieldValues = {
+  orgHierarchyDepartmentId: "",
+  orgHierarchySubDepartmentId: "",
+  orgHierarchyDesignationId: "",
+};
+
+export function orgHierarchyFormValuesFromStructure(
+  structureId: number | null | undefined,
+  structures: OrgStructure[],
+): OrgHierarchyFormFieldValues {
+  if (structureId == null) return emptyOrgHierarchyFormValues;
+  const match = structures.find((row) => row.id === structureId);
+  if (!match) return emptyOrgHierarchyFormValues;
+  return {
+    orgHierarchyDepartmentId: String(match.departmentId),
+    orgHierarchySubDepartmentId: String(match.subDepartmentId),
+    orgHierarchyDesignationId: String(match.designationId),
+  };
+}
+
 type OrgHierarchyFieldValidators = Pick<
-  ReturnType<typeof createEmployeeFieldValidators>,
+  ReturnType<typeof createEmployeeFieldValidators> &
+    ReturnType<typeof createUpdateEmployeeFieldValidators>,
   | "orgHierarchyDepartmentId"
   | "orgHierarchySubDepartmentId"
   | "orgHierarchyDesignationId"
@@ -78,17 +105,17 @@ export default function OrgHierarchyRoleFields({
   const departmentId = useStore(
     form.store,
     (state) =>
-      (state.values as CreateEmployeeFormValues).orgHierarchyDepartmentId,
+      (state.values as OrgHierarchyFormFieldValues).orgHierarchyDepartmentId,
   );
   const subDepartmentId = useStore(
     form.store,
     (state) =>
-      (state.values as CreateEmployeeFormValues).orgHierarchySubDepartmentId,
+      (state.values as OrgHierarchyFormFieldValues).orgHierarchySubDepartmentId,
   );
   const designationId = useStore(
     form.store,
     (state) =>
-      (state.values as CreateEmployeeFormValues).orgHierarchyDesignationId,
+      (state.values as OrgHierarchyFormFieldValues).orgHierarchyDesignationId,
   );
 
   const departmentOptions = useMemo(() => {
@@ -236,6 +263,47 @@ export type OrgHierarchyRoleLookups = {
   levels: OrgLevel[];
   structures: OrgStructure[];
 };
+
+export type OrgHierarchyRoleDisplay = {
+  department: string;
+  subDepartment: string;
+  designation: string;
+  levelGrade: string;
+};
+
+const emptyOrgHierarchyRoleDisplay: OrgHierarchyRoleDisplay = {
+  department: "—",
+  subDepartment: "—",
+  designation: "—",
+  levelGrade: "—",
+};
+
+export function resolveOrgHierarchyRoleDisplay(
+  structureId: number | null | undefined,
+  lookups: OrgHierarchyRoleLookups,
+): OrgHierarchyRoleDisplay {
+  if (structureId == null) return emptyOrgHierarchyRoleDisplay;
+
+  const structure = lookups.structures.find((row) => row.id === structureId);
+  if (!structure) return emptyOrgHierarchyRoleDisplay;
+
+  const department =
+    lookups.departments.find((row) => row.id === structure.departmentId)
+      ?.name ?? "—";
+  const subDepartment =
+    lookups.subDepartments.find((row) => row.id === structure.subDepartmentId)
+      ?.name ?? "—";
+  const designationRow = lookups.designations.find(
+    (row) => row.id === structure.designationId,
+  );
+  const designation = designationRow?.name ?? "—";
+  const level = designationRow
+    ? lookups.levels.find((row) => row.id === designationRow.levelId)
+    : undefined;
+  const levelGrade = level ? `${level.code} — ${level.name}` : "—";
+
+  return { department, subDepartment, designation, levelGrade };
+}
 
 export async function fetchOrgHierarchyRoleLookups(): Promise<OrgHierarchyRoleLookups> {
   const [departments, subDepartments, designations, levels, structures] =

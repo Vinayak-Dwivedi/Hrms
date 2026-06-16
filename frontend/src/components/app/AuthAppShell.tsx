@@ -2,17 +2,11 @@
 
 import AppShell from "@/components/app/AppShell";
 import { AuthProvider, RouteGuard, useAuth } from "@/lib/auth-context";
-import type { Role } from "@/lib/roles";
-
-function mapAuthRoleToUiRole(authRole: string): Role {
-  if (authRole === "master" || authRole === "admin") return "admin";
-  if (authRole === "manager") return "manager";
-  return "employee";
-}
+import { resolveUiRole } from "@/lib/resolve-ui-role";
 
 function AppShellWithRole({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const role = mapAuthRoleToUiRole(user.role);
+  const { user, hasPermission } = useAuth();
+  const role = resolveUiRole(hasPermission, user.role);
   return <AppShell role={role}>{children}</AppShell>;
 }
 

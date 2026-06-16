@@ -1,25 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { AlertCircle, Clock, XCircle } from "lucide-react";
+import { AlertCircle, XCircle } from "lucide-react";
 import {
   employeeBtnOutlineSmClass,
-  employeeBtnSmClass,
-  employeeCardClass,
   employeeFilterLabelClass,
   employeeIconMd,
-  employeeIconXs,
   employeeInputClass,
   employeeSelectClass,
 } from "@/features/employees/employee-theme";
 import type { LeaveRequest, LeaveStatus } from "@/lib/dashboard";
+import { formatDayCount } from "@/lib/format-day-count";
+import { cn } from "@/lib/utils";
+import {
+  tableBodyCellClass,
+  tableBodyRowClass,
+  tableHeadCellClass,
+} from "@/components/manager/team-attendance-shared";
 
 interface Props {
   requests: LeaveRequest[];
   onCancel?: (id: string) => void | Promise<void>;
   busyId?: string | null;
-  attendanceHref?: string;
+  embedded?: boolean;
 }
 
 const STATUS_CLASS: Record<LeaveStatus, string> = {
@@ -71,14 +74,16 @@ function leavePeriod(start: string, end: string) {
 }
 
 function durationLabel(req: LeaveRequest) {
-  if (req.isHalfDay) return "0.5";
-  return String(req.duration);
+  return formatDayCount(req.duration);
 }
 
 function StatusCell({ req }: { req: LeaveRequest }) {
   return (
     <span
-      className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${STATUS_CLASS[req.status]}`}
+      className={cn(
+        "inline-block px-3 py-1 text-xs font-medium rounded-full",
+        STATUS_CLASS[req.status],
+      )}
     >
       {req.status}
     </span>
@@ -130,7 +135,6 @@ function ContestModal({ req, onClose }: ContestModalProps) {
           >
             Cancel
           </button>
-         
         </div>
       </div>
     </div>
@@ -141,7 +145,7 @@ export default function LeaveTable({
   requests,
   onCancel,
   busyId,
-  attendanceHref,
+  embedded = false,
 }: Props) {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -161,204 +165,190 @@ export default function LeaveTable({
   const rangeEnd = Math.min(start + pageSize, filtered.length);
 
   return (
-    <>
-      <div className={`${employeeCardClass} p-5 mb-6`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className={employeeFilterLabelClass} htmlFor="leave-status">
-              Status
-            </label>
-            <select
-              className={employeeSelectClass}
-              id="leave-status"
-              onChange={(e) => {
-                setStatusFilter(e.target.value as LeaveStatus | "All");
-                setPage(1);
-              }}
-              value={statusFilter}
-            >
-              {(["All", "Pending", "Approved", "Rejected", "Cancelled"] as const).map(
-                (s) => (
-                  <option key={s} value={s}>
-                    {s === "All" ? "All Status" : s}
-                  </option>
-                ),
-              )}
-            </select>
-          </div>
-
-          <div>
-            <label className={employeeFilterLabelClass} htmlFor="leave-page-size">
-              Show entries
-            </label>
-            <select
-              className={employeeSelectClass}
-              id="leave-page-size"
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              value={pageSize}
-            >
-              {[5, 10, 25, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {attendanceHref && (
-          <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
-            <Link className={employeeBtnOutlineSmClass} href={attendanceHref}>
-              <Clock className={employeeIconXs} />
-              Open Attendance
-            </Link>
-          </div>
+    <div className={cn("flex flex-col h-full min-h-0", !embedded && "gap-6")}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 shrink-0">
+        {!embedded && (
+          <h3 className="text-[15px] font-bold text-gray-900 m-0">
+            Leave Requests
+          </h3>
         )}
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2",
+            embedded && "ml-auto w-full justify-end",
+          )}
+        >
+          <select
+            aria-label="Filter by status"
+            className={cn(employeeSelectClass, "w-auto min-w-[130px]")}
+            id="leave-status"
+            onChange={(e) => {
+              setStatusFilter(e.target.value as LeaveStatus | "All");
+              setPage(1);
+            }}
+            value={statusFilter}
+          >
+            {(["All", "Pending", "Approved", "Rejected", "Cancelled"] as const).map(
+              (s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All Status" : s}
+                </option>
+              ),
+            )}
+          </select>
+          <select
+            aria-label="Page size"
+            className={cn(employeeSelectClass, "w-auto min-w-[100px]")}
+            id="leave-page-size"
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+            value={pageSize}
+          >
+            {[5, 10, 25, 50].map((n) => (
+              <option key={n} value={n}>
+                Show {n}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className={`${employeeCardClass} overflow-hidden`}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px]">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr className="text-nowrap">
-                {[
-                  "Applied On",
-                  "Leave Type",
-                  "Leave Period",
-                  "Duration",
-                  "Reason",
-                  "Status",
-                  "Approved On",
-                  "Action",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
-                  >
-                    {h}
-                  </th>
-                ))}
+      <div className="flex-1 min-h-0 overflow-auto border border-gray-100 rounded-xl">
+        <table className="w-full min-w-[900px] border-collapse">
+          <thead className="sticky top-0 bg-gray-50">
+            <tr className="border-b border-gray-200">
+              {[
+                "Applied On",
+                "Leave Type",
+                "Leave Period",
+                "Duration",
+                "Reason",
+                "Status",
+                "Approved On",
+                "Action",
+              ].map((h) => (
+                <th key={h} className={tableHeadCellClass}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {pageRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-6 py-8 text-center text-sm text-gray-400"
+                >
+                  No records found
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-6 py-8 text-center text-sm text-gray-400"
-                  >
-                    No records found
+            ) : (
+              pageRows.map((req) => (
+                <tr key={req.id} className={tableBodyRowClass}>
+                  <td className={tableBodyCellClass}>{fmtDate(req.appliedOn)}</td>
+                  <td className={cn(tableBodyCellClass, "font-medium")}>
+                    {req.leaveTypeCode}
+                  </td>
+                  <td className={cn(tableBodyCellClass, "whitespace-nowrap")}>
+                    {leavePeriod(req.startDate, req.endDate)}
+                  </td>
+                  <td className={tableBodyCellClass}>{durationLabel(req)}</td>
+                  <td className={tableBodyCellClass}>{req.reason}</td>
+                  <td className={tableBodyCellClass}>
+                    <StatusCell req={req} />
+                  </td>
+                  <td className={cn(tableBodyCellClass, "whitespace-nowrap")}>
+                    {fmtDateTime(req.approvedOn)}
+                  </td>
+                  <td className={tableBodyCellClass}>
+                    {req.status === "Pending" && (
+                      <button
+                        aria-label={
+                          busyId === req.id
+                            ? "Cancelling leave request"
+                            : "Cancel leave request"
+                        }
+                        className={cancelIconBtnClass}
+                        disabled={!onCancel || busyId === req.id}
+                        onClick={() => onCancel?.(req.id)}
+                        title={busyId === req.id ? "Cancelling…" : "Cancel"}
+                        type="button"
+                      >
+                        <XCircle className={employeeIconMd} />
+                      </button>
+                    )}
+                    {req.status === "Approved" && (
+                      <button
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors"
+                        onClick={() => setContesting(req)}
+                        type="button"
+                      >
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Contest Leave
+                      </button>
+                    )}
+                    {(req.status === "Cancelled" || req.status === "Rejected") && (
+                      <span className="text-sm text-gray-400">No action</span>
+                    )}
                   </td>
                 </tr>
-              ) : (
-                pageRows.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="hover:bg-gray-50 transition-colors text-sm text-gray-700"
-                  >
-                    <td className="px-6 py-4">{fmtDate(req.appliedOn)}</td>
-                    <td className="px-6 py-4 font-medium">{req.leaveTypeCode}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {leavePeriod(req.startDate, req.endDate)}
-                    </td>
-                    <td className="px-6 py-4">{durationLabel(req)}</td>
-                    <td className="px-6 py-4">{req.reason}</td>
-                    <td className="px-6 py-4">
-                      <StatusCell req={req} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {fmtDateTime(req.approvedOn)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {req.status === "Pending" && (
-                        <button
-                          aria-label={
-                            busyId === req.id
-                              ? "Cancelling leave request"
-                              : "Cancel leave request"
-                          }
-                          className={cancelIconBtnClass}
-                          disabled={!onCancel || busyId === req.id}
-                          onClick={() => onCancel?.(req.id)}
-                          title={busyId === req.id ? "Cancelling…" : "Cancel"}
-                          type="button"
-                        >
-                          <XCircle className={employeeIconMd} />
-                        </button>
-                      )}
-                      {req.status === "Approved" && (
-                        <button
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors"
-                          onClick={() => setContesting(req)}
-                          type="button"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Contest Leave
-                        </button>
-                      )}
-                      {(req.status === "Cancelled" || req.status === "Rejected") && (
-                        <span className="text-sm text-gray-400">No action</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {filtered.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
-            <p className="text-sm text-gray-500 m-0">
-              Showing <span className="font-medium">{rangeStart}</span> to{" "}
-              <span className="font-medium">{rangeEnd}</span> of{" "}
-              <span className="font-medium">{filtered.length}</span> results
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={safePage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                type="button"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .slice(0, 5)
-                .map((p) => (
-                  <button
-                    key={p}
-                    className={[
-                      "px-4 py-2 text-sm rounded-lg transition-colors border",
-                      p === safePage
-                        ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
-                        : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
-                    ].join(" ")}
-                    onClick={() => setPage(p)}
-                    type="button"
-                  >
-                    {p}
-                  </button>
-                ))}
-              <button
-                className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={safePage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                type="button"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
+
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 shrink-0">
+          <p className="text-sm text-gray-500 m-0">
+            Showing <span className="font-medium">{rangeStart}</span> to{" "}
+            <span className="font-medium">{rangeEnd}</span> of{" "}
+            <span className="font-medium">{filtered.length}</span> results
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              type="button"
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .slice(0, 5)
+              .map((p) => (
+                <button
+                  key={p}
+                  className={cn(
+                    "px-4 py-2 text-sm rounded-lg transition-colors border",
+                    p === safePage
+                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
+                  )}
+                  onClick={() => setPage(p)}
+                  type="button"
+                >
+                  {p}
+                </button>
+              ))}
+            <button
+              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              type="button"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {contesting && (
         <ContestModal req={contesting} onClose={() => setContesting(null)} />
       )}
-    </>
+    </div>
   );
 }

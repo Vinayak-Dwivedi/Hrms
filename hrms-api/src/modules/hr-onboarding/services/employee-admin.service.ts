@@ -1,6 +1,8 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/runtime";
-import { employees } from "@/db/schema/hrms";
+import { users } from "@/db/schema/auth";
+import { employees, roles } from "@/db/schema/hrms";
+import { authRoleToRbacCode } from "@/lib/auth-role";
 import {
   getEmployeeColumnSupport,
   inferOnboardingStatus,
@@ -33,6 +35,33 @@ export async function getEmployeeAdminById(employeeId: number) {
   return employeeAdminRepo.getEmployeeAdminById(employeeId);
 }
 
+async function resolveSystemAccessRole(userId: string | null | undefined): Promise<{
+  roleId: number | null;
+  roleName: string | null;
+}> {
+  if (!userId) {
+    return { roleId: null, roleName: null };
+  }
+  const [user] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  if (!user) {
+    return { roleId: null, roleName: null };
+  }
+  const rbacCode = authRoleToRbacCode(user.role);
+  const [role] = await db
+    .select({ id: roles.id, name: roles.name })
+    .from(roles)
+    .where(eq(roles.code, rbacCode))
+    .limit(1);
+  if (!role) {
+    return { roleId: null, roleName: null };
+  }
+  return { roleId: role.id, roleName: role.name };
+}
+
 export async function getEmployeeDetail(employeeId: number) {
   const emp = await ensureInvitationStatusFresh(employeeId);
   if (!emp) {
@@ -45,7 +74,12 @@ export async function getEmployeeDetail(employeeId: number) {
   if (!row) {
     throw new ApiError(404, "NOT_FOUND", "Employee not found.");
   }
-  return { ...row, profile };
+  const userId =
+    typeof (row as { userId?: string | null }).userId === "string"
+      ? (row as { userId: string }).userId
+      : null;
+  const systemRole = await resolveSystemAccessRole(userId);
+  return { ...row, ...systemRole, profile };
 }
 
 export async function getOnboardingTimeline(employeeId: number) {

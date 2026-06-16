@@ -6,8 +6,7 @@ import {
   CheckSquare,
   ChevronDown,
   Clock,
-  FileText,
-  LayoutDashboard,
+  GitBranch,
   LogOut,
   MapPin,
   Network,
@@ -33,6 +32,7 @@ import {
 import type { Employee } from "@/lib/dashboard";
 import { useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
+import { navSectionsForRole } from "@/lib/role-config";
 import {
   formatEntryId,
   isNavActive,
@@ -73,9 +73,15 @@ const USER_MGMT_SECTION: NavSection = {
       requiredPermission: "employees.view",
     },
     {
-      icon: Network,
+      icon: GitBranch,
       label: "Hierarchy",
       href: "/departments/hierarchy",
+      requiredPermission: "employees.view",
+    },
+    {
+      icon: Network,
+      label: "Department Hierarchy",
+      href: "/hierarchy",
       requiredPermission: "employees.view",
     },
     {
@@ -190,12 +196,6 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         also: ["/leave/new"],
         requiredPermission: "leave.view",
       },
-      {
-        icon: FileText,
-        label: "My Requests",
-        href: "/requests",
-        requiredPermission: "leave.view",
-      },
       // {
       //   icon: Receipt,
       //   label: "My Payslips",
@@ -213,18 +213,6 @@ const ALL_NAV_SECTIONS: NavSection[] = [
   {
     title: "MY TEAM",
     entries: [
-      {
-        icon: LayoutDashboard,
-        label: "Team Dashboard",
-        href: "/manager/team-dashboard",
-        requiredPermission: "leave.approve",
-      },
-      {
-        icon: Clock,
-        label: "Team Attendance",
-        href: "/manager/team-attendance-report",
-        requiredPermission: "leave.approve",
-      },
       {
         icon: CheckSquare,
         label: "Approvals",
@@ -266,14 +254,12 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/attendance": "Attendance",
   "/leave": "Leave",
   "/leave/new": "Apply Leave",
-  "/requests": "My Requests",
   "/payslips": "My Payslips",
   "/directory": "Directory",
   "/holidays": "Holidays",
-  "/manager/team-dashboard": "Team Dashboard",
-  "/manager/team-attendance-report": "Team Attendance",
   "/manager/approvals": "Approvals",
-  "/departments/hierarchy": "Departments / Hierarchy",
+  "/hierarchy": "Hierarchy",
+  "/departments/hierarchy": "Department Hierarchy",
   "/add-employee": "Add Employee",
   "/add-permission": "Add Permission",
   "/user-roles": "User Roles",
@@ -301,6 +287,7 @@ function rootLabelFor(role: Role, authRole?: string): string {
   if (authRole === "master") return "Master";
   if (role === "manager") return "Manager";
   if (role === "admin") return "Admin";
+  if (role === "hr") return "HR";
   return "Employee";
 }
 
@@ -451,7 +438,10 @@ export default function AppShell({
     };
   }, [pathname, role, hasPermission, user]);
 
-  const sections = filterNavSections(buildNav(), hasAnyPermission);
+  const sections = filterNavSections(
+    navSectionsForRole(role, buildNav()),
+    hasAnyPermission,
+  );
   const activeEntryId = useMemo(
     () => resolveActiveEntryId(sections, pathname),
     [sections, pathname],
