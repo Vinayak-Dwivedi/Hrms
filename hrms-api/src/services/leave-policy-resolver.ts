@@ -80,7 +80,11 @@ export async function resolvePolicyForEmployee(
 ): Promise<ResolvedPolicyResult | null> {
   // Resolve leave_type
   const [type] = await db
-    .select()
+    .select({
+      id: leaveTypes.id,
+      code: leaveTypes.code,
+      name: leaveTypes.name,
+    })
     .from(leaveTypes)
     .where(
       leaveTypeIdOrCode.id

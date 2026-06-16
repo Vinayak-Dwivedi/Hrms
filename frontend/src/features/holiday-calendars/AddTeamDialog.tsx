@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // Add / Edit Team dialog. Captures:
 //   - Team name
@@ -247,7 +247,7 @@ export default function AddTeamDialog({
                 }
                 className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
               >
-                <option value="">Pick department…</option>
+                <option value="">Pick departmentâ€¦</option>
                 {departments?.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -292,8 +292,8 @@ export default function AddTeamDialog({
                     className={[
                       "px-3 py-1.5 rounded-lg border text-[12.5px] font-semibold transition-all",
                       active
-                        ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-[#FF014F]/40",
+                        ? "border-[#ff014f] bg-pink-50 text-[#ff014f]"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-[#ff014f]/40",
                     ].join(" ")}
                   >
                     {s}
@@ -332,7 +332,7 @@ export default function AddTeamDialog({
             type="button"
             onClick={save}
             disabled={!canSave || saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {editing ? "Save Changes" : "Create Team"}
@@ -343,7 +343,7 @@ export default function AddTeamDialog({
   );
 }
 
-// ─── checklist dropdown for holidays ───────────────────────────────────────
+// â”€â”€â”€ checklist dropdown for holidays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function HolidayChecklist({
   holidays,
@@ -400,7 +400,7 @@ function HolidayChecklist({
               key={h.id}
               className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 text-[#be185d] px-2.5 py-1 rounded-full text-[11.5px] font-semibold"
             >
-              {h.name} · {h.date}
+              {h.name} Â· {h.date}
               <button
                 type="button"
                 onClick={() => onToggle(h.id)}
@@ -440,7 +440,7 @@ function HolidayChecklist({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search holidays…"
+              placeholder="Search holidaysâ€¦"
               autoFocus
               className="w-full pl-7 pr-2 py-1.5 rounded text-[12.5px] focus:outline-none border-0"
             />
@@ -449,7 +449,7 @@ function HolidayChecklist({
             {filtered.length === 0 && (
               <p className="px-3 py-3 text-[12px] text-gray-500 italic">
                 {holidays.length === 0
-                  ? 'No holidays yet — click "Add Holiday" first.'
+                  ? 'No holidays yet â€” click "Add Holiday" first.'
                   : "No holidays match your search."}
               </p>
             )}
@@ -469,7 +469,7 @@ function HolidayChecklist({
                     type="checkbox"
                     checked={checked}
                     onChange={() => onToggle(h.id)}
-                    className="rounded text-[#FF014F] focus:ring-[#fda4af]"
+                    className="rounded text-[#ff014f] focus:ring-[#fda4af]"
                   />
                   <span className="flex-1 truncate">{h.name}</span>
                   <span className="text-gray-400 text-[11px]">{h.date}</span>

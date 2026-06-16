@@ -29,12 +29,12 @@ export function EmailVerifiedBadge() {
 }
 
 const verifyLinkClass =
-  "mt-1.5 text-[11px] font-semibold text-[#FF014F] hover:text-[#be185d] bg-transparent border-0 p-0 cursor-pointer inline-block";
+  "mt-1.5 text-[11px] font-semibold text-[#ff014f] hover:text-[#be185d] bg-transparent border-0 p-0 cursor-pointer inline-block";
 
 const contactPillClass =
   "inline-flex items-center gap-1.5 self-start max-w-full px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-gray-200 text-gray-600 min-w-0";
 
-const iconClass = "text-[#FF014F] shrink-0";
+const iconClass = "text-[#ff014f] shrink-0";
 
 function emailIcon(variant: "personal" | "official") {
   if (variant === "official") {

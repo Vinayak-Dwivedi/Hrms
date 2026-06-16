@@ -429,6 +429,7 @@ export type EmployeeReportingTreeRow = {
   firstName: string;
   middleName: string | null;
   lastName: string;
+  profilePhotoUrl: string | null;
   reportingManagerId: number | null;
   departmentId: number | null;
   departmentName: string | null;
@@ -451,6 +452,7 @@ export async function listEmployeesForReportingTree(): Promise<
       firstName: employees.firstName,
       middleName: employees.middleName,
       lastName: employees.lastName,
+      profilePhotoUrl: employees.profilePhotoUrl,
       reportingManagerId: employees.reportingManagerId,
       departmentId: orgHierarchyDepartments.id,
       departmentName: orgHierarchyDepartments.name,

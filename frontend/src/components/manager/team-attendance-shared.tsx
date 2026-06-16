@@ -21,7 +21,7 @@ export const AVATAR_CLASSES = [
 export const ATTENDANCE_STATUS_CLASS: Record<AttCellStatus, string> = {
   P: "bg-green-100 text-green-700",
   A: "bg-red-100 text-red-700",
-  L: "bg-pink-100 text-[#FF014F]",
+  L: "bg-pink-100 text-[#ff014f]",
   HD: "bg-orange-100 text-orange-700",
   W: "bg-gray-100 text-gray-500",
   H: "bg-blue-100 text-blue-700",
@@ -33,7 +33,7 @@ export const DETAIL_STATUS_CLASS: Record<string, string> = {
   Holiday: "text-blue-700",
   Weekend: "text-gray-500",
   Absent: "text-red-700",
-  Leave: "text-[#FF014F]",
+  Leave: "text-[#ff014f]",
   "Half Day": "text-orange-700",
   "—": "text-gray-400",
 };
@@ -185,7 +185,7 @@ export function TeamAttendanceGrid({
               className={cn(
                 gridHeadBaseClass,
                 "flex-col gap-0.5 py-2 px-1",
-                d === todayYmd && "text-[#FF014F]",
+                d === todayYmd && "text-[#ff014f]",
               )}
             >
               <span>{dayOfMonth(d)}</span>

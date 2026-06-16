@@ -149,7 +149,7 @@ function DetailSheet({
         </div>
 
         <div className="px-6 border-b border-gray-100">
-          <span className="inline-block py-3 text-sm font-semibold text-[#FF014F] border-b-2 border-[#FF014F]">
+          <span className="inline-block py-3 text-sm font-semibold text-[#ff014f] border-b-2 border-[#ff014f]">
             Attendance Data
           </span>
         </div>
@@ -341,7 +341,7 @@ export default function TeamAttendanceReport({
                       className={cn(
                         tableHeadCellCenterClass,
                         "min-w-[44px]",
-                        day === todayDay && "text-[#FF014F]",
+                        day === todayDay && "text-[#ff014f]",
                       )}
                     >
                       {day}

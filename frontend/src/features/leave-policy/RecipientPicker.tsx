@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
-// Recipient picker — opens as a popover next to the field that triggers it.
+// Recipient picker â€” opens as a popover next to the field that triggers it.
 // Left sidebar lists categories (System options, Users, Roles, Departments,
 // Locations, Form fields); right side lists the items in the chosen category
 // with a search box and per-row checkboxes. Mirrors the Zoho "Add recipients"
@@ -12,14 +12,14 @@ import { Search, X } from "lucide-react";
 // Data sources right now:
 //   - "System options" + "Form fields" are hard-coded (they describe runtime
 //     concepts: the person performing the action, current approver, etc.).
-//   - "Users / Roles / Departments / Locations" are stubs — these need to be
+//   - "Users / Roles / Departments / Locations" are stubs â€” these need to be
 //     wired to /api/hrms/employees, /api/admin/roles, /api/hrms/departments,
 //     /api/hrms/locations in a follow-up. The shape is already correct so the
 //     swap is a one-line change.
 
 export type Recipient = {
   category: Category;
-  id: string;     // unique key — e.g. "system:dept_head", "user:42", "field:employee_id"
+  id: string;     // unique key â€” e.g. "system:dept_head", "user:42", "field:employee_id"
   label: string;  // shown in the chip
 };
 
@@ -61,7 +61,7 @@ const FORM_FIELDS = [
   { id: "field:reason", label: "Reason" },
 ];
 
-// Stub data — swap with API calls when the endpoints are ready.
+// Stub data â€” swap with API calls when the endpoints are ready.
 const STUB_USERS = [
   { id: "user:1", label: "Rahul Mehta (ILD-2847)" },
   { id: "user:2", label: "Priya Sharma (ILD-1042)" },
@@ -170,7 +170,7 @@ export default function RecipientPicker({
   }
 
   function commit() {
-    // Build Recipient[] for the parent — we look up each id in every category
+    // Build Recipient[] for the parent â€” we look up each id in every category
     // so we know which label belongs to it.
     const lookup = new Map<string, Recipient>();
     for (const cat of CATEGORIES) {
@@ -217,7 +217,7 @@ export default function RecipientPicker({
                 className={[
                   "w-full text-left px-3 py-2 text-[12.5px] font-medium transition-colors",
                   active
-                    ? "bg-[#FF014F] text-white"
+                    ? "bg-[#ff014f] text-white"
                     : "text-gray-700 hover:bg-gray-50",
                 ].join(" ")}
               >
@@ -257,7 +257,7 @@ export default function RecipientPicker({
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggle(it.id)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF014F] focus:ring-[#fda4af]"
+                      className="w-3.5 h-3.5 rounded border-gray-300 text-[#ff014f] focus:ring-[#fda4af]"
                     />
                     <span className="text-[12.5px] text-gray-700 leading-snug">
                       {it.label}
@@ -277,7 +277,7 @@ export default function RecipientPicker({
             type="checkbox"
             checked={notifyAll}
             onChange={(e) => setNotifyAll(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF014F] focus:ring-[#fda4af]"
+            className="w-3.5 h-3.5 rounded border-gray-300 text-[#ff014f] focus:ring-[#fda4af]"
           />
           Notify All
         </label>
@@ -292,7 +292,7 @@ export default function RecipientPicker({
           <button
             type="button"
             onClick={commit}
-            className="px-3 py-1 rounded-md text-[12px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+            className="px-3 py-1 rounded-md text-[12px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
           >
             Add
           </button>
@@ -302,7 +302,7 @@ export default function RecipientPicker({
   );
 }
 
-// ─── tiny helper for showing existing chips next to the trigger button ────
+// â”€â”€â”€ tiny helper for showing existing chips next to the trigger button â”€â”€â”€â”€
 
 export function RecipientChips({
   items,

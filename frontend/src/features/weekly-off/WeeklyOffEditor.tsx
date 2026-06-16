@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Loader2, Pencil, Save, Trash2, X } from "lucide-react";
@@ -170,10 +170,10 @@ export default function WeeklyOffEditor({
   }
 
   return (
-    <div className="bg-white border-2 border-[#FF014F] rounded-2xl p-5 shadow-[0_8px_24px_-8px_rgba(255,1,79,0.25)]">
+    <div className="bg-white border-2 border-[#ff014f] rounded-2xl p-5 shadow-[0_8px_24px_-8px_rgba(255,1,79,0.25)]">
       <div className="flex items-center justify-between mb-4">
         <h4 className="text-[14px] font-bold text-gray-900 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#FF014F]" />
+          <span className="w-2 h-2 rounded-full bg-[#ff014f]" />
           {editing ? "Edit Configuration" : "Create Configuration"}
         </h4>
         <button
@@ -188,7 +188,7 @@ export default function WeeklyOffEditor({
       {loading && (
         <div className="flex items-center gap-2 text-[12px] text-gray-500 mb-3">
           <Loader2 size={14} className="animate-spin" />
-          Loading…
+          Loadingâ€¦
         </div>
       )}
 
@@ -227,13 +227,13 @@ export default function WeeklyOffEditor({
             onChange={(e) =>
               setForm({ ...form, description: e.target.value || null })
             }
-            placeholder="Short description…"
+            placeholder="Short descriptionâ€¦"
             rows={2}
             className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
           />
         </Field>
 
-        {/* ── Mode ──────────────────────────────────────────────────── */}
+        {/* â”€â”€ Mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <Field label="Mode">
           <div className="grid grid-cols-3 gap-2">
             {MODES.map((m) => {
@@ -246,8 +246,8 @@ export default function WeeklyOffEditor({
                   className={[
                     "px-3 py-2 rounded-lg border text-[12.5px] font-semibold transition-all",
                     active
-                      ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-[#FF014F]/40",
+                      ? "border-[#ff014f] bg-pink-50 text-[#ff014f]"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-[#ff014f]/40",
                   ].join(" ")}
                 >
                   {m}
@@ -257,7 +257,7 @@ export default function WeeklyOffEditor({
           </div>
         </Field>
 
-        {/* ── Mode-specific settings ────────────────────────────────── */}
+        {/* â”€â”€ Mode-specific settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {form.mode === "Fixed" && (
           <FixedSettingsEditor
             settings={form.settings as FixedSettings}
@@ -277,10 +277,10 @@ export default function WeeklyOffEditor({
           />
         )}
 
-        {/* ── Live preview (next 4 weeks) ───────────────────────────── */}
+        {/* â”€â”€ Live preview (next 4 weeks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <WeeklyOffPreview mode={form.mode} settings={form.settings} />
 
-        {/* ── Scope assignment ──────────────────────────────────────── */}
+        {/* â”€â”€ Scope assignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="border-t border-gray-100 pt-3">
           <ScopeRowsEditor
             rows={form.scope as ScopeRowValue[]}
@@ -304,7 +304,7 @@ export default function WeeklyOffEditor({
               }))
             }
             title={`Applies to (${form.scope.length})`}
-            emptyHint="No scope rows — this configuration will not apply to anyone."
+            emptyHint="No scope rows â€” this configuration will not apply to anyone."
           />
         </div>
 
@@ -319,7 +319,7 @@ export default function WeeklyOffEditor({
             type="button"
             onClick={save}
             disabled={saving || loading || !form.name.trim()}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />
@@ -353,7 +353,7 @@ export default function WeeklyOffEditor({
   );
 }
 
-// ─── mode-specific editors ─────────────────────────────────────────────────
+// â”€â”€â”€ mode-specific editors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Saturday is governed by its own cadence control (below), so the weekly grid
 // only offers the other six days.
@@ -437,8 +437,8 @@ function FixedSettingsEditor({
                 className={[
                   "px-2 py-2 rounded-lg border text-[11.5px] font-semibold transition-all",
                   active
-                    ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-[#FF014F]/40",
+                    ? "border-[#ff014f] bg-pink-50 text-[#ff014f]"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-[#ff014f]/40",
                 ].join(" ")}
               >
                 {d.slice(0, 3)}
@@ -460,8 +460,8 @@ function FixedSettingsEditor({
                 className={[
                   "px-2 py-2 rounded-lg border text-[11.5px] font-semibold transition-all",
                   active
-                    ? "border-[#FF014F] bg-pink-50 text-[#FF014F]"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-[#FF014F]/40",
+                    ? "border-[#ff014f] bg-pink-50 text-[#ff014f]"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-[#ff014f]/40",
                 ].join(" ")}
               >
                 {opt.label}
@@ -529,7 +529,7 @@ function RosterSettingsEditor({
       <textarea
         value={settings.description}
         onChange={(e) => onChange({ description: e.target.value })}
-        placeholder="Describe the roster pattern (e.g. WX-A: Sun,Wed off; WX-B: Sat,Thu off…)"
+        placeholder="Describe the roster pattern (e.g. WX-A: Sun,Wed off; WX-B: Sat,Thu offâ€¦)"
         rows={3}
         className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
       />
@@ -537,7 +537,7 @@ function RosterSettingsEditor({
   );
 }
 
-// ─── live preview (next 4 weeks) ────────────────────────────────────────────
+// â”€â”€â”€ live preview (next 4 weeks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DOW_INDEX: Record<DayName, number> = {
   Sunday: 0,
@@ -582,9 +582,9 @@ function isOffDay(
       const week = s.pattern[weeksFromStart % s.pattern.length] ?? [];
       return week.some((d) => DOW_INDEX[d] === wd);
     }
-    return wd === 0; // no explicit pattern → approximated as Sunday (matches resolver)
+    return wd === 0; // no explicit pattern â†’ approximated as Sunday (matches resolver)
   }
-  return false; // Roster — no automated expansion yet
+  return false; // Roster â€” no automated expansion yet
 }
 
 function WeeklyOffPreview({
@@ -604,14 +604,14 @@ function WeeklyOffPreview({
   );
   const note =
     mode === "Roster"
-      ? "Roster mode has no automatic off-days — handled per published roster."
+      ? "Roster mode has no automatic off-days â€” handled per published roster."
       : mode === "Rotational" &&
           !(settings as RotationalSettings).pattern?.length
-        ? "No rotation pattern set — approximated as Sundays."
+        ? "No rotation pattern set â€” approximated as Sundays."
         : null;
 
   return (
-    <Field label="Preview — next 4 weeks">
+    <Field label="Preview â€” next 4 weeks">
       <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEK_HEADER.map((h) => (
@@ -635,7 +635,7 @@ function WeeklyOffPreview({
                     className={[
                       "h-7 rounded-md flex items-center justify-center text-[11px] font-semibold border",
                       off
-                        ? "bg-[#FF014F] text-white border-[#FF014F]"
+                        ? "bg-[#ff014f] text-white border-[#ff014f]"
                         : "bg-white text-gray-500 border-gray-200",
                     ].join(" ")}
                   >
@@ -648,7 +648,7 @@ function WeeklyOffPreview({
         </div>
         <div className="flex items-center gap-3 mt-2 text-[10.5px] text-gray-500">
           <span className="inline-flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#FF014F] inline-block" />
+            <span className="w-2.5 h-2.5 rounded-sm bg-[#ff014f] inline-block" />
             Off day
           </span>
           {note && <span className="italic text-amber-600">{note}</span>}
@@ -658,7 +658,7 @@ function WeeklyOffPreview({
   );
 }
 
-// ─── tiny primitives ───────────────────────────────────────────────────────
+// â”€â”€â”€ tiny primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Field({
   label,

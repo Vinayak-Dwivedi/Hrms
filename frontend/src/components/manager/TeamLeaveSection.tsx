@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -96,14 +96,14 @@ export default function TeamLeaveSection() {
           <h3 className="text-[15px] font-bold text-gray-900 m-0">Team Leave</h3>
           <Link
             href="/manager/approvals"
-            className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#FF014F]"
+            className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#eb0249]"
           >
-            View all approvals →
+            View all approvals â†’
           </Link>
         </div>
 
         {loading ? (
-          <div className="p-6 text-gray-500">Loading team leave…</div>
+          <div className="p-6 text-gray-500">Loading team leaveâ€¦</div>
         ) : (
           <LeaveApprovalsTable
             busyId={busyId}

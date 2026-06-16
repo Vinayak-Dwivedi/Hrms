@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
@@ -11,7 +11,7 @@ import {
 
 // Reusable scope-rows editor used across Holiday Calendars, Weekly Off,
 // Leave Policies, etc. A scope row says "this calendar/config applies to
-// scope_type=X with scope_id=Y, with priority P". Higher specificity →
+// scope_type=X with scope_id=Y, with priority P". Higher specificity â†’
 // higher priority wins when resolving for an individual employee.
 
 export interface ScopeRowValue {
@@ -59,7 +59,7 @@ export default function ScopeRowsEditor({
         <button
           type="button"
           onClick={addRow}
-          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#FF014F] hover:text-[#eb0249]"
+          className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#ff014f] hover:text-[#eb0249]"
         >
           <Plus size={12} /> Add Scope
         </button>
@@ -68,7 +68,7 @@ export default function ScopeRowsEditor({
       {rows.length === 0 ? (
         <div className="text-center text-[12px] text-gray-400 py-6 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
           {emptyHint ??
-            "No scopes added — this calendar will not apply to anyone."}
+            "No scopes added â€” this calendar will not apply to anyone."}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -87,7 +87,7 @@ export default function ScopeRowsEditor({
   );
 }
 
-// ─── one row ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ one row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ScopeRowEditor({
   row,
@@ -167,7 +167,7 @@ function ScopeRowEditor({
           {needsValuePicker ? (
             loading ? (
               <div className="flex items-center gap-2 text-[12px] text-gray-500 px-2.5 py-1.5">
-                <Loader2 size={12} className="animate-spin" /> Loading…
+                <Loader2 size={12} className="animate-spin" /> Loadingâ€¦
               </div>
             ) : loadError ? (
               <div className="text-[11.5px] text-rose-600 px-2.5 py-1.5 truncate">
@@ -184,7 +184,7 @@ function ScopeRowEditor({
                 }
                 className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
               >
-                <option value="">Pick {scopeTypeLabel(row.scopeType)}…</option>
+                <option value="">Pick {scopeTypeLabel(row.scopeType)}â€¦</option>
                 {options.map((opt) => (
                   <option key={opt.id} value={opt.id}>
                     {opt.name}
@@ -205,7 +205,7 @@ function ScopeRowEditor({
           value={row.priority}
           onChange={(e) => onChange({ priority: Number(e.target.value) || 0 })}
           className="w-16 shrink-0 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-800 text-center focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-          title="Priority — higher wins when scopes overlap"
+          title="Priority â€” higher wins when scopes overlap"
         />
 
         <button

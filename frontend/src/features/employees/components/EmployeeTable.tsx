@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ClipboardList, Eye, Pencil } from "lucide-react";
 import Link from "next/link";
@@ -108,17 +108,17 @@ export default function EmployeeTable({
                   <td className="px-4 py-2.5">
                     {formatEmployeeDisplayName(emp)}
                   </td>
-                  <td className="px-4 py-2.5">{emp.workEmail ?? "—"}</td>
+                  <td className="px-4 py-2.5">{emp.workEmail ?? "â€”"}</td>
                   <td className="px-4 py-2.5">{emp.phone}</td>
                   <td className="px-4 py-2.5">
                     {emp.departmentId != null
-                      ? (departmentNames.get(emp.departmentId) ?? "—")
-                      : "—"}
+                      ? (departmentNames.get(emp.departmentId) ?? "â€”")
+                      : "â€”"}
                   </td>
                   <td className="px-4 py-2.5">
                     {emp.designationId != null
-                      ? (designationNames.get(emp.designationId) ?? "—")
-                      : "—"}
+                      ? (designationNames.get(emp.designationId) ?? "â€”")
+                      : "â€”"}
                   </td>
                   <td className="px-4 py-2.5">
                     <span
@@ -194,7 +194,7 @@ export default function EmployeeTable({
                   className={[
                     "px-3 py-1.5 text-[13px] rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
                   ].join(" ")}
                   onClick={() => setPage(p)}

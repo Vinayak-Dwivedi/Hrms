@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
-// Approval Workflows — define named, ordered approver chains (Manager →
-// Department Head → HR) and assign them to a Leave Policy. A leave request then
+// Approval Workflows â€” define named, ordered approver chains (Manager â†’
+// Department Head â†’ HR) and assign them to a Leave Policy. A leave request then
 // walks the assigned workflow one approver at a time. Table + modal dialog,
 // matching the Leave Types / Leave Policies tabs.
 
@@ -71,7 +71,7 @@ export default function ApprovalSection() {
           </h3>
           <p className="text-[12.5px] text-gray-500 mt-0.5 leading-snug">
             Ordered approver chains. Assign one to a policy on the Leave Policies
-            tab — leave requests then walk it stage by stage.
+            tab â€” leave requests then walk it stage by stage.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export default function ApprovalSection() {
           <button
             type="button"
             onClick={() => setDialog("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
           >
             <Plus size={13} /> Create Workflow
           </button>
@@ -114,14 +114,14 @@ export default function ApprovalSection() {
             {loading && items.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-center py-12 text-gray-400">
-                  <Loader2 size={18} className="animate-spin inline mr-2" /> Loading…
+                  <Loader2 size={18} className="animate-spin inline mr-2" /> Loadingâ€¦
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-center py-10 text-gray-400 text-[12.5px]">
-                  No workflows yet. Click “Create Workflow”.
+                  No workflows yet. Click â€œCreate Workflowâ€.
                 </td>
               </tr>
             )}
@@ -156,7 +156,7 @@ export default function ApprovalSection() {
                       type="button"
                       onClick={() => setDialog(w)}
                       title="Edit"
-                      className="text-[#FF014F] hover:text-[#eb0249]"
+                      className="text-[#ff014f] hover:text-[#eb0249]"
                     >
                       <Pencil size={14} />
                     </button>
@@ -195,13 +195,13 @@ function StageChain({ stages }: { stages: WorkflowStage[] }) {
       <span className="text-[11px] font-semibold text-gray-400">Employee</span>
       {stages.map((s, i) => (
         <span key={i} className="flex items-center gap-1.5">
-          <span className="text-gray-300">→</span>
+          <span className="text-gray-300">â†’</span>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-[#be185d] border border-pink-100">
             {STAGE_LABELS[s]}
           </span>
         </span>
       ))}
-      <span className="text-gray-300">→</span>
+      <span className="text-gray-300">â†’</span>
       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
         Approved
       </span>
@@ -345,7 +345,7 @@ function WorkflowDialog({
                     key={s}
                     type="button"
                     onClick={() => setStages((p) => [...p, s])}
-                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#FF014F] hover:text-[#eb0249] border border-pink-100 bg-pink-50 px-2 py-1 rounded-lg"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#ff014f] hover:text-[#eb0249] border border-pink-100 bg-pink-50 px-2 py-1 rounded-lg"
                   >
                     <Plus size={11} /> {STAGE_LABELS[s]}
                   </button>
@@ -374,7 +374,7 @@ function WorkflowDialog({
             type="button"
             onClick={save}
             disabled={saving || !name.trim() || stages.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {editing ? "Save Changes" : "Create Workflow"}

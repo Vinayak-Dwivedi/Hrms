@@ -204,7 +204,7 @@ function ReadOnlyField({
 }
 
 const verifyLinkClass =
-  "mt-1.5 text-[11px] font-semibold text-[#FF014F] hover:text-[#be185d] bg-transparent border-0 p-0 cursor-pointer inline-block";
+  "mt-1.5 text-[11px] font-semibold text-[#ff014f] hover:text-[#be185d] bg-transparent border-0 p-0 cursor-pointer inline-block";
 
 function VerifiedReadOnlyField({
   label,
@@ -355,7 +355,7 @@ function ProfileSidebar({
                   <button
                     className={`w-full flex items-center gap-2.5 pl-3 pr-3 py-2.5 rounded-md text-[13px] font-medium transition-all cursor-pointer border-0 border-l-2 ${
                       active
-                        ? "border-l-[#FF014F] bg-gray-50 text-gray-900"
+                        ? "border-l-[#ff014f] bg-gray-50 text-gray-900"
                         : "border-l-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                     key={id}
@@ -363,7 +363,7 @@ function ProfileSidebar({
                     type="button"
                   >
                     <Icon
-                      className={`w-4 h-4 shrink-0 ${active ? "text-[#FF014F]" : "text-gray-400"}`}
+                      className={`w-4 h-4 shrink-0 ${active ? "text-[#ff014f]" : "text-gray-400"}`}
                     />
                     <span className="flex-1 text-left truncate">{label}</span>
                   </button>
@@ -647,7 +647,7 @@ export default function ProfileForm() {
                         <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                           <Camera className="w-6 h-6 text-white drop-shadow-sm" />
                         </span>
-                        <span className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#FF014F] text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
+                        <span className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[#ff014f] text-white shadow-sm transition-transform duration-200 group-hover:scale-110">
                           <Camera className="w-3.5 h-3.5" />
                         </span>
                       </button>
@@ -963,7 +963,7 @@ export default function ProfileForm() {
                     <label className="flex items-center gap-2.5 cursor-pointer h-[42px]">
                       <input
                         checked={form.isPrimaryAccount}
-                        className="w-4 h-4 accent-[#FF014F] cursor-pointer"
+                        className="w-4 h-4 accent-[#ff014f] cursor-pointer"
                         onChange={(e) => setPrimaryAccount(e.target.checked)}
                         type="checkbox"
                       />
@@ -1155,7 +1155,7 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => fileRef.current?.click()}
                 type="button"
               >
-                <span className="flex items-center justify-center w-9 h-9 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0">
+                <span className="flex items-center justify-center w-9 h-9 rounded-md bg-[#fff1f2] text-[#ff014f] shrink-0">
                   <Paperclip className="w-4 h-4" />
                 </span>
                 <span className="min-w-0">
@@ -1182,7 +1182,7 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
               <label className="flex items-center gap-2 cursor-pointer mt-1.5">
                 <input
                   checked={buyout}
-                  className="w-4 h-4 accent-[#FF014F] cursor-pointer"
+                  className="w-4 h-4 accent-[#ff014f] cursor-pointer"
                   onChange={(e) => setBuyout(e.target.checked)}
                   type="checkbox"
                 />

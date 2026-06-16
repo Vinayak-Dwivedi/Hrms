@@ -16,6 +16,7 @@ function row(
     firstName: "Test",
     middleName: null,
     lastName: "User",
+    profilePhotoUrl: null,
     reportingManagerId: null,
     departmentId: 1,
     departmentName: "Operations",

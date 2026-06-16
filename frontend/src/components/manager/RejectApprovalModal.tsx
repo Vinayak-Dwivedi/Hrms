@@ -33,7 +33,7 @@ export default function RejectApprovalModal({
             Reason for rejection
           </span>
           <textarea
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 resize-y outline-none focus:border-[#FF014F] focus:ring-1 focus:ring-[#FF014F]"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 resize-y outline-none focus:border-[#ff014f] focus:ring-1 focus:ring-[#ff014f]"
             onChange={(e) => setReason(e.target.value)}
             placeholder="Share context with the employee..."
             rows={3}

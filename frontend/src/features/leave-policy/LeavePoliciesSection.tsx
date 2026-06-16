@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-// Phase 4 — Leave Policies (bundle plans). Left: a list of plans. Right: a
+// Phase 4 â€” Leave Policies (bundle plans). Left: a list of plans. Right: a
 // create/edit panel that sets per-leave-type annual quotas, links a weekly-off
 // config, toggles comp-off, and assigns scope. Saving an Active plan auto-seeds
 // employee leave balances (the API returns how many it created).
@@ -152,7 +152,7 @@ export default function LeavePoliciesSection() {
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
           >
             <Plus size={13} /> Create Policy
           </button>
@@ -184,14 +184,14 @@ export default function LeavePoliciesSection() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-gray-400">
                     <Loader2 size={18} className="animate-spin inline mr-2" />
-                    Loading…
+                    Loadingâ€¦
                   </td>
                 </tr>
               )}
               {!loading && plans.length === 0 && !error && (
                 <tr>
                   <td colSpan={6} className="text-center py-10 text-gray-400 text-[12.5px]">
-                    No policies yet. Click “Create Policy” to add one.
+                    No policies yet. Click â€œCreate Policyâ€ to add one.
                   </td>
                 </tr>
               )}
@@ -199,7 +199,7 @@ export default function LeavePoliciesSection() {
                 const quotaSummary = p.allocations
                   .filter((a) => a.annualQuota > 0)
                   .map((a) => `${a.code} ${a.annualQuota}`)
-                  .join(" · ");
+                  .join(" Â· ");
                 return (
                   <tr key={p.id} className="border-t border-gray-100 hover:bg-gray-50/50">
                     <Td>
@@ -219,7 +219,7 @@ export default function LeavePoliciesSection() {
                     </Td>
                     <Td className="text-gray-700">
                       {woName(p.weeklyOffConfigId) ?? (
-                        <span className="text-gray-400 italic">—</span>
+                        <span className="text-gray-400 italic">â€”</span>
                       )}
                     </Td>
                     <Td className="text-center">
@@ -228,7 +228,7 @@ export default function LeavePoliciesSection() {
                           On
                         </span>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-gray-300">â€”</span>
                       )}
                     </Td>
                     <Td className="text-center">
@@ -248,7 +248,7 @@ export default function LeavePoliciesSection() {
                           type="button"
                           onClick={() => setEditing(p)}
                           title="Configure"
-                          className="text-[#FF014F] hover:text-[#eb0249]"
+                          className="text-[#ff014f] hover:text-[#eb0249]"
                         >
                           <Pencil size={14} />
                         </button>
@@ -283,7 +283,7 @@ export default function LeavePoliciesSection() {
   );
 }
 
-// ─── editor (modal dialog) ────────────────────────────────────────────────────
+// â”€â”€â”€ editor (modal dialog) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PlanEditor({
   target,
@@ -444,7 +444,7 @@ function PlanEditor({
         <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
           {loading && (
             <div className="flex items-center gap-2 text-[12px] text-gray-500">
-              <Loader2 size={14} className="animate-spin" /> Loading…
+              <Loader2 size={14} className="animate-spin" /> Loadingâ€¦
             </div>
           )}
           <div className="grid grid-cols-[1fr_120px] gap-3">
@@ -474,7 +474,7 @@ function PlanEditor({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Short description…"
+            placeholder="Short descriptionâ€¦"
             rows={2}
             className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
           />
@@ -485,7 +485,7 @@ function PlanEditor({
           <div className="flex flex-col gap-1.5 rounded-xl border border-gray-100 bg-gray-50/60 p-2">
             {leaveTypes.length === 0 && (
               <p className="text-[12px] text-gray-400 px-1 py-2">
-                No active leave types. Add some in “Leave Types” first.
+                No active leave types. Add some in â€œLeave Typesâ€ first.
               </p>
             )}
             {leaveTypes.map((t) => (
@@ -543,7 +543,7 @@ function PlanEditor({
                 type="checkbox"
                 checked={compOffEnabled}
                 onChange={(e) => setCompOffEnabled(e.target.checked)}
-                className="h-4 w-4 accent-[#FF014F]"
+                className="h-4 w-4 accent-[#ff014f]"
               />
               Enabled
             </label>
@@ -603,7 +603,7 @@ function PlanEditor({
             type="checkbox"
             checked={proRataJoiners}
             onChange={(e) => setProRataJoiners(e.target.checked)}
-            className="h-4 w-4 accent-[#FF014F]"
+            className="h-4 w-4 accent-[#ff014f]"
           />
           Pro-rata first-year quota for mid-year joiners
         </label>
@@ -613,7 +613,7 @@ function PlanEditor({
             type="checkbox"
             checked={isDefault}
             onChange={(e) => setIsDefault(e.target.checked)}
-            className="h-4 w-4 accent-[#FF014F]"
+            className="h-4 w-4 accent-[#ff014f]"
           />
           Default policy (applies when no scope matches)
         </label>
@@ -633,7 +633,7 @@ function PlanEditor({
               )
             }
             title={`Applies to (${scope.length})`}
-            emptyHint="No scope — Active plans only seed balances for matched employees."
+            emptyHint="No scope â€” Active plans only seed balances for matched employees."
           />
         </div>
 
@@ -675,7 +675,7 @@ function PlanEditor({
             type="button"
             onClick={save}
             disabled={saving || loading || !name.trim()}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />
@@ -695,7 +695,7 @@ function PlanEditor({
     : modal;
 }
 
-// ─── tiny primitives ─────────────────────────────────────────────────────────
+// â”€â”€â”€ tiny primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatusBadge({ status }: { status: LeavePlanStatus }) {
   const map: Record<LeavePlanStatus, string> = {

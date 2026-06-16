@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
-// Combined Holidays screen — replaces the old Add-Holiday modal.
+// Combined Holidays screen â€” replaces the old Add-Holiday modal.
 //
-// Top: a "← Back" affordance returns to the team table.
+// Top: a "â† Back" affordance returns to the team table.
 // Then an add-holiday card (same multi-row date / day / name format as before).
 // Below: a table of ALL holidays in the system with edit + delete actions.
 //
@@ -166,10 +166,10 @@ export default function HolidaysManager({
       {/* Add holiday card */}
       <section className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-3">
-          <CalendarDays size={16} className="text-[#FF014F]" />
+          <CalendarDays size={16} className="text-[#ff014f]" />
           <h2 className="text-[14px] font-bold text-gray-900">Add Holiday</h2>
           <span className="text-[12px] text-gray-400">
-            — add one or more, then assign to teams from the team dialog.
+            â€” add one or more, then assign to teams from the team dialog.
           </span>
         </div>
 
@@ -217,7 +217,7 @@ export default function HolidaysManager({
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] font-bold text-[#FF014F] hover:text-[#eb0249] disabled:opacity-50"
+            className="self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] font-bold text-[#ff014f] hover:text-[#eb0249] disabled:opacity-50"
           >
             <Plus size={14} /> Add another
           </button>
@@ -238,7 +238,7 @@ export default function HolidaysManager({
               type="button"
               onClick={saveNew}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -322,7 +322,7 @@ export default function HolidaysManager({
                         type="button"
                         onClick={() => setEditing(h)}
                         title="Edit"
-                        className="text-[#FF014F] hover:text-[#eb0249]"
+                        className="text-[#ff014f] hover:text-[#eb0249]"
                       >
                         <Pencil size={14} />
                       </button>

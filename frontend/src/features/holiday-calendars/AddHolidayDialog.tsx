@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 // Add Holiday dialog. Each row is one holiday: date, day-of-week (auto from
 // date), and name. The clickable "+ Add Holiday" affordance in the centre
 // inserts another empty row. Clear (top-right) empties all rows. Save
 // (bottom-right) POSTs each row to /api/admin/holidays.
 //
-// Holidays here are standalone — they are not yet attached to any team. The
+// Holidays here are standalone â€” they are not yet attached to any team. The
 // Team dialog's checklist surfaces them so an admin can pick which teams
 // receive each holiday later.
 
@@ -131,7 +131,7 @@ export default function AddHolidayDialog({
               Team dialog.
             </p>
           </div>
-          {/* Clear button — top right */}
+          {/* Clear button â€” top right */}
           <button
             type="button"
             onClick={clearAll}
@@ -184,13 +184,13 @@ export default function AddHolidayDialog({
             </div>
           ))}
 
-          {/* Clickable "+ Add Holiday" in the centre — not a button-shaped
+          {/* Clickable "+ Add Holiday" in the centre â€” not a button-shaped
               element, just an inline link-like affordance per the spec. */}
           <button
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-center inline-flex items-center gap-1.5 mt-1 text-[13px] font-bold text-[#FF014F] hover:text-[#eb0249] disabled:opacity-50"
+            className="self-center inline-flex items-center gap-1.5 mt-1 text-[13px] font-bold text-[#ff014f] hover:text-[#eb0249] disabled:opacity-50"
           >
             <Plus size={14} /> Add Holiday
           </button>
@@ -218,12 +218,12 @@ export default function AddHolidayDialog({
             >
               Cancel
             </button>
-            {/* Save button — bottom right */}
+            {/* Save button â€” bottom right */}
             <button
               type="button"
               onClick={save}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save

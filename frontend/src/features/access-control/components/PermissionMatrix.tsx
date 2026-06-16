@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo } from "react";
 import type { PermissionListItem } from "../api/permissions.client";
@@ -68,7 +68,7 @@ export default function PermissionMatrix({
                 {module}
               </span>
               <button
-                className="text-xs text-[#FF014F] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-0"
+                className="text-xs text-[#ff014f] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-0"
                 disabled={disabled}
                 onClick={() => toggleModule(modulePerms, !allSelected)}
                 type="button"
@@ -82,7 +82,7 @@ export default function PermissionMatrix({
                   <label className="flex items-start gap-3 cursor-pointer text-sm text-gray-700">
                     <input
                       checked={selectedIds.includes(perm.id)}
-                      className="mt-0.5 accent-[#FF014F]"
+                      className="mt-0.5 accent-[#ff014f]"
                       disabled={disabled}
                       onChange={() => toggle(perm.id)}
                       type="checkbox"

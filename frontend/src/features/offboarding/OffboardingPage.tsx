@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Activity,
@@ -9,12 +9,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-// Offboarding overview — a brief introduction to the features that will live
+// Offboarding overview â€” a brief introduction to the features that will live
 // under this section. Cards are informational for now; clicking them is wired
 // when each sub-feature ships.
 //
 // Theme matches Leave Policy / employee portal: white cards, gray-200 border,
-// brand pink (#FF014F) for accents, rounded-2xl, soft shadow on hover.
+// brand pink (#ff014f) for accents, rounded-2xl, soft shadow on hover.
 
 type Feature = {
   icon: LucideIcon;
@@ -96,15 +96,15 @@ function FeatureCard({ feature }: { feature: Feature }) {
         "group relative flex flex-col gap-3 p-5",
         "bg-white border border-gray-200 rounded-xl",
         "transition-all duration-200",
-        "hover:border-[#FF014F]/40 hover:shadow-sm hover:-translate-y-0.5",
+        "hover:border-[#ff014f]/40 hover:shadow-sm hover:-translate-y-0.5",
       ].join(" ")}
     >
       <div className="flex items-center gap-3">
         <div
           className={[
             "shrink-0 rounded-xl p-2",
-            "bg-pink-50 text-[#FF014F]",
-            "transition-colors group-hover:bg-[#FF014F] group-hover:text-white",
+            "bg-pink-50 text-[#ff014f]",
+            "transition-colors group-hover:bg-[#eb0249] group-hover:text-white",
           ].join(" ")}
         >
           <Icon className="w-5 h-5" />

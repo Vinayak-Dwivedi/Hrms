@@ -1,6 +1,8 @@
+﻿import { BRAND_PINK_LAB } from "@/lib/branding";
+
 /** Color tokens aligned with iLeads_dialer/system-configuration.html */
 export const employeeTheme = {
-  btn: "#FF014F",
+  btn: BRAND_PINK_LAB,
   btnHover: "#eb0249",
   focusRing: "#ffb9ce",
   lightBg: "#ffe2e2",
@@ -8,16 +10,16 @@ export const employeeTheme = {
 } as const;
 
 export const employeeBtnClass =
-  "inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF014F] hover:bg-[#eb0249] text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all text-sm no-underline border-0 cursor-pointer";
+  "inline-flex items-center gap-2 px-5 py-2.5 bg-[#ff014f] hover:bg-[#eb0249] text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all text-sm no-underline border-0 cursor-pointer";
 
 export const employeeBtnSmClass =
-  "inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FF014F] hover:bg-[#eb0249] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all text-xs no-underline border-0 cursor-pointer";
+  "inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ff014f] hover:bg-[#eb0249] text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all text-xs no-underline border-0 cursor-pointer";
 
 export const employeeBtnOutlineSmClass =
   "inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg border border-gray-300 transition-all text-xs no-underline cursor-pointer";
 
 export const employeeEditIconBtnClass =
-  "text-[#FF014F] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-0 transition-colors";
+  "text-[#ff014f] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-0 transition-colors";
 
 export const employeeViewIconBtnClass =
   "text-green-700 hover:text-green-800 bg-transparent border-0 cursor-pointer p-0 transition-colors";
@@ -40,7 +42,7 @@ export const employeeFieldLabelClass =
 /** Small corner radius on employee form controls (overrides shadcn rounded-lg). */
 export const employeeInputRadiusClass = "rounded-sm";
 
-/** Shared control height — keep native inputs and selects aligned in one row. */
+/** Shared control height â€” keep native inputs and selects aligned in one row. */
 export const employeeFormControlHeightClass = "h-[42px] min-h-[42px]";
 export const employeeListControlHeightClass = "h-[38px] min-h-[38px]";
 
@@ -102,10 +104,10 @@ export const employeeListFormSectionDescClass =
   "text-[11px] text-gray-500 mt-0.5 mb-0";
 
 export const employeeFormSectionIconWrapClass =
-  "flex items-center justify-center w-8 h-8 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0";
+  "flex items-center justify-center w-8 h-8 rounded-md bg-[#fff1f2] text-[#ff014f] shrink-0";
 
 export const employeeListFormSectionIconWrapClass =
-  "flex items-center justify-center w-7 h-7 rounded-md bg-[#fff1f2] text-[#FF014F] shrink-0";
+  "flex items-center justify-center w-7 h-7 rounded-md bg-[#fff1f2] text-[#ff014f] shrink-0";
 
 export const employeeFormSectionIconClass = "w-4 h-4";
 
@@ -144,7 +146,7 @@ export const employeeSelectClass = [
 
 export const employeeListSelectClass = employeeSelectClass;
 
-/** Native selects in forms — chevron rendered via NativeSelectField wrapper. */
+/** Native selects in forms â€” chevron rendered via NativeSelectField wrapper. */
 export const employeeFormNativeSelectClass = [
   employeeListControlBaseClass,
   "w-full appearance-none pr-10 cursor-pointer",
@@ -187,7 +189,7 @@ export const employeeListPaginationBtnClass =
   "px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 export const employeeListPaginationBtnActiveClass =
-  "px-3 py-1.5 text-[13px] rounded-lg transition-colors border text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]";
+  "px-3 py-1.5 text-[13px] rounded-lg transition-colors border text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]";
 
 export const employeeListPaginationBtnInactiveClass =
   "px-3 py-1.5 text-[13px] rounded-lg transition-colors border text-gray-600 bg-white border-gray-300 hover:bg-gray-50";

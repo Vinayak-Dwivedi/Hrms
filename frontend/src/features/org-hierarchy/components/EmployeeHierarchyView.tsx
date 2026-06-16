@@ -1,25 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import {
-  Building2,
-  ChevronDown,
-  ChevronRight,
-  Info,
-  Search,
-  Users,
-} from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { useEffect, useMemo, useState } from "react";
+import { Info, Search } from "lucide-react";
 import type {
   EmployeeReportingNode,
   EmployeeReportingTreeDepartment,
   OrgLevel,
 } from "@/features/org-hierarchy/api/org-hierarchy.client";
+import HierarchyColumnTree, {
+  type HierarchyColumn,
+} from "@/features/org-hierarchy/components/HierarchyColumnTree";
+import {
+  countDepartmentEmployees,
+  countGroupEmployees,
+  findFirstSearchMatch,
+  type SelectionPath,
+} from "@/features/org-hierarchy/components/employee-hierarchy.utils";
 import {
   employeeCardClass,
   employeeFilterLabelClass,
@@ -34,25 +30,14 @@ type Props = {
   levels?: OrgLevel[];
 };
 
-function countSubtree(node: EmployeeReportingNode): number {
-  return (
-    1 +
-    node.directReports.reduce((sum, child) => sum + countSubtree(child), 0)
-  );
-}
-
-function countGroupEmployees(roots: EmployeeReportingNode[]): number {
-  return roots.reduce((sum, root) => sum + countSubtree(root), 0);
-}
-
-function formatLevelLabel(node: EmployeeReportingNode): string {
-  if (node.levelName && node.levelCode) {
-    return `${node.levelName} (${node.levelCode})`;
-  }
-  if (node.levelName) return node.levelName;
-  if (node.levelCode) return node.levelCode;
-  return "Level not set";
-}
+type HodAnchor = {
+  departmentId: number;
+  departmentName: string;
+  departmentCode: string;
+  subDepartmentId: number;
+  subDepartmentName: string;
+  root: EmployeeReportingNode;
+};
 
 function levelTierClass(sortOrder: number | null): string {
   if (sortOrder == null) {
@@ -67,197 +52,6 @@ function levelTierClass(sortOrder: number | null): string {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
-function nodeMatchesSearch(node: EmployeeReportingNode, query: string): boolean {
-  const haystack = [node.name, node.empId, node.designation ?? ""]
-    .join(" ")
-    .toLowerCase();
-  return haystack.includes(query);
-}
-
-function filterNodes(
-  nodes: EmployeeReportingNode[],
-  query: string,
-): EmployeeReportingNode[] {
-  if (!query) return nodes;
-
-  const filtered: EmployeeReportingNode[] = [];
-  for (const node of nodes) {
-    const childMatches = filterNodes(node.directReports, query);
-    if (nodeMatchesSearch(node, query) || childMatches.length > 0) {
-      filtered.push({ ...node, directReports: childMatches });
-    }
-  }
-  return filtered;
-}
-
-function LevelBadge({ node }: { node: EmployeeReportingNode }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
-        levelTierClass(node.levelSortOrder),
-      )}
-      title={
-        node.levelSortOrder != null
-          ? `Position rank ${node.levelSortOrder} — lower number means higher seniority`
-          : "No org level assigned on employee profile"
-      }
-    >
-      {formatLevelLabel(node)}
-    </span>
-  );
-}
-
-function EmployeeRow({
-  node,
-  depth,
-  isLast,
-}: {
-  node: EmployeeReportingNode;
-  depth: number;
-  isLast: boolean;
-}) {
-  const teamSize = countSubtree(node);
-  const directCount = node.directReports.length;
-  const hasReports = directCount > 0;
-
-  return (
-    <div className="relative">
-      {depth > 0 && (
-        <span
-          aria-hidden
-          className={cn(
-            "absolute -left-4 top-0 bottom-0 w-px bg-gray-200",
-            isLast ? "h-5" : "",
-          )}
-        />
-      )}
-      {depth > 0 && (
-        <span
-          aria-hidden
-          className="absolute -left-4 top-5 h-px w-4 bg-gray-200"
-        />
-      )}
-
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2.5 sm:grid-cols-[minmax(140px,1fr)_minmax(180px,1.4fr)_minmax(120px,1fr)_auto]",
-          depth > 0 && "ml-6",
-        )}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <LevelBadge node={node} />
-        </div>
-
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link
-              href={`/employees/${node.id}`}
-              className="text-[13px] font-semibold text-gray-900 hover:text-blue-600 hover:underline truncate"
-            >
-              {node.name}
-            </Link>
-            <span className="text-[11px] text-gray-400 shrink-0">{node.empId}</span>
-          </div>
-          {depth === 0 ? (
-            <p className="text-[11px] text-gray-500 mt-0.5">Team lead / senior role</p>
-          ) : (
-            <p className="text-[11px] text-gray-500 mt-0.5">
-              Reporting level {depth + 1}
-            </p>
-          )}
-        </div>
-
-        <div className="text-[12px] text-gray-600 self-center truncate">
-          {node.designation ?? "—"}
-        </div>
-
-        <div className="flex items-center gap-1.5 text-[11px] text-gray-500 self-center sm:justify-end">
-          <Users className={cn(employeeIconXs, "shrink-0")} />
-          {hasReports ? (
-            <span>
-              {directCount} direct · {teamSize} total
-            </span>
-          ) : (
-            <span>Individual contributor</span>
-          )}
-        </div>
-      </div>
-
-      {hasReports && (
-        <div className="mt-1 space-y-1 border-l border-dashed border-gray-200 ml-3 pl-3">
-          {node.directReports.map((report, index) => (
-            <EmployeeRow
-              key={report.id}
-              node={report}
-              depth={depth + 1}
-              isLast={index === node.directReports.length - 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SubDepartmentSection({
-  name,
-  roots,
-  defaultOpen = true,
-}: {
-  name: string;
-  roots: EmployeeReportingNode[];
-  defaultOpen?: boolean;
-}) {
-  const headcount = countGroupEmployees(roots);
-
-  return (
-    <Collapsible defaultOpen={defaultOpen}>
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-2 min-w-0">
-          <ChevronRight
-            className={cn(
-              employeeIconXs,
-              "text-gray-400 shrink-0 transition-transform [[data-state=open]_&]:rotate-90",
-            )}
-          />
-          <span className="text-[13px] font-medium text-gray-800 truncate">
-            {name}
-          </span>
-        </div>
-        <span className="text-[11px] text-gray-500 shrink-0">
-          {headcount} employee{headcount === 1 ? "" : "s"}
-        </span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pt-3 pb-1">
-        <div className="hidden sm:grid grid-cols-[minmax(140px,1fr)_minmax(180px,1.4fr)_minmax(120px,1fr)_auto] gap-2 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-          <span>Position level</span>
-          <span>Employee</span>
-          <span>Designation</span>
-          <span className="text-right">Team</span>
-        </div>
-
-        {roots.length === 0 ? (
-          <p className="px-3 py-2 text-[12px] text-gray-400">
-            No employees in this sub-department.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {roots.map((root, index) => (
-              <EmployeeRow
-                key={root.id}
-                node={root}
-                depth={0}
-                isLast={index === roots.length - 1}
-              />
-            ))}
-          </div>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
 function HierarchyGuide({ levels }: { levels: OrgLevel[] }) {
   const sortedLevels = [...levels].sort((a, b) => a.sortOrder - b.sortOrder);
 
@@ -269,16 +63,17 @@ function HierarchyGuide({ levels }: { levels: OrgLevel[] }) {
           <p className="font-medium text-gray-900">How to read this hierarchy</p>
           <ul className="list-disc pl-4 space-y-1 text-gray-600">
             <li>
-              Employees are grouped by <strong>Department</strong> then{" "}
-              <strong>Sub-department</strong> from their profile.
+              View data like this: <strong>HOD name</strong>, then{" "}
+              <strong>Department</strong>, then <strong>Sub Department</strong>,
+              then <strong>Assign Employee</strong>.
             </li>
             <li>
-              Within each team, people are listed <strong>top to bottom</strong>:
-              senior roles first, then their direct reports indented below.
+              Selecting HOD name or employee opens <strong>Assign Employee</strong>{" "}
+              and shows direct reports only.
             </li>
             <li>
-              <strong>Position level</strong> comes from the employee&apos;s
-              designation grade (lower rank number = more senior).
+              Use the profile link icon on an employee card to open their full
+              profile.
             </li>
           </ul>
           {sortedLevels.length > 0 && (
@@ -307,39 +102,295 @@ function HierarchyGuide({ levels }: { levels: OrgLevel[] }) {
   );
 }
 
+function buildEmployeeColumns(
+  roots: EmployeeReportingNode[],
+  chain: number[],
+  highlightedEmployeeId: number | null,
+  onSelectEmployee: (employeeId: number, depth: number) => void,
+): HierarchyColumn[] {
+  const columns: HierarchyColumn[] = [];
+  let currentNodes = roots;
+  let depth = 0;
+
+  while (currentNodes.length > 0) {
+    const selectedId = chain[depth] ?? null;
+    const columnId = depth === 0 ? "roots" : `reports-${depth}`;
+
+    columns.push({
+      id: columnId,
+      title: "Assign Employee",
+      nodes: currentNodes.map((node) => ({
+        id: `emp-${node.id}-${depth}`,
+        kind: "employee" as const,
+        title: node.name,
+        subtitle: node.designation ?? "HOD name",
+        count: node.directReports.length,
+        selected: node.id === selectedId,
+        highlighted: node.id === highlightedEmployeeId,
+        empId: node.empId,
+        profilePhotoUrl: node.profilePhotoUrl ?? null,
+        employeeId: node.id,
+        onClick: () => onSelectEmployee(node.id, depth),
+      })),
+      emptyMessage: "No employees at this level.",
+    });
+
+    if (selectedId == null) break;
+
+    const selected = currentNodes.find((n) => n.id === selectedId);
+    if (!selected || selected.directReports.length === 0) break;
+
+    currentNodes = selected.directReports;
+    depth += 1;
+  }
+
+  return columns;
+}
+
 export default function EmployeeHierarchyView({ tree, levels = [] }: Props) {
   const [search, setSearch] = useState("");
+  const [path, setPath] = useState<SelectionPath>({
+    departmentId: null,
+    subDepartmentId: null,
+    employeeChain: [],
+  });
+  const [selectedHodId, setSelectedHodId] = useState<number | null>(null);
+  const [scrollToNodeId, setScrollToNodeId] = useState<string | null>(null);
 
-  const filteredTree = useMemo(() => {
+  const hodAnchors = useMemo((): HodAnchor[] => {
+    const rows: HodAnchor[] = [];
+    for (const dept of tree) {
+      for (const sub of dept.subDepartments) {
+        for (const root of sub.roots) {
+          rows.push({
+            departmentId: dept.id,
+            departmentName: dept.name,
+            departmentCode: dept.code,
+            subDepartmentId: sub.id,
+            subDepartmentName: sub.name,
+            root,
+          });
+        }
+      }
+    }
+    return rows;
+  }, [tree]);
+
+  useEffect(() => {
+    if (hodAnchors.length === 0) {
+      setSelectedHodId(null);
+      setPath({ departmentId: null, subDepartmentId: null, employeeChain: [] });
+      return;
+    }
+    const first = hodAnchors[0]!;
+    setSelectedHodId(first.root.id);
+    setPath({
+      departmentId: first.departmentId,
+      subDepartmentId: first.subDepartmentId,
+      employeeChain: [first.root.id],
+    });
+  }, [hodAnchors]);
+
+  const searchMatch = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return tree;
-
-    return tree
-      .map((dept) => ({
-        ...dept,
-        subDepartments: dept.subDepartments
-          .map((sub) => ({
-            ...sub,
-            roots: filterNodes(sub.roots, query),
-          }))
-          .filter((sub) => sub.roots.length > 0),
-      }))
-      .filter((dept) => dept.subDepartments.length > 0);
+    if (!query) return null;
+    return findFirstSearchMatch(tree, query);
   }, [tree, search]);
 
-  const totalEmployees = useMemo(
+  useEffect(() => {
+    if (!searchMatch) {
+      setScrollToNodeId(null);
+      return;
+    }
+    const rootId = searchMatch.employeeChain[0] ?? null;
+    setSelectedHodId(rootId);
+    setPath({
+      departmentId: searchMatch.departmentId,
+      subDepartmentId: searchMatch.subDepartmentId,
+      employeeChain: searchMatch.employeeChain,
+    });
+    const depth = searchMatch.employeeChain.length - 1;
+    setScrollToNodeId(`emp-${searchMatch.employeeId}-${depth}`);
+  }, [searchMatch]);
+
+  const selectedDept = useMemo(
+    () => tree.find((d) => d.id === path.departmentId) ?? null,
+    [tree, path.departmentId],
+  );
+
+  const selectedSub = useMemo(
     () =>
-      tree.reduce(
-        (sum, dept) =>
-          sum +
-          dept.subDepartments.reduce(
-            (subSum, sub) => subSum + countGroupEmployees(sub.roots),
-            0,
-          ),
-        0,
-      ),
+      selectedDept?.subDepartments.find((s) => s.id === path.subDepartmentId) ??
+      null,
+    [selectedDept, path.subDepartmentId],
+  );
+
+  const highlightedEmployeeId = searchMatch?.employeeId ?? null;
+
+  const selectedHodAnchors = useMemo(
+    () =>
+      selectedHodId == null
+        ? []
+        : hodAnchors.filter((a) => a.root.id === selectedHodId),
+    [hodAnchors, selectedHodId],
+  );
+
+  const selectedHodAnchor = useMemo(() => {
+    if (selectedHodAnchors.length === 0) return null;
+    return (
+      selectedHodAnchors.find(
+        (a) =>
+          a.departmentId === path.departmentId &&
+          a.subDepartmentId === path.subDepartmentId,
+      ) ?? selectedHodAnchors[0]
+    );
+  }, [selectedHodAnchors, path.departmentId, path.subDepartmentId]);
+
+  const selectedHodNode = selectedHodAnchor?.root ?? null;
+
+  const columns = useMemo((): HierarchyColumn[] => {
+    const result: HierarchyColumn[] = [
+      {
+        id: "hod-name",
+        title: "HOD name",
+        nodes: hodAnchors.map((anchor) => ({
+          id: `hod-${anchor.root.id}`,
+          kind: "employee" as const,
+          title: anchor.root.name,
+          subtitle: "HOD name",
+          count: anchor.root.directReports.length,
+          selected: anchor.root.id === selectedHodId,
+          highlighted: anchor.root.id === highlightedEmployeeId,
+          empId: anchor.root.empId,
+          profilePhotoUrl: anchor.root.profilePhotoUrl ?? null,
+          employeeId: anchor.root.id,
+          onClick: () =>
+            setPath({
+              departmentId: anchor.departmentId,
+              subDepartmentId: anchor.subDepartmentId,
+              employeeChain: [anchor.root.id],
+            }),
+        })).map((node) => ({
+          ...node,
+          onClick: () => {
+            setSelectedHodId(node.employeeId ?? null);
+            const anchor = hodAnchors.find((a) => a.root.id === node.employeeId);
+            if (!anchor) return;
+            setPath({
+              departmentId: anchor.departmentId,
+              subDepartmentId: anchor.subDepartmentId,
+              employeeChain: [anchor.root.id],
+            });
+          },
+        })),
+      },
+    ];
+
+    if (selectedHodAnchors.length === 0) return result;
+
+    const deptChoices = selectedHodAnchors.reduce<
+      Array<{ id: number; name: string; code: string }>
+    >((acc, item) => {
+      if (!acc.some((d) => d.id === item.departmentId)) {
+        acc.push({
+          id: item.departmentId,
+          name: item.departmentName,
+          code: item.departmentCode,
+        });
+      }
+      return acc;
+    }, []);
+
+    result.push({
+      id: "departments",
+      title: "Department",
+      nodes: deptChoices.map((dept) => ({
+        id: `dept-${dept.id}`,
+        kind: "department" as const,
+        title: dept.name,
+        subtitle: dept.code,
+        count:
+          selectedHodAnchors.filter((a) => a.departmentId === dept.id).length,
+        selected: dept.id === path.departmentId,
+        onClick: () =>
+          setPath((prev) => ({
+            ...prev,
+            departmentId: dept.id,
+            subDepartmentId:
+              selectedHodAnchors.find((a) => a.departmentId === dept.id)
+                ?.subDepartmentId ?? null,
+            employeeChain: prev.employeeChain.length > 0 ? [prev.employeeChain[0]!] : [],
+          })),
+      })),
+      emptyMessage: "No departments for this HOD.",
+    });
+
+    const subChoices = selectedHodAnchors
+      .filter((a) => a.departmentId === path.departmentId)
+      .reduce<Array<{ id: number; name: string }>>((acc, item) => {
+        if (!acc.some((s) => s.id === item.subDepartmentId)) {
+          acc.push({ id: item.subDepartmentId, name: item.subDepartmentName });
+        }
+        return acc;
+      }, []);
+
+    result.push({
+      id: "sub-departments",
+      title: "Sub Department",
+      nodes: subChoices.map((sub) => ({
+        id: `sub-${sub.id}`,
+        kind: "subDepartment" as const,
+        title: sub.name,
+        selected: sub.id === path.subDepartmentId,
+        onClick: () =>
+          setPath((prev) => ({
+            ...prev,
+            subDepartmentId: sub.id,
+            employeeChain: prev.employeeChain.length > 0 ? [prev.employeeChain[0]!] : [],
+          })),
+      })),
+      emptyMessage: "No sub departments for this HOD in the selected department.",
+    });
+
+    if (!selectedHodNode || path.subDepartmentId == null) return result;
+
+    const chainTail = path.employeeChain.slice(1);
+    const employeeColumns = buildEmployeeColumns(
+      selectedHodNode.directReports,
+      chainTail,
+      highlightedEmployeeId,
+      (employeeId, depth) => {
+        setPath((prev) => {
+          const nextTail = [...prev.employeeChain.slice(1, depth + 1), employeeId];
+          return {
+            ...prev,
+            employeeChain:
+              prev.employeeChain.length > 0
+                ? [prev.employeeChain[0]!, ...nextTail]
+                : nextTail,
+          };
+        });
+      },
+    );
+
+    return [...result, ...employeeColumns];
+  }, [
+    hodAnchors,
+    selectedHodAnchors,
+    selectedHodId,
+    path.subDepartmentId,
+    path.departmentId,
+    path.employeeChain,
+    selectedHodNode,
+    highlightedEmployeeId,
+  ]);
+
+  const totalEmployees = useMemo(
+    () => tree.reduce((sum, dept) => sum + countDepartmentEmployees(dept), 0),
     [tree],
   );
+
+  const searchHasNoMatch = search.trim().length > 0 && !searchMatch;
 
   if (tree.length === 0) {
     return (
@@ -364,7 +415,7 @@ export default function EmployeeHierarchyView({ tree, levels = [] }: Props) {
               across {tree.length} department{tree.length === 1 ? "" : "s"}
             </p>
             <p className="text-[12px] text-gray-500 mt-0.5">
-              Sorted by position level, then reporting manager chain
+              HOD name, then Department, then Sub Department, then Assign Employee
             </p>
           </div>
           <div className="w-full sm:max-w-xs">
@@ -391,61 +442,17 @@ export default function EmployeeHierarchyView({ tree, levels = [] }: Props) {
         </div>
       </div>
 
-      {filteredTree.length === 0 ? (
+      {searchHasNoMatch ? (
         <div className={`${employeeCardClass} overflow-hidden`}>
           <p className={employeeListTableEmptyClass}>
             No employees match &ldquo;{search.trim()}&rdquo;.
           </p>
         </div>
       ) : (
-        filteredTree.map((dept) => {
-          const deptHeadcount = dept.subDepartments.reduce(
-            (sum, sub) => sum + countGroupEmployees(sub.roots),
-            0,
-          );
-
-          return (
-            <div key={dept.id} className={`${employeeCardClass} overflow-hidden`}>
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3.5 text-left hover:bg-gray-50/80 transition-colors">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ChevronDown
-                      className={cn(
-                        employeeIconXs,
-                        "text-gray-400 shrink-0 transition-transform [[data-state=closed]_&]:-rotate-90",
-                      )}
-                    />
-                    <Building2 className={cn(employeeIconXs, "text-gray-500 shrink-0")} />
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-semibold text-gray-900 truncate">
-                        {dept.name}
-                      </p>
-                      <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                        {dept.code}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[12px] text-gray-500 shrink-0">
-                    {deptHeadcount} employee{deptHeadcount === 1 ? "" : "s"} ·{" "}
-                    {dept.subDepartments.length} sub-dept
-                    {dept.subDepartments.length === 1 ? "" : "s"}
-                  </span>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent className="p-4 space-y-4">
-                  {dept.subDepartments.map((sub) => (
-                    <SubDepartmentSection
-                      key={sub.id}
-                      name={sub.name}
-                      roots={sub.roots}
-                    />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          );
-        })
+        <HierarchyColumnTree columns={columns} scrollToNodeId={scrollToNodeId} />
       )}
     </div>
   );
 }
+
+// Re-export for tests or external use

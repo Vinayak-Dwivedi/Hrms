@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // Edit a single holiday (date / name / type / half-day / description).
 // Shared by the Holidays manager screen and the Team-holidays dialog.
@@ -126,7 +126,7 @@ export default function EditHolidayDialog({
                   type="checkbox"
                   checked={isHalfDay}
                   onChange={(e) => setIsHalfDay(e.target.checked)}
-                  className="h-4 w-4 accent-[#FF014F]"
+                  className="h-4 w-4 accent-[#ff014f]"
                 />
                 Half-day holiday
               </label>
@@ -162,7 +162,7 @@ export default function EditHolidayDialog({
             type="button"
             onClick={save}
             disabled={saving || !valid}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Save
