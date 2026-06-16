@@ -753,6 +753,21 @@ meRouter.post("/leave-requests", async (req, res, next) => {
       durationType: body.durationType,
     });
 
+    // Non-blocking checks (holidays / weekly-offs falling inside the range).
+    // Only the warnings are surfaced — hard errors are already enforced by
+    // validateLeaveRequest above, so we don't re-reject here.
+    const application = await validateLeaveApplication({
+      employeeId: emp.id,
+      leaveTypeId,
+      fromDate: body.fromDate,
+      toDate: body.durationType === "Full Day" ? body.toDate : body.fromDate,
+      days: validated.days,
+    });
+
+    // Snapshot the approval workflow stages onto the request at creation time
+    // (the workflow engine below advances `currentStage` through them).
+    const workflowStages = await resolveWorkflowStages(emp.id);
+
     const [row] = await db
       .insert(leaveRequests)
       .values({
@@ -822,7 +837,7 @@ meRouter.post("/leave-requests", async (req, res, next) => {
         ? { name: workflowResult.workflowName, appliedStatus: workflowResult.status }
         : null,
       // Non-blocking validation warnings (holidays/weekly-offs in range).
-      warnings: validation.warnings,
+      warnings: application.warnings,
     });
   } catch (e) {
     next(e);

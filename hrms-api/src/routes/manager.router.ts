@@ -21,6 +21,17 @@ import {
   todayYmd,
   ymd,
 } from "@/lib/employee";
+import { ApiError } from "@/middleware/error";
+import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
+import {
+  notifyEmployeeOnApproval,
+  notifyEmployeeOnRejection,
+  notifyHROnForward,
+} from "@/services/leave-notifications";
+import {
+  loadLeaveRequestParticipants,
+  requiresHRApprovalForEmployee,
+} from "@/services/leave-routing";
 import { fetchEmployeeLeaveBalances } from "@/services/leave-request-validation";
 
 export const managerRouter: Router = Router();
