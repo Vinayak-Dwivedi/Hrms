@@ -354,7 +354,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                     style={{
                       flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
                       border: "none", cursor: blocked ? "not-allowed" : "pointer",
-                      background: active ? "#e91e8c" : "transparent",
+                      background: active ? B.primary : "transparent",
                       color: blocked ? "#cbd5e1" : active ? "#fff" : "#6b7280",
                       transition: "background 0.15s",
                     }}
@@ -377,10 +377,10 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                       onClick={() => setHalfDayPart(part)}
                       style={{
                         flex: 1, padding: "8px 0", fontSize: 13, fontWeight: 600,
-                        border: `1.5px solid ${active ? "#e91e8c" : "#e5e7eb"}`,
+                        border: `1.5px solid ${active ? B.primary : "#e5e7eb"}`,
                         borderRadius: 8, cursor: "pointer",
-                        background: active ? "#fff1f2" : "#fff",
-                        color: active ? "#be185d" : "#6b7280",
+                        background: active ? B.primaryLight : "#fff",
+                        color: active ? B.primaryMuted : "#6b7280",
                         transition: "all 0.15s",
                       }}
                     >
@@ -440,7 +440,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           {/* Working days badge */}
           {workingDays > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <span style={{ display: "inline-block", background: "#fce7f3", color: "#be185d", fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
+              <span style={{ display: "inline-block", background: B.primaryLight, color: B.primaryMuted, fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
                 {durationMode === "Half Day" ? "0.5" : workingDays} Working {durationMode === "Half Day" || workingDays === 1 ? "Day" : "Days"}
               </span>
             </div>
@@ -863,7 +863,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, onCancelLeave, isT
                   setCancelling(false);
                 }
               }}
-              style={{ padding: "8px 22px", borderRadius: 8, border: "1.5px solid #e91e8c", background: "#fff", fontSize: 14, fontWeight: 700, color: "#e91e8c", cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? 0.6 : 1 }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: `1.5px solid ${B.primary}`, background: "#fff", fontSize: 14, fontWeight: 700, color: B.primary, cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? 0.6 : 1 }}
             >
               {cancelling ? "Cancelling…" : "Cancel Leave"}
             </button>
