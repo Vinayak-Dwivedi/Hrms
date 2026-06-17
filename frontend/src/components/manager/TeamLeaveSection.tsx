@@ -111,7 +111,7 @@ export default function TeamLeaveSection() {
         </div>
 
         {loading ? (
-          <div className={enterpriseLoadingClass}>Loading team leave…</div>
+          <div className="p-6 text-gray-500">Loading team leave…</div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             <LeaveApprovalsTable

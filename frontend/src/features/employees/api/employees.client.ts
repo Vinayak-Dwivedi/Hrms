@@ -26,7 +26,7 @@ export type EmployeeListItem = {
   departmentId: number | null;
   subDepartmentId: number | null;
   designationId: number | null;
-  orgHierarchyStructureId: number | null;
+  orgHierarchyStructureId?: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
   onboardingStatus?: OnboardingPipelineStatus;

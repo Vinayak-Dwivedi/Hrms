@@ -3,8 +3,8 @@
 // Team-holidays dialog. Opens when a team row is clicked. Lists every holiday
 // assigned to that team (via holiday_team_links) with per-row Edit and Unlink.
 //
-//   Edit   â†’ EditHolidayDialog (PATCHes the holiday itself).
-//   Unlink â†’ PATCH the holiday's teamIds, dropping just this team. The holiday
+//   Edit   → EditHolidayDialog (PATCHes the holiday itself).
+//   Unlink → PATCH the holiday's teamIds, dropping just this team. The holiday
 //            stays in the global Holidays table and on any other teams.
 //
 // Holiday data comes from the parent's `holidays` list (single source of
@@ -128,7 +128,7 @@ export default function TeamHolidaysDialog({
                     colSpan={5}
                     className="text-center py-12 text-gray-400 text-[12.5px]"
                   >
-                    No holidays assigned to this team yet. Use â€œAdd Teamâ€ to edit
+                    No holidays assigned to this team yet. Use “Add Team” to edit
                     its holiday list, or assign holidays from the Holidays screen.
                   </td>
                 </tr>

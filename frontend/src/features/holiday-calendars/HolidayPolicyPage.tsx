@@ -1,10 +1,10 @@
 ﻿"use client";
 
-// Holiday Policy â€” table-driven admin view (mirrors the Location page).
+// Holiday Policy — table-driven admin view (mirrors the Location page).
 //
 // Top: search + filter row, then two action buttons:
-//   - Add Team     â†’ AddTeamDialog (name + dept + sub-dept + holiday checklist)
-//   - Add Holiday  â†’ AddHolidayDialog (multi-row date/day/name)
+//   - Add Team     → AddTeamDialog (name + dept + sub-dept + holiday checklist)
+//   - Add Holiday  → AddHolidayDialog (multi-row date/day/name)
 //
 // Main table: one row per Team with NAME / DEPARTMENT / SUB-DEPARTMENT /
 // HOLIDAYS / STATUS / ACTION columns.
@@ -202,7 +202,7 @@ export default function HolidayPolicyPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search teamsâ€¦"
+                placeholder="Search teams…"
                 className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
               />
             </div>
@@ -277,7 +277,7 @@ export default function HolidayPolicyPage() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-gray-400">
                     <Loader2 size={18} className="animate-spin inline mr-2" />
-                    Loadingâ€¦
+                    Loading…
                   </td>
                 </tr>
               )}
@@ -314,10 +314,10 @@ export default function HolidayPolicyPage() {
                     </button>
                   </Td>
                   <Td className="text-gray-700">
-                    {r.departmentName ?? <span className="text-gray-400 italic">â€”</span>}
+                    {r.departmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
                   <Td className="text-gray-700">
-                    {r.subDepartmentName ?? <span className="text-gray-400 italic">â€”</span>}
+                    {r.subDepartmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
                   <Td className="text-center">
                     <span className="inline-block bg-pink-50 text-[#be185d] font-semibold text-[12px] px-2.5 py-0.5 rounded-full">
@@ -407,7 +407,7 @@ export default function HolidayPolicyPage() {
   );
 }
 
-// â”€â”€â”€ tiny components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── tiny components ──────────────────────────────────────────────────────
 
 function Field({
   label,

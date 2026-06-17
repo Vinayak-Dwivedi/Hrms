@@ -116,7 +116,8 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   const types = leaveBalances;
   const [leaveTypeIdx, setLeaveTypeIdx] = useState(0);
   const [reason, setReason]             = useState("");
-  const [duration, setDuration]         = useState<"Full Day" | "First Half" | "Second Half">("Full Day");
+  const [durationMode, setDurationMode] = useState<"Full Day" | "Half Day">("Full Day");
+  const [halfDayPart, setHalfDayPart]   = useState<"First Half" | "Second Half">("First Half");
   const [fromDate, setFromDate]         = useState(defaultDate);
   const [toDate, setToDate]             = useState(defaultDate);
   const [fileName, setFileName]         = useState<string | null>(null);
@@ -128,6 +129,9 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   const selectedType = types[leaveTypeIdx];
   const allowHalfDay = selectedType?.allowHalfDay ?? true;
   const minNoticeDays = selectedType?.minNoticeDays ?? 0;
+
+  const duration: LeaveSubmission["durationType"] =
+    durationMode === "Full Day" ? "Full Day" : halfDayPart;
 
   const workingDays = countLeaveDays(fromDate, toDate, holidayDateSet(holidays));
 
@@ -182,10 +186,10 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   }, [leaveTypeIdx, types]);
 
   useEffect(() => {
-    if (!allowHalfDay && duration !== "Full Day") {
-      setDuration("Full Day");
+    if (!allowHalfDay && durationMode !== "Full Day") {
+      setDurationMode("Full Day");
     }
-  }, [allowHalfDay, duration]);
+  }, [allowHalfDay, durationMode]);
 
   const leaveOptions = types.map((l) => ({
     label: `${l.name} — ${l.available} days left`,
@@ -214,7 +218,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       const diffDays = Math.floor((start.getTime() - todayDate.getTime()) / 86400000);
       if (diffDays < minNoticeDays) {
         setSubmitError(
-          `${selectedType?.name ?? "This leave type"} requires at least ${minNoticeDays} day(s) notice. Pick a later "From" date.`,
+          `${types[leaveTypeIdx]?.name ?? "This leave type"} requires at least ${minNoticeDays} day(s) notice. Pick a later "From" date.`,
         );
         return;
       }
@@ -290,7 +294,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                   </strong>{" "}
                   of {types[leaveTypeIdx]!.total} days available
                 </span>
-                {policy && <span>· Policy: {policy.name}</span>}
+                 {policyName && <span>· Policy: {policyName}</span>}
               </div>
             )}
           </div>
@@ -309,33 +313,62 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             />
           </div>
 
-          {/* Duration — half-day options disabled when the resolved policy
-              forbids them (settings.allowHalfDay === false on the leave-type's
-              policy). */}
+          {/* Duration */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>Duration</label>
+
+            {/* Top-level: Full Day / Half Day */}
             <div style={{ display: "flex", gap: 0, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb" }}>
-              {(["Full Day", "First Half", "Second Half"] as const).map((opt) => {
-                const halfBlocked = !allowHalfDay && opt !== "Full Day";
+              {(["Full Day", "Half Day"] as const).map((opt) => {
+                const blocked = opt === "Half Day" && !allowHalfDay;
+                const active = durationMode === opt;
                 return (
-                <button
-                  key={opt}
-                  onClick={() => !halfBlocked && setDuration(opt)}
-                  disabled={Boolean(halfBlocked)}
-                  title={halfBlocked ? "Half-day not allowed by policy for this leave type." : undefined}
-                  style={{
-                    flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
-                    border: "none", cursor: halfBlocked ? "not-allowed" : "pointer",
-                    background: duration === opt ? B.primary : "transparent",
-                    color: halfBlocked ? "#cbd5e1" : duration === opt ? "#fff" : "#6b7280",
-                    transition: "background 0.15s",
-                  }}
-                >
-                  {opt}
-                </button>
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => !blocked && setDurationMode(opt)}
+                    disabled={blocked}
+                    title={blocked ? "Half-day not allowed by policy for this leave type." : undefined}
+                    style={{
+                      flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
+                      border: "none", cursor: blocked ? "not-allowed" : "pointer",
+                      background: active ? "#e91e8c" : "transparent",
+                      color: blocked ? "#cbd5e1" : active ? "#fff" : "#6b7280",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    {opt}
+                  </button>
                 );
               })}
             </div>
+
+            {/* Sub-option: First Half / Second Half */}
+            {durationMode === "Half Day" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                {(["First Half", "Second Half"] as const).map((part) => {
+                  const active = halfDayPart === part;
+                  return (
+                    <button
+                      key={part}
+                      type="button"
+                      onClick={() => setHalfDayPart(part)}
+                      style={{
+                        flex: 1, padding: "8px 0", fontSize: 13, fontWeight: 600,
+                        border: `1.5px solid ${active ? "#e91e8c" : "#e5e7eb"}`,
+                        borderRadius: 8, cursor: "pointer",
+                        background: active ? "#fff1f2" : "#fff",
+                        color: active ? "#be185d" : "#6b7280",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {part}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {policyName && (
               <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
                 Policy: <strong>{policyName}</strong>
@@ -351,31 +384,42 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             )}
           </div>
 
-          {/* From / To */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>From</label>
+          {/* Date(s) */}
+          {durationMode === "Half Day" ? (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Date</label>
               <input
                 type="date" value={fromDate}
-                onChange={(e) => { setFromDate(e.target.value); if (toDate < e.target.value) setToDate(e.target.value); }}
+                onChange={(e) => { setFromDate(e.target.value); setToDate(e.target.value); }}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
               />
             </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>To</label>
-              <input
-                type="date" value={toDate} min={fromDate}
-                onChange={(e) => setToDate(e.target.value)}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
-              />
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>From</label>
+                <input
+                  type="date" value={fromDate}
+                  onChange={(e) => { setFromDate(e.target.value); if (toDate < e.target.value) setToDate(e.target.value); }}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>To</label>
+                <input
+                  type="date" value={toDate} min={fromDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Working days badge */}
           {workingDays > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <span style={{ display: "inline-block", background: B.primaryLight, color: B.primaryMuted, fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
-                {workingDays} Working {workingDays === 1 ? "Day" : "Days"}
+              <span style={{ display: "inline-block", background: "#fce7f3", color: "#be185d", fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
+                {durationMode === "Half Day" ? "0.5" : workingDays} Working {durationMode === "Half Day" || workingDays === 1 ? "Day" : "Days"}
               </span>
             </div>
           )}

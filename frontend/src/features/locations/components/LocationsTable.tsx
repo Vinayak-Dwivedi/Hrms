@@ -71,10 +71,10 @@ export default function LocationsTable({
                 >
                   <td className="px-6 py-4 font-medium">{location.name}</td>
                   <td className="px-6 py-4 max-w-xs truncate">
-                    {location.address ?? "â€”"}
+                    {location.address ?? "—"}
                   </td>
                   <td className="px-6 py-4">
-                    {location.headcount === 0 ? "â€”" : location.headcount}
+                    {location.headcount === 0 ? "—" : location.headcount}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">

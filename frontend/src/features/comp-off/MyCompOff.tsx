@@ -66,7 +66,7 @@ export default function MyCompOff() {
       )}
 
       {loading ? (
-        <p className="text-center py-8 text-[12px] text-gray-400">Loadingâ€¦</p>
+        <p className="text-center py-8 text-[12px] text-gray-400">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-center py-8 text-[12px] text-gray-400">
           No comp-off requests yet.

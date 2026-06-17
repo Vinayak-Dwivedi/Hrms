@@ -92,7 +92,7 @@ export default function MyLeaveSection({
         </div>
       )}
       {loading || (role === "manager" && managerProbeLoading) ? (
-        <div className={enterpriseLoadingClass}>Loading leave…</div>
+        <div className="p-6 text-gray-500">Loading leave…</div>
       ) : (
         <div
           className={cn(

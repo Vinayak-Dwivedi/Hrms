@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import ManagerResignations from "@/components/manager/ManagerResignations";
 import {
   employeeCardClass,
   employeeFilterLabelClass,
@@ -1021,147 +1022,6 @@ export interface ResignationRequest {
   status: "Pending" | "Approved" | "Rejected";
 }
 
-// Dummy data with a mix of statuses. No API yet — wired entirely on the client.
-const MOCK_RESIGNATIONS: ResignationRequest[] = [
-  {
-    id: 1,
-    firstName: "Rahul",
-    lastName: "Mehta",
-    empId: "ILD-2847",
-    lwd: "2026-07-31",
-    reason: "Better Opportunity",
-    detailedRemark:
-      "I have accepted an offer that aligns better with my long-term career goals. I'm committed to a clean handover of all ongoing projects before my last working day.",
-    attachment: "resignation-letter-rahul.pdf",
-    noticeBuyout: false,
-    appliedOn: "2026-06-02",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    firstName: "Priya",
-    lastName: "Sharma",
-    empId: "ILD-1042",
-    lwd: "2026-06-20",
-    reason: "Relocation",
-    detailedRemark:
-      "Relocating to another city for family reasons and requesting an early release with notice buyout.",
-    attachment: "relocation-proof.pdf",
-    noticeBuyout: true,
-    appliedOn: "2026-05-28",
-    status: "Approved",
-  },
-  {
-    id: 3,
-    firstName: "Aarav",
-    lastName: "Singh",
-    empId: "ILD-3310",
-    lwd: "2026-08-15",
-    reason: "Higher Studies",
-    detailedRemark:
-      "Admitted to a full-time master's programme starting this autumn; resigning to pursue further education.",
-    attachment: null,
-    noticeBuyout: false,
-    appliedOn: "2026-06-05",
-    status: "Pending",
-  },
-  {
-    id: 4,
-    firstName: "Kavya",
-    lastName: "Bhatt",
-    empId: "ILD-2901",
-    lwd: "2026-06-10",
-    reason: "Personal Reasons",
-    detailedRemark: "Stepping away for personal reasons. Prefer not to elaborate further.",
-    attachment: null,
-    noticeBuyout: true,
-    appliedOn: "2026-05-15",
-    status: "Rejected",
-  },
-  {
-    id: 5,
-    firstName: "Rohan",
-    lastName: "Thapa",
-    empId: "ILD-3155",
-    lwd: "2026-07-10",
-    reason: "Career Change",
-    detailedRemark:
-      "Transitioning into a different domain and have completed the relevant certification. Happy to support knowledge transfer.",
-    attachment: "career-transition-note.pdf",
-    noticeBuyout: false,
-    appliedOn: "2026-06-01",
-    status: "Pending",
-  },
-  {
-    id: 6,
-    firstName: "Ishaan",
-    lastName: "Pant",
-    empId: "ILD-2788",
-    lwd: "2026-06-30",
-    reason: "Health Issues",
-    detailedRemark:
-      "Taking an extended break to focus on health and recovery as advised by my physician.",
-    attachment: "medical-advice.pdf",
-    noticeBuyout: true,
-    appliedOn: "2026-05-22",
-    status: "Approved",
-  },
-  {
-    id: 7,
-    firstName: "Vikram",
-    lastName: "Negi",
-    empId: "ILD-3402",
-    lwd: "2026-08-01",
-    reason: "Compensation",
-    detailedRemark:
-      "Received a significantly better compensation package elsewhere. Open to discussing a counter-offer before processing.",
-    attachment: null,
-    noticeBuyout: false,
-    appliedOn: "2026-06-06",
-    status: "Pending",
-  },
-  {
-    id: 8,
-    firstName: "Neha",
-    lastName: "Kapoor",
-    empId: "ILD-1599",
-    lwd: "2026-07-05",
-    reason: "Work-Life Balance",
-    detailedRemark:
-      "Looking for a role with better work-life balance closer to home. Grateful for the experience here.",
-    attachment: "resignation-neha.pdf",
-    noticeBuyout: false,
-    appliedOn: "2026-05-30",
-    status: "Rejected",
-  },
-  {
-    id: 9,
-    firstName: "Sanya",
-    lastName: "Rao",
-    empId: "ILD-3520",
-    lwd: "2026-09-01",
-    reason: "Better Opportunity",
-    detailedRemark:
-      "Joining a product company in a senior role. Will ensure all documentation is up to date before leaving.",
-    attachment: null,
-    noticeBuyout: true,
-    appliedOn: "2026-06-07",
-    status: "Pending",
-  },
-  {
-    id: 10,
-    firstName: "Arjun",
-    lastName: "Verma",
-    empId: "ILD-2233",
-    lwd: "2026-06-25",
-    reason: "Relocation",
-    detailedRemark: "Moving abroad with family; requesting early relieving where possible.",
-    attachment: "visa-approval.pdf",
-    noticeBuyout: true,
-    appliedOn: "2026-05-18",
-    status: "Approved",
-  },
-];
 
 type ResignationSortKey =
   | "employee"
@@ -1610,10 +1470,9 @@ export default function Approvals() {
   const [regPage, setRegPage] = useState(1);
   const [regRowsPerPage, setRegRowsPerPage] = useState(10);
 
-  // ── Resignation state (frontend-only, mock data) ──
+  // ── Resignation state (tab hidden until a real API exists; no mock data) ──
   const [resignSubTab, setResignSubTab] = useState<RegSubTab>("pending");
-  const [resignations, setResignations] =
-    useState<ResignationRequest[]>(MOCK_RESIGNATIONS);
+  const [resignations, setResignations] = useState<ResignationRequest[]>([]);
   const [resignFilters, setResignFilters] =
     useState<ApprovalFilters>(EMPTY_FILTERS);
   const [resignSort, setResignSort] = useState<{
@@ -2097,43 +1956,7 @@ export default function Approvals() {
         />
       )}
 
-      {mainTab === "resignation" && (
-        <div className="pt-4 space-y-4">
-          <SubTabs
-            tabs={RESIGN_SUB}
-            active={resignSubTab}
-            onSelect={setResignSubTab}
-            badgeKey="pending"
-            badgeCount={resignPending}
-          />
-
-          <FilterToolbar
-            filters={resignFilters}
-            onChange={setResignFilters}
-            onReset={() => setResignFilters(EMPTY_FILTERS)}
-            searchPlaceholder="Search by employee name or ID..."
-            typeLabel="Reason"
-            typeOptions={resignReasonOptions}
-            statusOptions={RESIGNATION_STATUS_OPTIONS}
-          />
-
-          <ResignationApprovalsTable
-            rows={pagedResign}
-            sort={resignSort}
-            onSort={handleResignSort}
-            onView={viewResignation}
-            onEdit={editResignation}
-            onDelete={deleteResignation}
-          />
-          <Pagination
-            total={filteredResign.length}
-            page={resignCurrentPage}
-            rowsPerPage={resignRowsPerPage}
-            onPage={setResignPage}
-            onRowsPerPage={setResignRowsPerPage}
-          />
-        </div>
-      )}
+      {mainTab === "resignation" && <ManagerResignations />}
     </div>
   );
 }

@@ -139,6 +139,8 @@ export const auditEntityTypeEnum = pgEnum("audit_entity_type_enum", [
   "invitation",
   "auth",
   "leave_request",
+  "resignation",
+  "offboarding_case",
 ]);
 export const auditActionEnum = pgEnum("audit_action_enum", [
   "EMPLOYEE_CREATED",
@@ -167,6 +169,30 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "LEAVE_CANCELLED",
   "ONBOARDING_PROFILE_UPDATED_ON_BEHALF",
   "ONBOARDING_SUBMITTED_ON_BEHALF",
+  // Offboarding / resignation lifecycle (Phase 1)
+  "RESIGNATION_SUBMITTED",
+  "RESIGNATION_WITHDRAWN",
+  "RESIGNATION_APPROVED_BY_MANAGER",
+  "RESIGNATION_REJECTED_BY_MANAGER",
+  "RESIGNATION_APPROVED_BY_HR",
+  "RESIGNATION_REJECTED_BY_HR",
+  "RESIGNATION_ON_HOLD",
+  "OFFBOARDING_CASE_CREATED",
+  // Clearance workflow (Phase 2)
+  "OFFBOARDING_CLEARANCE_UPDATED",
+  "OFFBOARDING_CLEARANCES_COMPLETE",
+  // Exit interview (Phase 3)
+  "EXIT_INTERVIEW_SUBMITTED",
+  // Full & Final settlement (Phase 4)
+  "OFFBOARDING_FNF_UPDATED",
+  "OFFBOARDING_FNF_APPROVED",
+  "OFFBOARDING_FNF_PAID",
+  // Exit documents (Phase 5)
+  "OFFBOARDING_DOCUMENT_GENERATED",
+  "OFFBOARDING_DOCUMENT_SENT",
+  // Access revocation + final closure (Phase 6)
+  "OFFBOARDING_ACCESS_REVOKED",
+  "OFFBOARDING_CASE_CLOSED",
 ]);
 export const documentStatusEnum = pgEnum("document_status_enum", [
   "Pending",
@@ -184,9 +210,85 @@ export const transferStatusEnum = pgEnum("transfer_status_enum", [
   "Approved",
 ]);
 export const resignationStatusEnum = pgEnum("resignation_status_enum", [
+  // Legacy values (kept for backward compatibility with existing rows).
   "Pending",
   "Approved",
   "Withdrawn",
+  // Offboarding lifecycle (Phase 1).
+  "Submitted",
+  "ManagerApproved",
+  "ManagerRejected",
+  "HRApproved",
+  "OnHold",
+  "Rejected",
+]);
+// Manager / HR decision recorded on a resignation.
+export const resignationDecisionEnum = pgEnum("resignation_decision_enum", [
+  "Approved",
+  "Rejected",
+]);
+// Runtime offboarding-case lifecycle.
+export const offboardingCaseStatusEnum = pgEnum("offboarding_case_status_enum", [
+  "OffboardingInitiated",
+  "ClearancesComplete",
+  "FnFComplete",
+  "Closed",
+  "OnHold",
+]);
+// Clearance teams (Phase 2).
+export const clearanceTeamEnum = pgEnum("clearance_team_enum", [
+  "ReportingManager",
+  "IT",
+  "Admin",
+  "Finance",
+  "HR",
+  "Operations",
+]);
+// Per-task clearance status.
+export const clearanceTaskStatusEnum = pgEnum("clearance_task_status_enum", [
+  "Pending",
+  "Completed",
+  "NA",
+]);
+// Exit-interview response status (Phase 3).
+export const exitInterviewStatusEnum = pgEnum("exit_interview_status_enum", [
+  "Pending",
+  "Completed",
+]);
+// Full & Final settlement status (Phase 4).
+export const fnfStatusEnum = pgEnum("fnf_status_enum", [
+  "Processing",
+  "Approved",
+  "Paid",
+]);
+// FnF line-item kind.
+export const fnfLineKindEnum = pgEnum("fnf_line_kind_enum", [
+  "Earning",
+  "Deduction",
+]);
+// Exit-document category + status (Phase 5).
+export const exitDocumentCategoryEnum = pgEnum("exit_document_category_enum", [
+  "HR",
+  "Finance",
+  "Employee",
+]);
+export const exitDocumentStatusEnum = pgEnum("exit_document_status_enum", [
+  "Generated",
+  "Sent",
+]);
+// Access revocation systems + status (Phase 6).
+export const accessSystemEnum = pgEnum("access_system_enum", [
+  "HRMSLogin",
+  "Email",
+  "VPN",
+  "CRM",
+  "ERP",
+  "AttendanceSystem",
+  "BankingApplication",
+]);
+export const accessStatusEnum = pgEnum("access_status_enum", [
+  "Active",
+  "Disabled",
 ]);
 export const perfLabelEnum = pgEnum("perf_label_enum", [
   "Good",
@@ -903,12 +1005,55 @@ export const resignations = pgTable(
       .references(() => employees.id, { onDelete: "cascade" }),
     lastWorkingDate: date("last_working_date").notNull(),
     reason: text("reason").notNull(),
-    status: resignationStatusEnum("status").notNull().default("Pending"),
+    status: resignationStatusEnum("status").notNull().default("Submitted"),
     submittedOn: date("submitted_on").notNull().default(sql`CURRENT_DATE`),
     approvedBy: integer("approved_by").references(() => employees.id, {
       onDelete: "set null",
     }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
+
+    // ── Offboarding Phase 1 additions ──
+    // Resolved resignation flow + its snapshotted notice period.
+    flowId: integer("flow_id").references(() => resignationFlows.id, {
+      onDelete: "set null",
+    }),
+    noticePeriodDays: integer("notice_period_days"),
+    detailedRemark: text("detailed_remark"),
+    // Stored relative path returned by private-file-storage (nullable).
+    attachmentPath: varchar("attachment_path", { length: 500 }),
+    buyoutRequested: boolean("buyout_requested").notNull().default(false),
+    // Non-blocking system-validation snapshot: array of { code, level, message }.
+    validation: jsonb("validation").notNull().default([]),
+
+    // Manager stage.
+    managerId: integer("manager_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    managerDecision: resignationDecisionEnum("manager_decision"),
+    managerDecidedAt: timestamp("manager_decided_at", { withTimezone: true }),
+    managerRemarks: text("manager_remarks"),
+    recommendedLwd: date("recommended_lwd"),
+    knowledgeTransferRequired: boolean("knowledge_transfer_required"),
+    replacementRequired: boolean("replacement_required"),
+    criticalResource: boolean("critical_resource"),
+
+    // HR stage.
+    hrId: integer("hr_id").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    hrDecision: resignationDecisionEnum("hr_decision"),
+    hrDecidedAt: timestamp("hr_decided_at", { withTimezone: true }),
+    hrRemarks: text("hr_remarks"),
+    modifiedLwd: date("modified_lwd"),
+    leaveEncashmentEligible: boolean("leave_encashment_eligible"),
+    recoveryAmount: numeric("recovery_amount", { precision: 12, scale: 2 }),
+    gratuityEligible: boolean("gratuity_eligible"),
+    finalSettlementEligible: boolean("final_settlement_eligible"),
+
+    // Multi-stage approval snapshot (mirrors leaveRequests).
+    workflowStages: jsonb("workflow_stages"),
+    currentStage: integer("current_stage").notNull().default(0),
+
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -926,6 +1071,352 @@ export const resignations = pgTable(
       "resignation_approved_needs_approver_chk",
       sql`${table.approvedAt} IS NULL OR ${table.approvedBy} IS NOT NULL`,
     ),
+    index("idx_resignation_employee").on(table.employeeId),
+    index("idx_resignation_status").on(table.status),
+    index("idx_resignation_manager").on(table.managerId),
+  ],
+);
+
+// ── Offboarding admin config + runtime cases (Phase 1) ──
+
+// Admin template: a resignation flow defines the notice period + buyout policy
+// and is scoped to org units (dept / sub-dept / …) via resignationFlowScope.
+export const resignationFlows = pgTable("resignation_flows", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull(),
+  description: text("description"),
+  noticePeriodDays: integer("notice_period_days").notNull().default(30),
+  buyoutAllowed: boolean("buyout_allowed").notNull().default(true),
+  settings: jsonb("settings").notNull().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Scope rows for a resignation flow (mirrors leavePolicyScope).
+export const resignationFlowScope = pgTable("resignation_flow_scope", {
+  id: serial("id").primaryKey(),
+  flowId: integer("flow_id")
+    .notNull()
+    .references(() => resignationFlows.id, { onDelete: "cascade" }),
+  // 'Company' | 'Branch' | 'Department' | 'SubDepartment' | 'Designation'
+  // | 'Grade' | 'EmploymentType' | 'Employee'
+  scopeType: varchar("scope_type", { length: 30 }).notNull(),
+  scopeId: integer("scope_id"),
+  priority: integer("priority").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// Admin master list of resignation reasons (replaces the hardcoded constant).
+export const exitReasons = pgTable("exit_reasons", {
+  id: serial("id").primaryKey(),
+  label: varchar("label", { length: 120 }).notNull().unique(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Runtime offboarding case, auto-created when HR approves a resignation.
+export const offboardingCases = pgTable(
+  "offboarding_cases",
+  {
+    id: serial("id").primaryKey(),
+    caseNumber: varchar("case_number", { length: 30 }).notNull().unique(),
+    resignationId: integer("resignation_id")
+      .notNull()
+      .references(() => resignations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    departmentId: integer("department_id").references(() => departments.id, {
+      onDelete: "set null",
+    }),
+    reportingManagerId: integer("reporting_manager_id").references(
+      () => employees.id,
+      { onDelete: "set null" },
+    ),
+    dateOfJoining: date("date_of_joining"),
+    resignationDate: date("resignation_date").notNull(),
+    lastWorkingDate: date("last_working_date").notNull(),
+    noticePeriodDays: integer("notice_period_days"),
+    status: offboardingCaseStatusEnum("status")
+      .notNull()
+      .default("OffboardingInitiated"),
+    // Clearance checklist snapshot (Phase 2 fills this with team tasks).
+    clearanceChecklist: jsonb("clearance_checklist").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_offboarding_case_employee").on(table.employeeId),
+    index("idx_offboarding_case_status").on(table.status),
+  ],
+);
+
+// Admin-configurable default task list per clearance team (Phase 2). One row
+// per team; `tasks` is an ordered array of task labels seeded into each case.
+export const clearanceTemplates = pgTable("clearance_templates", {
+  id: serial("id").primaryKey(),
+  team: clearanceTeamEnum("team").notNull().unique(),
+  name: varchar("name", { length: 100 }).notNull(),
+  tasks: jsonb("tasks").notNull().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Runtime clearance tasks for an offboarding case, snapshotted from the
+// templates at case creation and checked off by each team.
+export const clearanceTasks = pgTable(
+  "clearance_tasks",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id")
+      .notNull()
+      .references(() => offboardingCases.id, { onDelete: "cascade" }),
+    team: clearanceTeamEnum("team").notNull(),
+    label: varchar("label", { length: 200 }).notNull(),
+    status: clearanceTaskStatusEnum("status").notNull().default("Pending"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    completedBy: integer("completed_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    remarks: text("remarks"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("idx_clearance_tasks_case").on(table.caseId)],
+);
+
+// Exit-interview templates (Phase 3). `questions` is an ordered array of
+// question objects: { id, type, label, required, options?, scaleMax? } where
+// type ∈ yes_no | nps | star | rating_scale | single_choice | multiple_choice
+// | comments | date.
+export const exitInterviewTemplates = pgTable("exit_interview_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull(),
+  description: text("description"),
+  questions: jsonb("questions").notNull().default([]),
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+    onDelete: "set null",
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// One exit-interview response per offboarding case. `answers` is a map of
+// questionId → value (string | number | string[] | boolean).
+export const exitInterviewResponses = pgTable(
+  "exit_interview_responses",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id")
+      .notNull()
+      .unique()
+      .references(() => offboardingCases.id, { onDelete: "cascade" }),
+    templateId: integer("template_id").references(
+      () => exitInterviewTemplates.id,
+      { onDelete: "set null" },
+    ),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    status: exitInterviewStatusEnum("status").notNull().default("Pending"),
+    answers: jsonb("answers").notNull().default({}),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_exit_interview_employee").on(table.employeeId),
+  ],
+);
+
+// Full & Final settlement, one per offboarding case (Phase 4). Totals are
+// computed from the line items; only workflow state is stored here.
+export const fnfSettlements = pgTable("fnf_settlements", {
+  id: serial("id").primaryKey(),
+  caseId: integer("case_id")
+    .notNull()
+    .unique()
+    .references(() => offboardingCases.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  status: fnfStatusEnum("status").notNull().default("Processing"),
+  notes: text("notes"),
+  approvedBy: integer("approved_by").references(() => employees.id, {
+    onDelete: "set null",
+  }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  paidBy: integer("paid_by").references(() => employees.id, {
+    onDelete: "set null",
+  }),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Earning / deduction line items for a settlement.
+export const fnfLineItems = pgTable(
+  "fnf_line_items",
+  {
+    id: serial("id").primaryKey(),
+    settlementId: integer("settlement_id")
+      .notNull()
+      .references(() => fnfSettlements.id, { onDelete: "cascade" }),
+    kind: fnfLineKindEnum("kind").notNull(),
+    label: varchar("label", { length: 150 }).notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("idx_fnf_line_settlement").on(table.settlementId)],
+);
+
+// Exit-document templates (Phase 5). `htmlTemplate` holds HTML with {{tokens}}
+// substituted at generation time. Categorised HR / Finance / Employee.
+export const exitDocumentTemplates = pgTable("exit_document_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 150 }).notNull(),
+  category: exitDocumentCategoryEnum("category").notNull(),
+  htmlTemplate: text("html_template").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(100),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Generated exit documents per case (one per template). `renderedHtml` is the
+// filled snapshot at generation time.
+export const exitDocuments = pgTable(
+  "exit_documents",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id")
+      .notNull()
+      .references(() => offboardingCases.id, { onDelete: "cascade" }),
+    templateId: integer("template_id").references(
+      () => exitDocumentTemplates.id,
+      { onDelete: "set null" },
+    ),
+    name: varchar("name", { length: 150 }).notNull(),
+    category: exitDocumentCategoryEnum("category").notNull(),
+    renderedHtml: text("rendered_html").notNull(),
+    status: exitDocumentStatusEnum("status").notNull().default("Generated"),
+    generatedBy: integer("generated_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("exit_documents_case_template_uq").on(
+      table.caseId,
+      table.templateId,
+    ),
+    index("idx_exit_documents_case").on(table.caseId),
+  ],
+);
+
+// Access revocation checklist per case (Phase 6). One row per system. HRMS
+// login is the only auto-actioned one (disables the employee account); the
+// rest are tracked as manual revocations.
+export const accessRevocations = pgTable(
+  "access_revocations",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id")
+      .notNull()
+      .references(() => offboardingCases.id, { onDelete: "cascade" }),
+    system: accessSystemEnum("system").notNull(),
+    status: accessStatusEnum("status").notNull().default("Active"),
+    isAuto: boolean("is_auto").notNull().default(false),
+    revokedBy: integer("revoked_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("access_revocations_case_system_uq").on(table.caseId, table.system),
+    index("idx_access_revocations_case").on(table.caseId),
   ],
 );
 

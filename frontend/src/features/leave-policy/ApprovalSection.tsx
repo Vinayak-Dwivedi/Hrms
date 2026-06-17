@@ -1,7 +1,7 @@
 ﻿"use client";
 
-// Approval Workflows â€” define named, ordered approver chains (Manager â†’
-// Department Head â†’ HR) and assign them to a Leave Policy. A leave request then
+// Approval Workflows — define named, ordered approver chains (Manager →
+// Department Head → HR) and assign them to a Leave Policy. A leave request then
 // walks the assigned workflow one approver at a time. Table + modal dialog,
 // matching the Leave Types / Leave Policies tabs.
 
@@ -71,7 +71,7 @@ export default function ApprovalSection() {
           </h3>
           <p className="text-[12.5px] text-gray-500 mt-0.5 leading-snug">
             Ordered approver chains. Assign one to a policy on the Leave Policies
-            tab â€” leave requests then walk it stage by stage.
+            tab — leave requests then walk it stage by stage.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -114,14 +114,14 @@ export default function ApprovalSection() {
             {loading && items.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-center py-12 text-gray-400">
-                  <Loader2 size={18} className="animate-spin inline mr-2" /> Loadingâ€¦
+                  <Loader2 size={18} className="animate-spin inline mr-2" /> Loading…
                 </td>
               </tr>
             )}
             {!loading && items.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-center py-10 text-gray-400 text-[12.5px]">
-                  No workflows yet. Click â€œCreate Workflowâ€.
+                  No workflows yet. Click “Create Workflow”.
                 </td>
               </tr>
             )}
@@ -195,13 +195,13 @@ function StageChain({ stages }: { stages: WorkflowStage[] }) {
       <span className="text-[11px] font-semibold text-gray-400">Employee</span>
       {stages.map((s, i) => (
         <span key={i} className="flex items-center gap-1.5">
-          <span className="text-gray-300">â†’</span>
+          <span className="text-gray-300">→</span>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-pink-50 text-[#be185d] border border-pink-100">
             {STAGE_LABELS[s]}
           </span>
         </span>
       ))}
-      <span className="text-gray-300">â†’</span>
+      <span className="text-gray-300">→</span>
       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
         Approved
       </span>

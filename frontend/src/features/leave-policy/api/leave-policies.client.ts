@@ -2,7 +2,7 @@
 // "resolved policy" read endpoint.
 
 import { API_BASE } from "@/lib/hrms-client";
-import type { Recipient } from "../RecipientPicker";
+import type { Recipient } from "../recipient";
 
 export type ScopeType =
   | "Company"

@@ -112,7 +112,7 @@ export default function RegApprovalsTable({
                     {fmtRegDateShort(req.date)}
                   </td>
                   <td className={tableBodyCellClass}>
-                    {req.originalIssue ?? "â€”"}
+                    {req.originalIssue ?? "—"}
                   </td>
                   <td className={`${tableBodyCellClass} whitespace-nowrap`}>
                     {fmtTime(req.requestedPunchIn)}
@@ -164,7 +164,7 @@ export default function RegApprovalsTable({
                         </button>
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">â€”</span>
+                      <span className="text-sm text-gray-400">—</span>
                     )}
                   </td>
                 </tr>

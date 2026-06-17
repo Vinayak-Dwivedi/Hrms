@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   ChevronDown,
@@ -65,7 +65,6 @@ import {
   type WeekAttendance,
   type WeekChartPoint,
 } from "@/lib/hrms-client";
-import { getMyResolvedPolicy } from "@/features/leave-policy/api/leave-policies.client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,13 +115,13 @@ const DONUT_WRAP_CLASS: Record<number, string> = {
   220: "w-[220px] h-[220px]",
 };
 
-// Role type lives in @/lib/roles â€” shared with AppShell.
+// Role type lives in @/lib/roles — shared with AppShell.
 // Each role contributes:
 //   - which identity / leave-balance / attendance endpoints to call,
 //   - what tiles show in Quick Links,
 //   - what the bottom table renders (own leaves, team approvals, etc.).
 
-// â”€â”€â”€ primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── primitives ─────────────────────────────────────────────────────────────
 
 function Avatar({
   initials,
@@ -307,7 +306,7 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
   const onLeave = points.map((p) => p.leaveCount * 480);
 
   // yMax adapts to the window: a 7-day view rarely exceeds 1200, but a 30-day
-  // bucket can stack 6 Ã— ~540 working minutes, so we round up to the nearest 600.
+  // bucket can stack 6 × ~540 working minutes, so we round up to the nearest 600.
   const maxVal = Math.max(...present, ...absent, ...onLeave, 1200);
   const yMax = Math.ceil(maxVal / 600) * 600;
   const ySteps = 6;
@@ -384,7 +383,7 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
   );
 }
 
-// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── helpers ────────────────────────────────────────────────────────────────
 
 function formatTimeLong(t: string | null | undefined): string {
   if (!t) return "--:--";
@@ -418,7 +417,7 @@ function formatWeekRange(start: string, end: string): string {
       month: "short",
       year: "numeric",
     });
-    return `${s.getUTCDate()} â€“ ${e.getUTCDate()} ${monthYear}`;
+    return `${s.getUTCDate()} – ${e.getUTCDate()} ${monthYear}`;
   }
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-GB", {
@@ -426,7 +425,7 @@ function formatWeekRange(start: string, end: string): string {
       month: "short",
       year: "numeric",
     });
-  return `${fmt(s)} â€“ ${fmt(e)}`;
+  return `${fmt(s)} – ${fmt(e)}`;
 }
 
 function isCurrentWeek(weekStart: string, weekEnd: string): boolean {
@@ -463,7 +462,7 @@ function approvalsHref(): string {
   return "/manager/approvals";
 }
 
-// â”€â”€â”€ role-specific data plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── role-specific data plumbing ────────────────────────────────────────────
 type RoleAdapters = {
   fetchIdentity: () => Promise<Employee>;
   fetchAttendanceToday: () => Promise<AttendanceRecord>;
@@ -489,7 +488,7 @@ function adaptersFor(role: Role, managerApisAvailable: boolean): RoleAdapters {
   return employeeAdapters;
 }
 
-// â”€â”€â”€ Bottom table â€” switches by role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Bottom table — switches by role ────────────────────────────────────────
 type OwnLeaveRows = { kind: "own"; rows: LeaveRequest[] | null };
 type TeamLeaveRows = { kind: "team"; rows: ApprovalLeaveRequest[] | null };
 type AdminLeaveRows = { kind: "admin"; rows: ApprovalLeaveRequest[] | null };
@@ -534,10 +533,10 @@ function RoleBottomTable({
           : leaveHref(role);
   const viewLabel =
     data.kind === "team"
-      ? "Review all"
+      ? "Review all →"
       : data.kind === "hr"
-        ? "All employees"
-        : "View all";
+        ? "All employees →"
+        : "View all →";
 
   const pendingCount =
     data.kind === "team"
@@ -588,7 +587,7 @@ function RoleBottomTable({
                 colSpan={colSpan}
                 className="py-4 text-center text-[12px] text-gray-400"
               >
-                Loadingâ€¦
+                Loading…
               </td>
             </tr>
           )}
@@ -705,7 +704,7 @@ function RoleBottomTable({
                           year: "numeric",
                         },
                       )
-                    : "â€”"}
+                    : "—"}
                 </td>
                 <td className="py-2.5 text-[13px] text-gray-600">
                   {emp.onboardingStatus.replace(/_/g, " ")}
@@ -726,7 +725,7 @@ function RoleBottomTable({
   );
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RoleDashboard({ role }: { role: Role }) {
   const { hasPermission } = useAuth();
@@ -765,7 +764,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const [hrSectionLoading, setHrSectionLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [punchBusy, setPunchBusy] = useState(false);
-  // Resolved Comp-Off policy for the current user â€” read from
+  // Resolved Comp-Off policy for the current user — read from
   // /api/me/leave-policy. Drives the "Your Comp Off rules" mini-card below
   // the Leave Balance rings.
   const [compOffPolicy, setCompOffPolicy] = useState<{
@@ -777,12 +776,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
     matchedReason: string;
   } | null>(null);
 
-  // Attendance Overview window: "7d" (Monâ€“Sun) or "30d" (rolling 30 days
+  // Attendance Overview window: "7d" (Mon–Sun) or "30d" (rolling 30 days
   // grouped into 5 buckets). Drives both the chart and the totals row.
   const [attWindow, setAttWindow] = useState<AttendanceWindow>("7d");
   const [winMenuOpen, setWinMenuOpen] = useState(false);
   const winMenuRef = useRef<HTMLDivElement | null>(null);
-  // Skip the first run of the window-change effect â€” reload() already
+  // Skip the first run of the window-change effect — reload() already
   // fetched the default 7d view on mount.
   const skipFirstWindowFetch = useRef(true);
 
@@ -800,26 +799,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
     }
   }
 
-  async function loadResolvedCompOffPolicy() {
-    try {
-      const r = await getMyResolvedPolicy("CO");
-      if (!r.policy) {
-        setCompOffPolicy(null);
-        return;
-      }
-      const s = (r.policy.settings ?? {}) as Record<string, unknown>;
-      setCompOffPolicy({
-        name: r.policy.name,
-        weekendUnits: Number(s.weekendUnits ?? 0),
-        holidayUnits: Number(s.holidayUnits ?? 0),
-        expiryMode: String(s.expiryMode ?? "yearEnd"),
-        expiryDays: Number(s.expiryDays ?? 0),
-        matchedReason: r.policy.matchedReason,
-      });
-    } catch {
-      setCompOffPolicy(null);
-    }
-  }
 
   async function reload() {
     try {
@@ -838,7 +817,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
         adapters.fetchLeaveBalances().then(setBalances),
         fetchUpcomingHolidays(5).then(setHolidays),
         loadWeek(weekAnchorRef.current),
-        loadResolvedCompOffPolicy(),
       ];
 
       if (role === "manager" && managerApisAvailable) {
@@ -957,7 +935,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const balLeaves = totalLeaves - usedLeaves;
 
   // Leave Distribution shows every leave type the employee currently holds a
-  // balance for â€” their assigned-policy allocation plus any earned comp-off â€”
+  // balance for — their assigned-policy allocation plus any earned comp-off —
   // by available days. Any leave added to their policy shows up automatically.
   const grantedByType = (balances ?? [])
     .filter((b) => b.available > 0)
@@ -972,7 +950,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
     });
   const grantedTotal = grantedByType.reduce((s, x) => s + x.value, 0);
 
-  const initials = identity?.initials ?? "Â·Â·";
+  const initials = identity?.initials ?? "··";
 
   const totalMins = week?.totals.totalWorkingMinutes ?? 0;
   const presentMins =
@@ -988,7 +966,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const lateMins =
     week?.days.reduce((s, d) => s + (d.record?.lateByMinutes ?? 0), 0) ?? 0;
 
-  const weekStatPlaceholder = weekLoading ? "â€”" : null;
+  const weekStatPlaceholder = weekLoading ? "—" : null;
   const attendanceStatCards = [
     {
       label: "PRESENT",
@@ -1072,7 +1050,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       )}
 
-      {/* Row 1 â€” Profile | Leave Balance | Upcoming Holidays */}
+      {/* Row 1 — Profile | Leave Balance | Upcoming Holidays */}
       <div className={dashboardGridClass}>
         {/* My Profile */}
         <div className={cn(gradientCardClass, "min-h-0")}>
@@ -1097,8 +1075,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
               src={identity?.avatarUrl}
             />
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-slate-900 m-0 truncate">
-                {identity?.name ?? "Loadingâ€¦"}
+              <p className="text-base font-bold text-gray-900 m-0 truncate">
+                {identity?.name ?? "Loading…"}
               </p>
               <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">
                 {identity?.role ?? ""}
@@ -1168,12 +1146,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <h3 className={cardTitleClass}>
               Leave Balance
             </h3>
-            <a
-              href={leaveHref(role)}
-              className={cn(linkAccentClass, "inline-flex items-center gap-0.5")}
-            >
-              View all
-              <ChevronRight size={12} className="shrink-0" aria-hidden />
+            <a href={leaveHref(role)} className={linkAccentClass}>
+              View all →
             </a>
           </div>
           <div className="flex flex-1 items-center justify-center">
@@ -1209,8 +1183,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
               ))}
             </div>
           </div>
-
-          {/* Resolved Comp-Off policy strip â€” only shown when a policy is
+          {/* Resolved Comp-Off policy strip — only shown when a policy is
               actually active. Driven by /api/me/leave-policy?leaveTypeCode=CO. */}
           {compOffPolicy && (
             <div className={cn("mt-3 px-3 py-2.5 flex items-center gap-2.5", enterpriseMutedPanelClass)}>
@@ -1221,9 +1194,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 <p className={cn("text-[11.5px] font-semibold text-slate-800 leading-tight truncate")}>
                   {compOffPolicy.name}
                 </p>
-                <p className="text-[10.5px] text-slate-500 leading-snug mt-0.5">
-                  Earn {compOffPolicy.weekendUnits} unit/weekend Â·{" "}
-                  {compOffPolicy.holidayUnits} unit/holiday Â·{" "}
+                <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
+                  Earn {compOffPolicy.weekendUnits} unit/weekend ·{" "}
+                  {compOffPolicy.holidayUnits} unit/holiday ·{" "}
                   {compOffPolicy.expiryMode === "yearEnd"
                     ? "expires year-end"
                     : `expires in ${compOffPolicy.expiryDays} days`}
@@ -1239,17 +1212,13 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <h3 className={cardTitleClass}>
               Upcoming Holidays
             </h3>
-            <a
-              href="/holidays"
-              className={cn(linkAccentClass, "inline-flex items-center gap-0.5")}
-            >
-              All
-              <ChevronRight size={12} className="shrink-0" aria-hidden />
+            <a href="/holidays" className={linkAccentClass}>
+              All →
             </a>
           </div>
           <div className="flex flex-col gap-2.5 flex-1">
             {holidays === null && (
-              <p className="text-[11px] text-gray-400">Loadingâ€¦</p>
+              <p className="text-[11px] text-gray-400">Loading…</p>
             )}
             {holidays !== null && holidays.length === 0 && (
               <p className="text-[11px] text-gray-400">
@@ -1295,7 +1264,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* Row 2 â€” Attendance Overview | Leave Distribution | Quick Links */}
+      {/* Row 2 — Attendance Overview | Leave Distribution | Quick Links */}
       <div className={dashboardGridClass}>
         {/* Attendance Overview */}
         <div className={gradientCardClass}>
@@ -1440,7 +1409,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <WeekChart points={week.chartPoints} />
           ) : (
             <p className="text-center text-[11px] py-8 text-gray-400">
-              Loading attendance overviewâ€¦
+              Loading attendance overview…
             </p>
           )}
 
@@ -1521,7 +1490,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
           </div>
         </div>
 
-        {/* Quick Links â€” role-driven */}
+        {/* Quick Links — role-driven */}
         <div className={gradientCardClass}>
           <h3 className={cn(cardTitleClass, "mb-3")}>
             Quick Links
@@ -1548,7 +1517,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* Row 3 â€” bottom table (own / team / admin) */}
+      {/* Row 3 — bottom table (own / team / admin) */}
       <RoleBottomTable data={bottomData} role={role} />
     </div>
   );

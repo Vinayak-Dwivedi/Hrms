@@ -373,8 +373,15 @@ export async function deleteStructure(id: number) {
 }
 
 export async function getHierarchyTree() {
-  const rows = await repo.listStructureWithJoins();
-  return buildHierarchyTree(rows);
+  // Pull all departments + sub-departments alongside the structure rows so the
+  // tree includes freshly-created ones not yet mapped into the structure
+  // (otherwise "Add Department" looks like it did nothing).
+  const [rows, departments, subDepartments] = await Promise.all([
+    repo.listStructureWithJoins(),
+    repo.listDepartments(),
+    repo.listSubDepartments(),
+  ]);
+  return buildHierarchyTree(rows, departments, subDepartments);
 }
 
 export async function getEmployeeReportingTree() {

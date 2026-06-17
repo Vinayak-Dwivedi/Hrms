@@ -13,7 +13,6 @@ import {
   notifications,
   permissions,
   regularisationRequests,
-  resignations,
   roles,
   subDepartments,
 } from "@/db/schema/hrms";
@@ -21,6 +20,7 @@ import { createCrudRouter } from "@/lib/crud-factory";
 import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
 import { requirePermission } from "@/middleware/require-permission";
 import { hrOnboardingRoutes } from "@/modules/hr-onboarding/routes/onboarding.routes";
+import { offboardingRouter } from "@/modules/offboarding/offboarding.router";
 import { orgHierarchyRoutes } from "@/modules/org-hierarchy/routes/org-hierarchy.routes";
 import { employeesRouter } from "@/routes/employees.router";
 import { leaveRequestsRouter } from "@/routes/leave-requests.router";
@@ -50,7 +50,9 @@ hrmsRouter.use("/designations",              orgSetupAccess, createCrudRouter("d
 hrmsRouter.use("/sub-departments",           orgSetupAccess, createCrudRouter("sub-department", subDepartments));
 hrmsRouter.use("/employees", employeesRouter);
 hrmsRouter.use("/employees",                 createCrudRouter("employee", employees, { excludedColumns: EMPLOYEE_CRUD_EXCLUDED_COLUMNS }));
-hrmsRouter.use("/resignations",              createCrudRouter("resignation", resignations));
+// Offboarding / resignation workflow (employee submit, manager + HR review,
+// admin config, cases). Replaces the old generic resignations CRUD.
+hrmsRouter.use("/offboarding", offboardingRouter);
 hrmsRouter.use("/regularisation-requests",   createCrudRouter("regularisation request", regularisationRequests));
 hrmsRouter.use("/leave-types",               createCrudRouter("leave type", leaveTypes));
 hrmsRouter.use("/leave-requests",            leaveRequestsRouter);

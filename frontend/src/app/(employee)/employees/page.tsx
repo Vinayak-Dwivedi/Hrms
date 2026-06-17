@@ -29,12 +29,9 @@ import {
   type OnboardingPipelineStatus,
 } from "@/features/employees/api/employees.client";
 import {
-  resolveEmployeeListRoleDisplay,
-  resolveEmployeeOrgRoleIds,
-} from "@/features/employees/lib/resolve-employee-org-role";
-import {
   fetchOrgHierarchyRoleLookups,
   type OrgHierarchyRoleLookups,
+  resolveOrgHierarchyRoleDisplay,
 } from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 
 const ALL_STATUS = "All";
@@ -51,9 +48,7 @@ export default function EmployeesPage() {
   >([]);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
   const [designations, setDesignations] = useState<LookupItem[]>([]);
-  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups | null>(
-    null,
-  );
+  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUS);
@@ -75,11 +70,15 @@ export default function EmployeesPage() {
     try {
       const [empsResult, deptsResult, desigsResult, orgResult] =
         await Promise.allSettled([
-        fetchEmployees(),
-        fetchDepartments(),
-        fetchDesignations(),
-        fetchOrgHierarchyRoleLookups(),
-      ]);
+          fetchEmployees(),
+          fetchDepartments(),
+          fetchDesignations(),
+          fetchOrgHierarchyRoleLookups(),
+        ]);
+
+      // Org-hierarchy lookups are best-effort; the table falls back to the
+      // legacy id→name maps when they are unavailable.
+      setOrgLookups(orgResult.status === "fulfilled" ? orgResult.value : null);
 
       const failures: string[] = [];
       if (empsResult.status === "fulfilled") {
@@ -193,28 +192,18 @@ export default function EmployeesPage() {
       }
 
       if (!q) return true;
-
-      const roleDisplay =
-        orgLookups != null
-          ? resolveEmployeeListRoleDisplay(
-              emp,
-              orgLookups,
-              departmentNames,
-              designationNames,
-            )
-          : {
-              department: departmentNames.get(emp.departmentId ?? -1) ?? "",
-              designation: designationNames.get(emp.designationId ?? -1) ?? "",
-            };
-
+      const org =
+        emp.orgHierarchyStructureId != null && orgLookups
+          ? resolveOrgHierarchyRoleDisplay(emp.orgHierarchyStructureId, orgLookups)
+          : null;
       const haystack = [
         emp.empId,
         emp.firstName,
         emp.lastName,
         emp.workEmail ?? "",
         emp.phone,
-        roleDisplay.department,
-        roleDisplay.designation,
+        org?.department ?? departmentNames.get(emp.departmentId ?? -1) ?? "",
+        org?.designation ?? designationNames.get(emp.designationId ?? -1) ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -404,6 +393,7 @@ export default function EmployeesPage() {
           key={`${search}-${statusFilter}-${onboardingFilter}-${departmentFilter}-${designationFilter}`}
           departmentNames={departmentNames}
           designationNames={designationNames}
+          orgLookups={orgLookups}
           employees={filteredEmployees}
           orgLookups={orgLookups}
           showOnboardingAction={showOnboardingAction}

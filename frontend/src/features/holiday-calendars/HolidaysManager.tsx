@@ -1,8 +1,8 @@
 ﻿"use client";
 
-// Combined Holidays screen â€” replaces the old Add-Holiday modal.
+// Combined Holidays screen — replaces the old Add-Holiday modal.
 //
-// Top: a "â† Back" affordance returns to the team table.
+// Top: a "← Back" affordance returns to the team table.
 // Then an add-holiday card (same multi-row date / day / name format as before).
 // Below: a table of ALL holidays in the system with edit + delete actions.
 //
@@ -169,7 +169,7 @@ export default function HolidaysManager({
           <CalendarDays size={16} className="text-[#ff014f]" />
           <h2 className="text-[14px] font-bold text-gray-900">Add Holiday</h2>
           <span className="text-[12px] text-gray-400">
-            â€” add one or more, then assign to teams from the team dialog.
+            — add one or more, then assign to teams from the team dialog.
           </span>
         </div>
 

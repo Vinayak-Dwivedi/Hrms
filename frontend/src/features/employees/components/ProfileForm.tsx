@@ -9,6 +9,7 @@ import {
   Landmark,
   Lock,
   LogOut,
+  MessageSquare,
   Paperclip,
   Phone,
   Plus,
@@ -48,6 +49,16 @@ import {
   employeeLoadingClass,
   employeeSelectClass,
 } from "../employee-theme";
+import {
+  type ExitInterviewResponse,
+  getMyExitInterview,
+  getMyResignations,
+  listActiveExitReasons,
+  submitResignation,
+  type Resignation,
+  type ValidationItem,
+} from "@/features/offboarding/api/offboarding.client";
+import ExitSurveyDialog from "@/features/offboarding/ExitSurveyDialog";
 
 type ProfileTab =
   | "profile"
@@ -436,6 +447,9 @@ export default function ProfileForm() {
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
+  const [myResignation, setMyResignation] = useState<Resignation | null>(null);
+  const [myExitInterview, setMyExitInterview] = useState<ExitInterviewResponse | null>(null);
+  const [surveyOpen, setSurveyOpen] = useState(false);
   const [emailVerifyOpen, setEmailVerifyOpen] = useState(false);
   const [emailVerifyCooldown, setEmailVerifyCooldown] = useState(60);
   const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
@@ -467,6 +481,28 @@ export default function ProfileForm() {
       if (photoPreview) URL.revokeObjectURL(photoPreview);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refreshMyResignation() {
+    try {
+      const rows = await getMyResignations();
+      setMyResignation(rows[0] ?? null);
+    } catch {
+      /* non-critical — the strip just stays hidden */
+    }
+  }
+
+  async function refreshMyExitInterview() {
+    try {
+      setMyExitInterview(await getMyExitInterview());
+    } catch {
+      /* non-critical */
+    }
+  }
+
+  useEffect(() => {
+    void refreshMyResignation();
+    void refreshMyExitInterview();
   }, []);
 
   function set<K extends StringFieldKey>(key: K, value: string) {
@@ -609,6 +645,29 @@ export default function ProfileForm() {
 
   return (
     <>
+      {myResignation && <MyResignationStrip resignation={myResignation} />}
+      {myExitInterview?.status === "Pending" && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#fecdd3] bg-[#fff1f2] px-4 py-3">
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-[#FF014F] shrink-0">
+            <MessageSquare className="w-4 h-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-[#be185d] leading-tight m-0">
+              Exit interview pending
+            </p>
+            <p className="text-[12px] text-[#be185d]/80 leading-tight mt-0.5 m-0">
+              Please share your feedback before your last working day.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSurveyOpen(true)}
+            className="ml-auto px-4 py-2 bg-[#FF014F] hover:bg-[#eb0249] text-white text-[12.5px] font-semibold rounded-lg transition-colors"
+          >
+            Complete Survey
+          </button>
+        </div>
+      )}
       <form
         className={`${employeeCardClass} overflow-hidden shadow-sm`}
         onSubmit={onSave}
@@ -1001,7 +1060,19 @@ export default function ProfileForm() {
         </div>
       </form>
 
-      {exitOpen && <ResignationExitDialog onClose={() => setExitOpen(false)} />}
+      {exitOpen && (
+        <ResignationExitDialog
+          onClose={() => setExitOpen(false)}
+          onSubmitted={refreshMyResignation}
+        />
+      )}
+      {surveyOpen && myExitInterview && (
+        <ExitSurveyDialog
+          response={myExitInterview}
+          onClose={() => setSurveyOpen(false)}
+          onSubmitted={refreshMyExitInterview}
+        />
+      )}
       <PersonalEmailVerificationDialog
         email={profile.personalEmail}
         initialCooldownSeconds={emailVerifyCooldown}
@@ -1041,12 +1112,69 @@ const RESIGNATION_REASONS = [
   "Compensation",
 ];
 
-function ResignationExitDialog({ onClose }: { onClose: () => void }) {
+// Compact banner shown on the profile when the employee has a resignation on
+// record. Mirrors the brand palette / pill styling used elsewhere.
+const RESIGNATION_STATUS_STYLE: Record<
+  Resignation["status"],
+  { bg: string; color: string; label: string }
+> = {
+  Submitted: { bg: "#fef9c3", color: "#b45309", label: "Submitted — pending manager" },
+  ManagerApproved: { bg: "#dbeafe", color: "#1d4ed8", label: "Manager approved — pending HR" },
+  ManagerRejected: { bg: "#fee2e2", color: "#b91c1c", label: "Rejected by manager" },
+  HRApproved: { bg: "#dcfce7", color: "#15803d", label: "HR approved — offboarding initiated" },
+  OnHold: { bg: "#f3f4f6", color: "#6b7280", label: "On hold" },
+  Rejected: { bg: "#fee2e2", color: "#b91c1c", label: "Rejected" },
+  Withdrawn: { bg: "#f3f4f6", color: "#6b7280", label: "Withdrawn" },
+};
+
+function MyResignationStrip({ resignation }: { resignation: Resignation }) {
+  const s =
+    RESIGNATION_STATUS_STYLE[resignation.status] ?? RESIGNATION_STATUS_STYLE.Submitted;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fff1f2] text-[#FF014F] shrink-0">
+        <LogOut className="w-4 h-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold text-gray-900 leading-tight m-0">
+          Resignation on record
+        </p>
+        <p className="text-[12px] text-gray-500 leading-tight mt-0.5 m-0">
+          Last working day {fmtStripDate(resignation.modifiedLwd ?? resignation.lastWorkingDate)}
+          {resignation.reason ? ` · ${resignation.reason}` : ""}
+        </p>
+      </div>
+      <span
+        className="ml-auto text-[11.5px] font-semibold rounded-md px-2.5 py-1"
+        style={{ background: s.bg, color: s.color }}
+      >
+        {s.label}
+      </span>
+    </div>
+  );
+}
+
+function fmtStripDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function ResignationExitDialog({
+  onClose,
+  onSubmitted,
+}: {
+  onClose: () => void;
+  onSubmitted?: () => void;
+}) {
   const [lwd, setLwd] = useState("");
   const [reason, setReason] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [buyout, setBuyout] = useState(false);
+  const [reasons, setReasons] = useState<string[]>(RESIGNATION_REASONS);
+  const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -1061,14 +1189,52 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
     };
   }, [onClose]);
 
-  function submit(e: React.FormEvent) {
+  // Load admin-configured exit reasons; fall back to the built-in list.
+  useEffect(() => {
+    let cancelled = false;
+    listActiveExitReasons()
+      .then((rows) => {
+        if (!cancelled && rows.length > 0) setReasons(rows.map((r) => r.label));
+      })
+      .catch(() => {
+        /* keep fallback reasons */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!lwd || !reason || !remarks.trim()) {
       toast.error("Please fill in all required fields.");
       return;
     }
-    toast.success("Resignation request submitted.");
-    onClose();
+    setSubmitting(true);
+    try {
+      const result = await submitResignation({
+        lastWorkingDate: lwd,
+        reason,
+        detailedRemark: remarks.trim(),
+        buyoutRequested: buyout,
+        file,
+      });
+      const warnings = (result.validation ?? []).filter(
+        (v: ValidationItem) => v.level === "warning",
+      );
+      toast.success("Resignation request submitted for review.");
+      if (warnings.length > 0) {
+        toast.warning(warnings.map((w) => w.message).join(" "));
+      }
+      onSubmitted?.();
+      onClose();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to submit resignation.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -1126,7 +1292,7 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
                   value={reason}
                 >
                   <option value="">Select reason</option>
-                  {RESIGNATION_REASONS.map((r) => (
+                  {reasons.map((r) => (
                     <option className="text-gray-800" key={r} value={r}>
                       {r}
                     </option>
@@ -1163,13 +1329,13 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
                     Choose file
                   </span>
                   <span className="block text-xs text-gray-400 truncate">
-                    {fileName ?? "No file chosen"}
+                    {file?.name ?? "No file chosen"}
                   </span>
                 </span>
               </button>
               <input
                 className="hidden"
-                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 ref={fileRef}
                 type="file"
               />
@@ -1201,8 +1367,12 @@ function ResignationExitDialog({ onClose }: { onClose: () => void }) {
             >
               Cancel
             </button>
-            <button className={employeeBtnClass} type="submit">
-              Submit Request
+            <button
+              className={`${employeeBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+              disabled={submitting}
+              type="submit"
+            >
+              {submitting ? "Submitting…" : "Submit Request"}
             </button>
           </div>
         </form>
