@@ -188,7 +188,7 @@ export default function WeeklyOffEditor({
       {loading && (
         <div className="flex items-center gap-2 text-[12px] text-gray-500 mb-3">
           <Loader2 size={14} className="animate-spin" />
-          Loadingâ€¦
+          Loading…
         </div>
       )}
 
@@ -227,13 +227,13 @@ export default function WeeklyOffEditor({
             onChange={(e) =>
               setForm({ ...form, description: e.target.value || null })
             }
-            placeholder="Short descriptionâ€¦"
+            placeholder="Short description…"
             rows={2}
             className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
           />
         </Field>
 
-        {/* â”€â”€ Mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Mode ──────────────────────────────────────────────────── */}
         <Field label="Mode">
           <div className="grid grid-cols-3 gap-2">
             {MODES.map((m) => {
@@ -257,7 +257,7 @@ export default function WeeklyOffEditor({
           </div>
         </Field>
 
-        {/* â”€â”€ Mode-specific settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Mode-specific settings ────────────────────────────────── */}
         {form.mode === "Fixed" && (
           <FixedSettingsEditor
             settings={form.settings as FixedSettings}
@@ -277,10 +277,10 @@ export default function WeeklyOffEditor({
           />
         )}
 
-        {/* â”€â”€ Live preview (next 4 weeks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Live preview (next 4 weeks) ───────────────────────────── */}
         <WeeklyOffPreview mode={form.mode} settings={form.settings} />
 
-        {/* â”€â”€ Scope assignment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── Scope assignment ──────────────────────────────────────── */}
         <div className="border-t border-gray-100 pt-3">
           <ScopeRowsEditor
             rows={form.scope as ScopeRowValue[]}
@@ -304,7 +304,7 @@ export default function WeeklyOffEditor({
               }))
             }
             title={`Applies to (${form.scope.length})`}
-            emptyHint="No scope rows â€” this configuration will not apply to anyone."
+            emptyHint="No scope rows — this configuration will not apply to anyone."
           />
         </div>
 
@@ -353,7 +353,7 @@ export default function WeeklyOffEditor({
   );
 }
 
-// â”€â”€â”€ mode-specific editors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── mode-specific editors ─────────────────────────────────────────────────
 
 // Saturday is governed by its own cadence control (below), so the weekly grid
 // only offers the other six days.
@@ -529,7 +529,7 @@ function RosterSettingsEditor({
       <textarea
         value={settings.description}
         onChange={(e) => onChange({ description: e.target.value })}
-        placeholder="Describe the roster pattern (e.g. WX-A: Sun,Wed off; WX-B: Sat,Thu offâ€¦)"
+        placeholder="Describe the roster pattern (e.g. WX-A: Sun,Wed off; WX-B: Sat,Thu off…)"
         rows={3}
         className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
       />
@@ -537,7 +537,7 @@ function RosterSettingsEditor({
   );
 }
 
-// â”€â”€â”€ live preview (next 4 weeks) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── live preview (next 4 weeks) ────────────────────────────────────────────
 
 const DOW_INDEX: Record<DayName, number> = {
   Sunday: 0,
@@ -582,9 +582,9 @@ function isOffDay(
       const week = s.pattern[weeksFromStart % s.pattern.length] ?? [];
       return week.some((d) => DOW_INDEX[d] === wd);
     }
-    return wd === 0; // no explicit pattern â†’ approximated as Sunday (matches resolver)
+    return wd === 0; // no explicit pattern → approximated as Sunday (matches resolver)
   }
-  return false; // Roster â€” no automated expansion yet
+  return false; // Roster — no automated expansion yet
 }
 
 function WeeklyOffPreview({
@@ -604,14 +604,14 @@ function WeeklyOffPreview({
   );
   const note =
     mode === "Roster"
-      ? "Roster mode has no automatic off-days â€” handled per published roster."
+      ? "Roster mode has no automatic off-days — handled per published roster."
       : mode === "Rotational" &&
           !(settings as RotationalSettings).pattern?.length
-        ? "No rotation pattern set â€” approximated as Sundays."
+        ? "No rotation pattern set — approximated as Sundays."
         : null;
 
   return (
-    <Field label="Preview â€” next 4 weeks">
+    <Field label="Preview — next 4 weeks">
       <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEK_HEADER.map((h) => (
@@ -658,7 +658,7 @@ function WeeklyOffPreview({
   );
 }
 
-// â”€â”€â”€ tiny primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── tiny primitives ───────────────────────────────────────────────────────
 
 function Field({
   label,

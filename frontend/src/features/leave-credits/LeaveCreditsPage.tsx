@@ -129,7 +129,7 @@ export default function LeaveCreditsPage() {
       {/* Manual credit by Department / Sub-Department */}
       <ManualCredit onCredited={refreshTransactions} />
 
-      {/* â”€â”€ Run cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Run cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Monthly Accrual */}
         <section className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col gap-4">
@@ -292,7 +292,7 @@ export default function LeaveCreditsPage() {
         </section>
       </div>
 
-      {/* â”€â”€ Result / errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Result / errors ───────────────────────────────────────────── */}
       {runError && (
         <div className="text-[12.5px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
           {runError}
@@ -309,7 +309,7 @@ export default function LeaveCreditsPage() {
           ].join(" ")}
         >
           <p className="text-[13px] font-semibold text-gray-900">
-            {lastRun.dryRun ? "Dry run" : "Run"} â€”{" "}
+            {lastRun.dryRun ? "Dry run" : "Run"} —{" "}
             {lastRun.kind === "monthly" ? "Monthly Accrual" : "Yearly Grant"}
           </p>
           <div className="grid grid-cols-4 gap-4 mt-3">
@@ -331,7 +331,7 @@ export default function LeaveCreditsPage() {
               <ul className="mt-2 list-disc pl-5 text-gray-700">
                 {lastRun.summary.errorSamples.map((s, i) => (
                   <li key={i}>
-                    emp #{s.employeeId} Â· type #{s.leaveTypeId}: {s.error}
+                    emp #{s.employeeId} · type #{s.leaveTypeId}: {s.error}
                   </li>
                 ))}
               </ul>
@@ -340,7 +340,7 @@ export default function LeaveCreditsPage() {
         </div>
       )}
 
-      {/* â”€â”€ Transactions table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Transactions table ────────────────────────────────────────── */}
       <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <header className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -371,7 +371,7 @@ export default function LeaveCreditsPage() {
         {transactionsLoading && transactions.length === 0 && (
           <div className="flex items-center justify-center py-10 text-gray-400">
             <Loader2 size={18} className="animate-spin mr-2" />
-            <span className="text-[12px]">Loadingâ€¦</span>
+            <span className="text-[12px]">Loading…</span>
           </div>
         )}
 
@@ -438,7 +438,7 @@ export default function LeaveCreditsPage() {
   );
 }
 
-// â”€â”€â”€ helpers / small components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── helpers / small components ────────────────────────────────────────────
 
 function PolicyPreview({
   scope,
@@ -461,7 +461,7 @@ function PolicyPreview({
   if (!policies) {
     return (
       <p className="text-[11.5px] text-gray-400 italic">
-        Loading policiesâ€¦
+        Loading policies…
       </p>
     );
   }
@@ -495,7 +495,7 @@ function PolicyPreview({
             className="flex items-center justify-between bg-gray-50 rounded px-2.5 py-1.5"
           >
             <span className="text-gray-800 truncate">
-              {p.policyName} Â· {p.leaveTypeName}{" "}
+              {p.policyName} · {p.leaveTypeName}{" "}
               <span className="text-gray-400">({p.leaveTypeCode})</span>
             </span>
             <span className="font-semibold text-[#ff014f] shrink-0">

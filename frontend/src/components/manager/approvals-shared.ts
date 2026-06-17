@@ -44,10 +44,10 @@ export function fmtRange(from: string, to: string, days: string) {
   }
 
   if (f.getFullYear() === t.getFullYear()) {
-    return `${fmtDayMonth(f)} â€“ ${fmtDayMonth(t)} ${t.getFullYear()} (${daysLabel})`;
+    return `${fmtDayMonth(f)} – ${fmtDayMonth(t)} ${t.getFullYear()} (${daysLabel})`;
   }
 
-  return `${fmtDayMonth(f, true)} â€“ ${fmtDayMonth(t, true)} (${daysLabel})`;
+  return `${fmtDayMonth(f, true)} – ${fmtDayMonth(t, true)} (${daysLabel})`;
 }
 
 export const approveIconBtnClass =

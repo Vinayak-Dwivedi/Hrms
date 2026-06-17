@@ -2,7 +2,7 @@ import { type Request, type Response, type NextFunction, Router } from "express"
 import { validateAndSavePrivateFile } from "@/infrastructure/storage/private-file-storage";
 import { loadCurrentEmployee, loadCurrentManager } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
-import { requirePermission } from "@/middleware/require-permission";
+import { getPermissionsForJwtRole, requirePermission } from "@/middleware/require-permission";
 import { documentUpload } from "@/middleware/upload.middleware";
 import { OFFBOARDING_PERMISSIONS } from "@/modules/offboarding/offboarding.permissions";
 import {
@@ -338,6 +338,37 @@ offboardingRouter.patch(
     }
   },
 );
+
+// "My Clearances" — team-scoped view for managers / IT / Finance / etc.
+// No permission gate at the route: the service filters to the teams the user
+// can act on (per-team permission, or being the case's reporting manager).
+offboardingRouter.get("/my-clearances", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const perms = new Set(await getPermissionsForJwtRole(req.user!.role));
+    res.json({ data: await svc.getMyClearances(emp.id, perms) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+offboardingRouter.patch("/my-clearances/:caseId/:taskId", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const perms = new Set(await getPermissionsForJwtRole(req.user!.role));
+    const caseId = Number(req.params.caseId);
+    const taskId = Number(req.params.taskId);
+    if (!Number.isInteger(caseId) || caseId <= 0 || !Number.isInteger(taskId) || taskId <= 0) {
+      throw new ApiError(400, "BAD_ID", "Numeric ids required.");
+    }
+    const body = clearanceTaskUpdateSchema.parse(req.body ?? {});
+    res.json({
+      data: await svc.updateMyClearanceTask(emp.id, perms, caseId, taskId, body, auditCtx(req)),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 // ───────────────────────── Exit interview (Phase 3) ─────────────────────────
 

@@ -457,6 +457,36 @@ export const CLEARANCE_TEAM_LABEL: Record<ClearanceTeam, string> = {
   Operations: "Operations Team",
 };
 
+// ── My Clearances (team-scoped view) ──
+
+export type MyClearanceCase = {
+  caseId: number;
+  caseNumber: string;
+  status: string;
+  lastWorkingDate: string;
+  departmentName: string | null;
+  employee: EmployeeRef;
+  groups: ClearanceTeamGroup[];
+  summary: { total: number; done: number };
+};
+
+export function getMyClearances(): Promise<MyClearanceCase[]> {
+  return unwrap(jsonFetch<{ data: MyClearanceCase[] }>("/my-clearances"));
+}
+
+export function updateMyClearanceTask(
+  caseId: number,
+  taskId: number,
+  body: { status?: ClearanceTaskStatus; remarks?: string | null },
+): Promise<MyClearanceCase[]> {
+  return unwrap(
+    jsonFetch<{ data: MyClearanceCase[] }>(`/my-clearances/${caseId}/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 // ── Exit interview (Phase 3) ──
 
 export type ExitQuestionType =

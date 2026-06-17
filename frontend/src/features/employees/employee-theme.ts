@@ -42,7 +42,7 @@ export const employeeFieldLabelClass =
 /** Small corner radius on employee form controls (overrides shadcn rounded-lg). */
 export const employeeInputRadiusClass = "rounded-sm";
 
-/** Shared control height â€” keep native inputs and selects aligned in one row. */
+/** Shared control height — keep native inputs and selects aligned in one row. */
 export const employeeFormControlHeightClass = "h-[42px] min-h-[42px]";
 export const employeeListControlHeightClass = "h-[38px] min-h-[38px]";
 
@@ -146,7 +146,7 @@ export const employeeSelectClass = [
 
 export const employeeListSelectClass = employeeSelectClass;
 
-/** Native selects in forms â€” chevron rendered via NativeSelectField wrapper. */
+/** Native selects in forms — chevron rendered via NativeSelectField wrapper. */
 export const employeeFormNativeSelectClass = [
   employeeListControlBaseClass,
   "w-full appearance-none pr-10 cursor-pointer",

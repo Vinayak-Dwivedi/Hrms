@@ -10,6 +10,10 @@ import {
   type EmployeeStatus,
 } from "../api/employees.client";
 import {
+  type OrgHierarchyRoleLookups,
+  resolveOrgHierarchyRoleDisplay,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+import {
   employeeCardClass,
   employeeEditIconBtnClass,
   employeeIconSm,
@@ -20,7 +24,29 @@ interface Props {
   employees: EmployeeListItem[];
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
+  // Org-hierarchy lookups — used to resolve department/designation from the
+  // employee's structure mapping (the source of truth the Add/Edit forms write
+  // to). Falls back to the legacy departmentId/designationId when absent.
+  orgLookups?: OrgHierarchyRoleLookups | null;
   showOnboardingAction?: boolean;
+}
+
+// Resolve an employee's department + designation labels, preferring the
+// org-hierarchy structure and falling back to the legacy id→name maps.
+function resolveRole(
+  emp: EmployeeListItem,
+  orgLookups: OrgHierarchyRoleLookups | null | undefined,
+  departmentNames: Map<number, string>,
+  designationNames: Map<number, string>,
+): { department: string; designation: string } {
+  if (emp.orgHierarchyStructureId != null && orgLookups) {
+    const d = resolveOrgHierarchyRoleDisplay(emp.orgHierarchyStructureId, orgLookups);
+    return { department: d.department, designation: d.designation };
+  }
+  return {
+    department: emp.departmentId != null ? (departmentNames.get(emp.departmentId) ?? "—") : "—",
+    designation: emp.designationId != null ? (designationNames.get(emp.designationId) ?? "—") : "—",
+  };
 }
 
 const STATUS_CLASS: Record<EmployeeStatus, string> = {
@@ -46,6 +72,7 @@ export default function EmployeeTable({
   employees,
   departmentNames,
   designationNames,
+  orgLookups,
   showOnboardingAction = false,
 }: Props) {
   const [page, setPage] = useState(1);
@@ -108,17 +135,13 @@ export default function EmployeeTable({
                   <td className="px-4 py-2.5">
                     {formatEmployeeDisplayName(emp)}
                   </td>
-                  <td className="px-4 py-2.5">{emp.workEmail ?? "â€”"}</td>
+                  <td className="px-4 py-2.5">{emp.workEmail ?? "—"}</td>
                   <td className="px-4 py-2.5">{emp.phone}</td>
                   <td className="px-4 py-2.5">
-                    {emp.departmentId != null
-                      ? (departmentNames.get(emp.departmentId) ?? "â€”")
-                      : "â€”"}
+                    {resolveRole(emp, orgLookups, departmentNames, designationNames).department}
                   </td>
                   <td className="px-4 py-2.5">
-                    {emp.designationId != null
-                      ? (designationNames.get(emp.designationId) ?? "â€”")
-                      : "â€”"}
+                    {resolveRole(emp, orgLookups, departmentNames, designationNames).designation}
                   </td>
                   <td className="px-4 py-2.5">
                     <span

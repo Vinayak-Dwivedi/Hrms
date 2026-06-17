@@ -247,7 +247,7 @@ export default function AddTeamDialog({
                 }
                 className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
               >
-                <option value="">Pick departmentâ€¦</option>
+                <option value="">Pick department…</option>
                 {departments?.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -343,7 +343,7 @@ export default function AddTeamDialog({
   );
 }
 
-// â”€â”€â”€ checklist dropdown for holidays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── checklist dropdown for holidays ───────────────────────────────────────
 
 function HolidayChecklist({
   holidays,
@@ -400,7 +400,7 @@ function HolidayChecklist({
               key={h.id}
               className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 text-[#be185d] px-2.5 py-1 rounded-full text-[11.5px] font-semibold"
             >
-              {h.name} Â· {h.date}
+              {h.name} · {h.date}
               <button
                 type="button"
                 onClick={() => onToggle(h.id)}
@@ -440,7 +440,7 @@ function HolidayChecklist({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search holidaysâ€¦"
+              placeholder="Search holidays…"
               autoFocus
               className="w-full pl-7 pr-2 py-1.5 rounded text-[12.5px] focus:outline-none border-0"
             />
@@ -449,7 +449,7 @@ function HolidayChecklist({
             {filtered.length === 0 && (
               <p className="px-3 py-3 text-[12px] text-gray-500 italic">
                 {holidays.length === 0
-                  ? 'No holidays yet â€” click "Add Holiday" first.'
+                  ? 'No holidays yet — click "Add Holiday" first.'
                   : "No holidays match your search."}
               </p>
             )}

@@ -98,12 +98,12 @@ export default function TeamLeaveSection() {
             href="/manager/approvals"
             className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#eb0249]"
           >
-            View all approvals â†’
+            View all approvals →
           </Link>
         </div>
 
         {loading ? (
-          <div className="p-6 text-gray-500">Loading team leaveâ€¦</div>
+          <div className="p-6 text-gray-500">Loading team leave…</div>
         ) : (
           <LeaveApprovalsTable
             busyId={busyId}

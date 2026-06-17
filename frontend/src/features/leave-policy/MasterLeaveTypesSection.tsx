@@ -1,8 +1,8 @@
 ﻿"use client";
 
-// Master Leave Types â€” table-driven catalog (mirrors the Holiday Policy table).
+// Master Leave Types — table-driven catalog (mirrors the Holiday Policy table).
 // "Create Leave Type" opens a modal dialog; rows have a Configure (edit) and a
-// deactivate action. No accent colour â€” the catalog is purely functional.
+// deactivate action. No accent colour — the catalog is purely functional.
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -134,14 +134,14 @@ export default function MasterLeaveTypesSection() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-gray-400">
                     <Loader2 size={18} className="animate-spin inline mr-2" />
-                    Loadingâ€¦
+                    Loading…
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-10 text-gray-400 text-[12.5px]">
-                    No leave types. Click â€œCreate Leave Typeâ€ to add one.
+                    No leave types. Click “Create Leave Type” to add one.
                   </td>
                 </tr>
               )}
@@ -230,7 +230,7 @@ export default function MasterLeaveTypesSection() {
   );
 }
 
-// â”€â”€â”€ create / edit dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── create / edit dialog ────────────────────────────────────────────────────
 
 function LeaveTypeDialog({
   target,
@@ -335,7 +335,7 @@ function LeaveTypeDialog({
             <textarea
               value={form.description ?? ""}
               onChange={(e) => setForm({ ...form, description: e.target.value || null })}
-              placeholder="Short description explaining eligibility and conditionsâ€¦"
+              placeholder="Short description explaining eligibility and conditions…"
               rows={2}
               className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
             />
@@ -451,7 +451,7 @@ function LeaveTypeDialog({
     : modal;
 }
 
-// â”€â”€â”€ tiny primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── tiny primitives ─────────────────────────────────────────────────────────
 
 function Toggle({
   checked,

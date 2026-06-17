@@ -25,6 +25,7 @@ export type EmployeeListItem = {
   departmentId: number | null;
   subDepartmentId: number | null;
   designationId: number | null;
+  orgHierarchyStructureId?: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
   onboardingStatus?: OnboardingPipelineStatus;
@@ -282,6 +283,7 @@ function toListItem(row: RawEmployeeRow): EmployeeListItem {
     departmentId: row.departmentId,
     subDepartmentId: row.subDepartmentId,
     designationId: row.designationId,
+    orgHierarchyStructureId: row.orgHierarchyStructureId ?? null,
     employeeStatus: row.employeeStatus,
     joiningDate: row.joiningDate,
     onboardingStatus: row.onboardingStatus,

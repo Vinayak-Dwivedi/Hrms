@@ -1,8 +1,8 @@
 ﻿"use client";
 
-// Compensatory Off â€” settings. Deliberately minimal: a master enable, whether a
-// reason is required, and when the credit expires. The earn â†’ request â†’ approve
-// â†’ credit â†’ use workflow lives in the Comp-Off request flow (Leave page) and
+// Compensatory Off — settings. Deliberately minimal: a master enable, whether a
+// reason is required, and when the credit expires. The earn → request → approve
+// → credit → use workflow lives in the Comp-Off request flow (Leave page) and
 // the Approvals page; this tab only holds the policy defaults.
 //
 // Settings persist on the "CO" leave_policies row (status Active = enabled).
@@ -68,7 +68,7 @@ export default function CompOffSection() {
       const co = types.find((t) => t.code === "CO");
       if (!co) {
         setError(
-          "No Compensatory Off (code â€œCOâ€) leave type found. Create one under Leave Types first.",
+          "No Compensatory Off (code “CO”) leave type found. Create one under Leave Types first.",
         );
         return;
       }
@@ -154,7 +154,7 @@ export default function CompOffSection() {
                 <span className="px-2.5 py-1 rounded-full bg-pink-50 text-[#be185d] border border-pink-100">
                   {step}
                 </span>
-                {i < arr.length - 1 && <span className="text-gray-300">â†’</span>}
+                {i < arr.length - 1 && <span className="text-gray-300">→</span>}
               </span>
             ),
           )}
@@ -169,7 +169,7 @@ export default function CompOffSection() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-[12px] text-gray-500">
-          <Loader2 size={14} className="animate-spin" /> Loadingâ€¦
+          <Loader2 size={14} className="animate-spin" /> Loading…
         </div>
       ) : (
         <section className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">

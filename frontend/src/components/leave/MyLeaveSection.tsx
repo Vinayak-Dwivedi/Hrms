@@ -79,7 +79,7 @@ export default function MyLeaveSection({ role }: { role: Role }) {
         </div>
       )}
       {loading || (role === "manager" && managerProbeLoading) ? (
-        <div className="p-6 text-gray-500">Loading leaveâ€¦</div>
+        <div className="p-6 text-gray-500">Loading leave…</div>
       ) : (
         <div
           className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col"
@@ -91,7 +91,7 @@ export default function MyLeaveSection({ role }: { role: Role }) {
               href="/attendance"
               className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#eb0249]"
             >
-              Apply Leave â†’
+              Apply Leave →
             </Link>
           </div>
           <LeaveTable

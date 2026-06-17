@@ -5,7 +5,7 @@
 // inserts another empty row. Clear (top-right) empties all rows. Save
 // (bottom-right) POSTs each row to /api/admin/holidays.
 //
-// Holidays here are standalone â€” they are not yet attached to any team. The
+// Holidays here are standalone — they are not yet attached to any team. The
 // Team dialog's checklist surfaces them so an admin can pick which teams
 // receive each holiday later.
 
@@ -131,7 +131,7 @@ export default function AddHolidayDialog({
               Team dialog.
             </p>
           </div>
-          {/* Clear button â€” top right */}
+          {/* Clear button — top right */}
           <button
             type="button"
             onClick={clearAll}
@@ -184,7 +184,7 @@ export default function AddHolidayDialog({
             </div>
           ))}
 
-          {/* Clickable "+ Add Holiday" in the centre â€” not a button-shaped
+          {/* Clickable "+ Add Holiday" in the centre — not a button-shaped
               element, just an inline link-like affordance per the spec. */}
           <button
             type="button"
@@ -218,7 +218,7 @@ export default function AddHolidayDialog({
             >
               Cancel
             </button>
-            {/* Save button â€” bottom right */}
+            {/* Save button — bottom right */}
             <button
               type="button"
               onClick={save}

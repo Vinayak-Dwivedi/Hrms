@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import {
   accessRevocations,
@@ -23,6 +23,7 @@ import {
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { extractPostgresError, mapDbErrorToApiError } from "@/lib/db-error";
 import { ApiError } from "@/middleware/error";
+import { CLEARANCE_TEAM_PERMISSION } from "@/modules/offboarding/offboarding.permissions";
 import { resolveResignationFlowForEmployee } from "@/modules/offboarding/resignation-flow-resolver";
 import type {
   ExitReasonUpsertInput,
@@ -851,6 +852,116 @@ export async function updateClearanceTask(
     }
   }
   return clearance;
+}
+
+// ── My Clearances — per-team scoped view for managers / team members ──
+
+// Which clearance teams the current user may view/complete, given their
+// permission codes and whether they are the reporting manager of a case.
+// `admin.roles` (super admin) → every team. Per-team permissions → that team.
+// Reporting-Manager team → only when the user is the case's reporting manager.
+export function accessibleClearanceTeams(
+  permCodes: Set<string>,
+  isReportingManager: boolean,
+): Set<string> {
+  const teams = new Set<string>();
+  const superAdmin = permCodes.has("admin.roles");
+  for (const [team, perm] of Object.entries(CLEARANCE_TEAM_PERMISSION)) {
+    if (superAdmin || permCodes.has(perm)) teams.add(team);
+  }
+  if (superAdmin || isReportingManager) teams.add("ReportingManager");
+  return teams;
+}
+
+// Active (non-closed) offboarding cases that have clearance tasks the current
+// user can act on, with only those tasks included.
+export async function getMyClearances(employeeId: number, permCodes: Set<string>) {
+  const cases = await db
+    .select({ c: offboardingCases, e: EMP_FIELDS, deptName: departments.name })
+    .from(offboardingCases)
+    .innerJoin(employees, eq(employees.id, offboardingCases.employeeId))
+    .leftJoin(departments, eq(departments.id, offboardingCases.departmentId))
+    .where(ne(offboardingCases.status, "Closed"))
+    .orderBy(desc(offboardingCases.createdAt));
+  if (cases.length === 0) return [];
+
+  const caseIds = cases.map((r) => r.c.id);
+  const tasks = await db
+    .select()
+    .from(clearanceTasks)
+    .where(inArray(clearanceTasks.caseId, caseIds))
+    .orderBy(clearanceTasks.team, clearanceTasks.sortOrder, clearanceTasks.id);
+  const byCase = new Map<number, typeof tasks>();
+  for (const t of tasks) {
+    const arr = byCase.get(t.caseId) ?? [];
+    arr.push(t);
+    byCase.set(t.caseId, arr);
+  }
+
+  const result = [];
+  for (const row of cases) {
+    const isRM = row.c.reportingManagerId === employeeId;
+    const teams = accessibleClearanceTeams(permCodes, isRM);
+    if (teams.size === 0) continue;
+
+    const mine = (byCase.get(row.c.id) ?? []).filter((t) => teams.has(t.team));
+    if (mine.length === 0) continue;
+
+    const groupMap = new Map<string, ClearanceTeamGroup["tasks"]>();
+    for (const t of mine) {
+      const list = groupMap.get(t.team) ?? [];
+      list.push({ id: t.id, label: t.label, status: t.status, remarks: t.remarks, completedAt: t.completedAt });
+      groupMap.set(t.team, list);
+    }
+    const groups: ClearanceTeamGroup[] = [];
+    for (const [team, list] of groupMap.entries()) {
+      groups.push({ team, status: teamStatus(list), tasks: list });
+    }
+    const done = mine.filter((t) => t.status === "Completed" || t.status === "NA").length;
+    result.push({
+      caseId: row.c.id,
+      caseNumber: row.c.caseNumber,
+      status: row.c.status,
+      lastWorkingDate: row.c.lastWorkingDate,
+      departmentName: row.deptName,
+      employee: row.e,
+      groups,
+      summary: { total: mine.length, done },
+    });
+  }
+  return result;
+}
+
+// Update a single clearance task as a team member — authorised only if the
+// task's team is one the user can act on for that case.
+export async function updateMyClearanceTask(
+  employeeId: number,
+  permCodes: Set<string>,
+  caseId: number,
+  taskId: number,
+  input: { status?: "Pending" | "Completed" | "NA"; remarks?: string | null },
+  auditCtx: AuditCtx,
+) {
+  const [task] = await db
+    .select({ team: clearanceTasks.team })
+    .from(clearanceTasks)
+    .where(and(eq(clearanceTasks.id, taskId), eq(clearanceTasks.caseId, caseId)))
+    .limit(1);
+  if (!task) throw new ApiError(404, "NOT_FOUND", "Clearance task not found.");
+
+  const [cse] = await db
+    .select({ rm: offboardingCases.reportingManagerId })
+    .from(offboardingCases)
+    .where(eq(offboardingCases.id, caseId))
+    .limit(1);
+  const isRM = cse?.rm === employeeId;
+  const teams = accessibleClearanceTeams(permCodes, isRM);
+  if (!teams.has(task.team)) {
+    throw new ApiError(403, "FORBIDDEN", "You are not allowed to update this team's clearance.");
+  }
+
+  await updateClearanceTask(caseId, taskId, input, employeeId, auditCtx);
+  return getMyClearances(employeeId, permCodes);
 }
 
 // ── Exit interview (Phase 3) ──

@@ -106,7 +106,7 @@ export default function ManualCredit({ onCredited }: { onCredited?: () => void }
           </h2>
           <p className="text-[12px] text-gray-500">
             Grant a fixed amount to every active employee in a group. Safe to
-            click â€” the same period can&apos;t be credited twice.
+            click — the same period can&apos;t be credited twice.
           </p>
         </div>
       </div>
@@ -118,7 +118,7 @@ export default function ManualCredit({ onCredited }: { onCredited?: () => void }
             onChange={(e) => setLeaveTypeId(e.target.value === "" ? "" : Number(e.target.value))}
             className={selectCls}
           >
-            <option value="">Selectâ€¦</option>
+            <option value="">Select…</option>
             {leaveTypes.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name} ({t.code})
@@ -158,7 +158,7 @@ export default function ManualCredit({ onCredited }: { onCredited?: () => void }
             onChange={(e) => setScopeId(e.target.value === "" ? "" : Number(e.target.value))}
             className={selectCls}
           >
-            <option value="">Selectâ€¦</option>
+            <option value="">Select…</option>
             {scopeOptions.map((o) => (
               <option key={o.id} value={o.id}>
                 {o.name}

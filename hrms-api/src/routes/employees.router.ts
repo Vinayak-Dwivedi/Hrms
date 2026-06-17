@@ -227,10 +227,14 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
       joiningDate: rest.joiningDate,
       employeeStatus: rest.employeeStatus,
       orgHierarchyStructureId: rest.orgHierarchyStructureId ?? null,
-      departmentId: rest.departmentId ?? null,
-      designationId: rest.designationId ?? null,
-      gradeId: rest.gradeId ?? null,
-      branchId: rest.branchId ?? null,
+      // Preserve the legacy org fields when the client omits them. The Add/Edit
+      // forms drive department/designation/grade/branch via the org-hierarchy
+      // structure and don't send these, so blindly nulling them would wipe an
+      // employee's department on every edit.
+      ...(rest.departmentId !== undefined ? { departmentId: rest.departmentId } : {}),
+      ...(rest.designationId !== undefined ? { designationId: rest.designationId } : {}),
+      ...(rest.gradeId !== undefined ? { gradeId: rest.gradeId } : {}),
+      ...(rest.branchId !== undefined ? { branchId: rest.branchId } : {}),
       reportingManagerId: rest.reportingManagerId ?? null,
       reportingChain: nextReportingChain,
       maritalStatus: rest.maritalStatus ?? null,

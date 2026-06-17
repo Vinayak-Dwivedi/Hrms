@@ -68,9 +68,9 @@ function leavePeriod(start: string, end: string) {
   if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
     const month = s.toLocaleDateString("en-GB", { month: "short" });
     const year = s.getFullYear();
-    return `${String(s.getDate()).padStart(2, "0")}â€“${String(e.getDate()).padStart(2, "0")} ${month} ${year}`;
+    return `${String(s.getDate()).padStart(2, "0")}–${String(e.getDate()).padStart(2, "0")} ${month} ${year}`;
   }
-  return `${fmtDate(start)} â€“ ${fmtDate(end)}`;
+  return `${fmtDate(start)} – ${fmtDate(end)}`;
 }
 
 function durationLabel(req: LeaveRequest) {
@@ -274,7 +274,7 @@ export default function LeaveTable({
                         className={cancelIconBtnClass}
                         disabled={!onCancel || busyId === req.id}
                         onClick={() => onCancel?.(req.id)}
-                        title={busyId === req.id ? "Cancellingâ€¦" : "Cancel"}
+                        title={busyId === req.id ? "Cancelling…" : "Cancel"}
                         type="button"
                       >
                         <XCircle className={employeeIconMd} />

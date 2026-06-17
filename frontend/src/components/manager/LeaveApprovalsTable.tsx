@@ -123,7 +123,7 @@ export default function LeaveApprovalsTable({
                           {req.firstName} {req.lastName}
                         </p>
                         <p className="text-xs text-gray-400 m-0 truncate">
-                          {req.designation ?? "â€”"}
+                          {req.designation ?? "—"}
                         </p>
                       </div>
                     </div>
@@ -196,7 +196,7 @@ export default function LeaveApprovalsTable({
                           </button>
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">â€”</span>
+                        <span className="text-sm text-gray-400">—</span>
                       )}
                     </td>
                   )}

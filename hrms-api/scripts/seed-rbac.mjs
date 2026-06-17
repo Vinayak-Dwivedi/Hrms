@@ -32,6 +32,11 @@ const PERMISSIONS = [
   { code: "offboarding.manage_flows", name: "Manage Resignation Flows", module: "offboarding", description: "Create and edit resignation flows, notice rules and exit reasons" },
   { code: "offboarding.approve_resignations", name: "Approve Resignations (HR)", module: "offboarding", description: "HR review and approval of resignations" },
   { code: "offboarding.manage_cases", name: "Manage Offboarding Cases", module: "offboarding", description: "View and manage active offboarding cases" },
+  { code: "offboarding.clearance.it", name: "IT Clearance", module: "offboarding", description: "View and complete IT clearance tasks on offboarding cases" },
+  { code: "offboarding.clearance.admin", name: "Admin Clearance", module: "offboarding", description: "View and complete Admin clearance tasks on offboarding cases" },
+  { code: "offboarding.clearance.finance", name: "Finance Clearance", module: "offboarding", description: "View and complete Finance clearance tasks on offboarding cases" },
+  { code: "offboarding.clearance.hr", name: "HR Clearance", module: "offboarding", description: "View and complete HR clearance tasks on offboarding cases" },
+  { code: "offboarding.clearance.operations", name: "Operations Clearance", module: "offboarding", description: "View and complete Operations clearance tasks on offboarding cases" },
 ];
 
 const ROLES = [
@@ -76,6 +81,11 @@ const ROLE_PERMISSION_CODES = {
     "offboarding.manage_flows",
     "offboarding.approve_resignations",
     "offboarding.manage_cases",
+    "offboarding.clearance.it",
+    "offboarding.clearance.admin",
+    "offboarding.clearance.finance",
+    "offboarding.clearance.hr",
+    "offboarding.clearance.operations",
   ],
 };
 
