@@ -253,6 +253,34 @@
       "when": 1781661600000,
       "tag": "20260616150000_offboarding_access_closure",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781730000000,
+      "tag": "20260617100000_leave_plans_catchup",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781733600000,
+      "tag": "20260617110000_leave_requests_catchup",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781737200000,
+      "tag": "20260617120000_users_user_type_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781740800000,
+      "tag": "20260617130000_employees_user_id",
+      "breakpoints": true
     }
   ]
 }

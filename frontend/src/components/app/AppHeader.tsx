@@ -161,14 +161,14 @@ export default function AppHeader({
           <span className="font-semibold text-gray-800">{crumb}</span>
         </nav>
         <div className="flex items-center gap-3">
-          <button
+          {/* <button
             type="button"
             className="relative flex items-center justify-center w-9 h-9 rounded-full bg-white border border-gray-200"
             aria-label="Notifications"
           >
             <Bell size={17} className="text-gray-500" />
             <span className="absolute top-2 right-2 w-[7px] h-[7px] rounded-full bg-[#ec4899]" />
-          </button>
+          </button> */}
           <div className="relative" ref={menuRef}>
             <button
               type="button"
