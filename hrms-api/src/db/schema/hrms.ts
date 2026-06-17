@@ -173,6 +173,8 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "RESIGNATION_APPROVED_BY_HR",
   "RESIGNATION_REJECTED_BY_HR",
   "RESIGNATION_ON_HOLD",
+  "RESIGNATION_DISCUSSION_REQUESTED",
+  "RESIGNATION_BUYOUT_DECISION",
   "OFFBOARDING_CASE_CREATED",
   // Clearance workflow (Phase 2)
   "OFFBOARDING_CLEARANCE_UPDATED",
@@ -212,6 +214,7 @@ export const resignationStatusEnum = pgEnum("resignation_status_enum", [
   "Withdrawn",
   // Offboarding lifecycle (Phase 1).
   "Submitted",
+  "ManagerDiscussion",
   "ManagerApproved",
   "ManagerRejected",
   "HRApproved",
@@ -1028,6 +1031,7 @@ export const resignations = pgTable(
     managerDecision: resignationDecisionEnum("manager_decision"),
     managerDecidedAt: timestamp("manager_decided_at", { withTimezone: true }),
     managerRemarks: text("manager_remarks"),
+    discussionNote: text("discussion_note"),
     recommendedLwd: date("recommended_lwd"),
     knowledgeTransferRequired: boolean("knowledge_transfer_required"),
     replacementRequired: boolean("replacement_required"),
@@ -1045,6 +1049,11 @@ export const resignations = pgTable(
     recoveryAmount: numeric("recovery_amount", { precision: 12, scale: 2 }),
     gratuityEligible: boolean("gratuity_eligible"),
     finalSettlementEligible: boolean("final_settlement_eligible"),
+    // Notice-buyout approval (Phase B). None | Requested | Approved | Rejected.
+    // Auto-set to "Requested" at submit when buyoutRequested is true. An approved
+    // buyout drops the notice-recovery deduction seeded into the FnF.
+    buyoutStatus: varchar("buyout_status", { length: 20 }).notNull().default("None"),
+    buyoutDecisionNote: text("buyout_decision_note"),
 
     // Multi-stage approval snapshot (mirrors leaveRequests).
     workflowStages: jsonb("workflow_stages"),
@@ -1175,10 +1184,16 @@ export const offboardingCases = pgTable(
 // per team; `tasks` is an ordered array of task labels seeded into each case.
 export const clearanceTemplates = pgTable("clearance_templates", {
   id: serial("id").primaryKey(),
-  team: clearanceTeamEnum("team").notNull().unique(),
+  // Free-form team key. The 6 built-in teams use their fixed slugs
+  // (ReportingManager/IT/Admin/Finance/HR/Operations); admins can add custom
+  // areas (e.g. "Legal", "Security") with their own slug. Unique = one template
+  // per team key.
+  team: varchar("team", { length: 50 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   tasks: jsonb("tasks").notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
+  // Built-in teams (the original 6) can't be deleted; custom ones can.
+  isBuiltin: boolean("is_builtin").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -1187,6 +1202,25 @@ export const clearanceTemplates = pgTable("clearance_templates", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// Department / sub-department scope for a clearance template. A template with NO
+// scope rows applies to EVERY case; otherwise it only seeds for employees whose
+// department/sub-department matches one of its scope rows.
+export const clearanceTemplateScope = pgTable(
+  "clearance_template_scope",
+  {
+    id: serial("id").primaryKey(),
+    templateId: integer("template_id")
+      .notNull()
+      .references(() => clearanceTemplates.id, { onDelete: "cascade" }),
+    scopeType: varchar("scope_type", { length: 20 }).notNull(), // Department | SubDepartment
+    scopeId: integer("scope_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("idx_clearance_scope_template").on(table.templateId)],
+);
 
 // Runtime clearance tasks for an offboarding case, snapshotted from the
 // templates at case creation and checked off by each team.
@@ -1197,7 +1231,7 @@ export const clearanceTasks = pgTable(
     caseId: integer("case_id")
       .notNull()
       .references(() => offboardingCases.id, { onDelete: "cascade" }),
-    team: clearanceTeamEnum("team").notNull(),
+    team: varchar("team", { length: 50 }).notNull(),
     label: varchar("label", { length: 200 }).notNull(),
     status: clearanceTaskStatusEnum("status").notNull().default("Pending"),
     sortOrder: integer("sort_order").notNull().default(0),

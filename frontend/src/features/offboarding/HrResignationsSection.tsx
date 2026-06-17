@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Eye, PauseCircle, X } from "lucide-react";
+import { Check, Eye, PauseCircle, Wallet, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   hrApprove,
+  hrBuyoutDecision,
   hrHold,
   hrReject,
   listHrResignations,
@@ -30,6 +31,7 @@ import {
 
 const STATUS: Record<ResignationStatus, { bg: string; color: string; label: string }> = {
   Submitted: { bg: "#fef9c3", color: "#b45309", label: "Pending Manager" },
+  ManagerDiscussion: { bg: "#fef3c7", color: "#92400e", label: "In Discussion" },
   ManagerApproved: { bg: "#fef9c3", color: "#b45309", label: "Pending HR" },
   ManagerRejected: { bg: "#fee2e2", color: "#b91c1c", label: "Rejected" },
   HRApproved: { bg: "#dcfce7", color: "#15803d", label: "Approved" },
@@ -45,6 +47,7 @@ export default function HrResignationsSection() {
   const [approveTarget, setApproveTarget] = useState<ResignationWithEmployee | null>(null);
   const [holdTarget, setHoldTarget] = useState<ResignationWithEmployee | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ResignationWithEmployee | null>(null);
+  const [buyoutTarget, setBuyoutTarget] = useState<ResignationWithEmployee | null>(null);
 
   async function load() {
     setLoading(true);
@@ -142,7 +145,7 @@ export default function HrResignationsSection() {
                   </td>
                   <td style={{ ...cellStyle, textAlign: "right" }}>
                     <div className="flex items-center justify-end gap-2">
-                      {r.status === "ManagerApproved" ? (
+                      {r.status === "ManagerApproved" && (
                         <>
                           <ActionBtn title="Approve" border="#86efac" color="#16a34a" onClick={() => setApproveTarget(r)}>
                             <Check size={16} />
@@ -154,11 +157,40 @@ export default function HrResignationsSection() {
                             <X size={16} />
                           </ActionBtn>
                         </>
-                      ) : (
-                        <span className="text-gray-300">
-                          <Eye size={16} />
-                        </span>
                       )}
+                      {r.buyoutRequested && r.buyoutStatus === "Requested" && (
+                        <ActionBtn
+                          title="Decide notice buyout"
+                          border="#c4b5fd"
+                          color="#7c3aed"
+                          onClick={() => setBuyoutTarget(r)}
+                        >
+                          <Wallet size={16} />
+                        </ActionBtn>
+                      )}
+                      {r.buyoutRequested &&
+                        (r.buyoutStatus === "Approved" || r.buyoutStatus === "Rejected") && (
+                          <span
+                            title={`Notice buyout ${r.buyoutStatus.toLowerCase()}`}
+                            className="text-[11px] font-semibold px-2 py-0.5 rounded"
+                            style={{
+                              background: r.buyoutStatus === "Approved" ? "#ede9fe" : "#fee2e2",
+                              color: r.buyoutStatus === "Approved" ? "#6d28d9" : "#b91c1c",
+                            }}
+                          >
+                            Buyout {r.buyoutStatus.toLowerCase()}
+                          </span>
+                        )}
+                      {r.status !== "ManagerApproved" &&
+                        !(r.buyoutRequested && r.buyoutStatus === "Requested") &&
+                        !(
+                          r.buyoutRequested &&
+                          (r.buyoutStatus === "Approved" || r.buyoutStatus === "Rejected")
+                        ) && (
+                          <span className="text-gray-300">
+                            <Eye size={16} />
+                          </span>
+                        )}
                     </div>
                   </td>
                 </tr>
@@ -208,7 +240,94 @@ export default function HrResignationsSection() {
           }}
         />
       )}
+      {buyoutTarget && (
+        <BuyoutDialog
+          target={buyoutTarget}
+          onClose={() => setBuyoutTarget(null)}
+          onDone={() => {
+            setBuyoutTarget(null);
+            void load();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// HR decides on a requested notice buyout. Approving waives the notice-period
+// recovery from the FnF; rejecting flags it for discussion. The employee is
+// notified either way.
+function BuyoutDialog({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: ResignationWithEmployee;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState<"Approved" | "Rejected" | null>(null);
+
+  async function decide(decision: "Approved" | "Rejected") {
+    setBusy(decision);
+    try {
+      await hrBuyoutDecision(target.id, decision, note.trim() || null);
+      toast.success(
+        decision === "Approved"
+          ? "Notice buyout approved — recovery waived. The employee has been notified."
+          : "Notice buyout declined. The employee has been notified to discuss.",
+      );
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to record the decision.");
+      setBusy(null);
+    }
+  }
+
+  return (
+    <DialogShell
+      title="Notice Buyout Request"
+      subtitle={`${target.employee.firstName} ${target.employee.lastName} · ${target.employee.empId}`}
+      onClose={onClose}
+    >
+      <div className="px-6 py-5">
+        <p className="text-[13px] text-gray-600 mb-3 m-0">
+          This employee requested to buy out their notice period
+          {target.noticePeriodDays != null ? ` (${target.noticePeriodDays} days)` : ""}.
+          Approving waives the notice-period recovery from the final settlement;
+          declining flags it for discussion.
+        </p>
+        <label className={labelClass}>Note to employee (optional)</label>
+        <textarea
+          className={`${inputClass} h-auto min-h-[72px] py-2 resize-y`}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Add context for the employee…"
+        />
+      </div>
+      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+        <button type="button" className={ghostBtn} onClick={onClose} disabled={busy != null}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-[#dc2626] hover:bg-[#b91c1c] transition-colors disabled:opacity-60"
+          onClick={() => void decide("Rejected")}
+          disabled={busy != null}
+        >
+          {busy === "Rejected" ? "Declining…" : "Decline"}
+        </button>
+        <button
+          type="button"
+          className="px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-[#7c3aed] hover:bg-[#6d28d9] transition-colors disabled:opacity-60"
+          onClick={() => void decide("Approved")}
+          disabled={busy != null}
+        >
+          {busy === "Approved" ? "Approving…" : "Approve buyout"}
+        </button>
+      </div>
+    </DialogShell>
   );
 }
 

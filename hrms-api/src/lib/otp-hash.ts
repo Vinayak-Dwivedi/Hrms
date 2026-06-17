@@ -15,6 +15,12 @@ export function verifyOtpHash(otp: string, storedHash: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+// TEMP: SES/SMS sending is disabled (AWS not configured), so emails/texts with
+// a random OTP can't reach the user. Use a fixed code so the email/phone
+// verification flow still works locally — enter 123456 to verify.
+// Restore `String(randomInt(100000, 1000000))` once email/SMS delivery is live.
+export const DEV_CONSTANT_OTP = "123456";
 export function generateOtpCode(): string {
-  return String(randomInt(100000, 1000000));
+  return DEV_CONSTANT_OTP;
+  // return String(randomInt(100000, 1000000));
 }

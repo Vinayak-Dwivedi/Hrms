@@ -29,17 +29,22 @@ type ResolvedInvitationParams = Required<
 > &
   OnboardingInvitationParams;
 
-function createTransport() {
-  if (!env.SMTP_HOST) return null;
-  return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    auth:
-      env.SMTP_USER && env.SMTP_PASS
-        ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
-        : undefined,
-  });
+function createTransport(): nodemailer.Transporter | null {
+  // TEMP: outbound email is disabled (AWS SES not configured — sending hit
+  // "554 Message rejected: Email address is not verified"). Returning null makes
+  // every send fall back to the console-log path below, so no SES call is made.
+  // Re-enable by restoring the body once email delivery is set up.
+  return null;
+  // if (!env.SMTP_HOST) return null;
+  // return nodemailer.createTransport({
+  //   host: env.SMTP_HOST,
+  //   port: env.SMTP_PORT,
+  //   secure: env.SMTP_SECURE,
+  //   auth:
+  //     env.SMTP_USER && env.SMTP_PASS
+  //       ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
+  //       : undefined,
+  // });
 }
 
 export function resolveLoginUrl(): string {

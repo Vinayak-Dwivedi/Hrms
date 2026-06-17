@@ -646,7 +646,10 @@ export default function ProfileForm() {
   return (
     <>
       {myResignation && <MyResignationStrip resignation={myResignation} />}
-      {myExitInterview?.status === "Pending" && (
+      {myExitInterview?.status === "Pending" &&
+        ["ClearancesComplete", "FnFComplete", "Closed"].includes(
+          myResignation?.caseStatus ?? "",
+        ) && (
         <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#fecdd3] bg-[#fff1f2] px-4 py-3">
           <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white text-[#FF014F] shrink-0">
             <MessageSquare className="w-4 h-4" />
@@ -1119,6 +1122,7 @@ const RESIGNATION_STATUS_STYLE: Record<
   { bg: string; color: string; label: string }
 > = {
   Submitted: { bg: "#fef9c3", color: "#b45309", label: "Submitted — pending manager" },
+  ManagerDiscussion: { bg: "#fef3c7", color: "#92400e", label: "In discussion with manager" },
   ManagerApproved: { bg: "#dbeafe", color: "#1d4ed8", label: "Manager approved — pending HR" },
   ManagerRejected: { bg: "#fee2e2", color: "#b91c1c", label: "Rejected by manager" },
   HRApproved: { bg: "#dcfce7", color: "#15803d", label: "HR approved — offboarding initiated" },
@@ -1127,29 +1131,210 @@ const RESIGNATION_STATUS_STYLE: Record<
   Withdrawn: { bg: "#f3f4f6", color: "#6b7280", label: "Withdrawn" },
 };
 
+// ─── resignation flow timeline ──────────────────────────────────────────────
+// The seven canonical phases an employee's resignation passes through. The
+// current phase is derived from the resignation status plus, once HR approves
+// and an offboarding case is spawned, the case status.
+const RESIGNATION_FLOW_LABELS = [
+  "Submitted",
+  "Manager Review",
+  "HR Review",
+  "Offboarding",
+  "Clearances",
+  "Full & Final",
+  "Closed",
+] as const;
+
+type FlowProgress = {
+  doneThrough: number; // count of fully-completed steps
+  current: number; // index of the in-progress step (-1 when halted/closed)
+  halted: { kind: "rejected" | "withdrawn" | "hold"; label: string } | null;
+  subnote: string | null;
+};
+
+function resignationFlowProgress(r: Resignation): FlowProgress {
+  let doneThrough = 1;
+  let current = 1;
+  let halted: FlowProgress["halted"] = null;
+  let subnote: string | null = null;
+
+  switch (r.status) {
+    case "Submitted":
+      doneThrough = 1;
+      current = 1;
+      break;
+    case "ManagerDiscussion":
+      doneThrough = 1;
+      current = 1;
+      subnote = "Your manager has requested a discussion before deciding.";
+      break;
+    case "ManagerApproved":
+      doneThrough = 2;
+      current = 2;
+      break;
+    case "ManagerRejected":
+      doneThrough = 1;
+      current = -1;
+      halted = { kind: "rejected", label: "Rejected by manager" };
+      break;
+    case "Rejected":
+      doneThrough = 2;
+      current = -1;
+      halted = { kind: "rejected", label: "Rejected by HR" };
+      break;
+    case "Withdrawn":
+      doneThrough = 1;
+      current = -1;
+      halted = { kind: "withdrawn", label: "Withdrawn" };
+      break;
+    case "OnHold":
+      doneThrough = 2;
+      current = -1;
+      halted = { kind: "hold", label: "On hold" };
+      break;
+    case "HRApproved":
+      switch (r.caseStatus) {
+        case "ClearancesComplete":
+          doneThrough = 4;
+          current = 5;
+          break;
+        case "FnFComplete":
+          doneThrough = 5;
+          current = 6;
+          break;
+        case "Closed":
+          doneThrough = 7;
+          current = -1;
+          break;
+        case "OnHold":
+          doneThrough = 3;
+          current = -1;
+          halted = { kind: "hold", label: "Case on hold" };
+          break;
+        default: // OffboardingInitiated (or case not yet visible)
+          doneThrough = 3;
+          current = 4;
+          break;
+      }
+      break;
+    default:
+      doneThrough = 1;
+      current = 1;
+  }
+  return { doneThrough, current, halted, subnote };
+}
+
 function MyResignationStrip({ resignation }: { resignation: Resignation }) {
   const s =
     RESIGNATION_STATUS_STYLE[resignation.status] ?? RESIGNATION_STATUS_STYLE.Submitted;
+  const { doneThrough, current, halted, subnote } = resignationFlowProgress(resignation);
+
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fff1f2] text-[#FF014F] shrink-0">
-        <LogOut className="w-4 h-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-gray-900 leading-tight m-0">
-          Resignation on record
-        </p>
-        <p className="text-[12px] text-gray-500 leading-tight mt-0.5 m-0">
-          Last working day {fmtStripDate(resignation.modifiedLwd ?? resignation.lastWorkingDate)}
-          {resignation.reason ? ` · ${resignation.reason}` : ""}
-        </p>
+    <div className="mb-4 rounded-xl border border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fff1f2] text-[#FF014F] shrink-0">
+          <LogOut className="w-4 h-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-gray-900 leading-tight m-0">
+            Resignation on record
+            {resignation.caseNumber ? (
+              <span className="ml-2 text-[11px] font-medium text-gray-400">
+                {resignation.caseNumber}
+              </span>
+            ) : null}
+          </p>
+          <p className="text-[12px] text-gray-500 leading-tight mt-0.5 m-0">
+            Last working day{" "}
+            {fmtStripDate(resignation.modifiedLwd ?? resignation.lastWorkingDate)}
+            {resignation.reason ? ` · ${resignation.reason}` : ""}
+          </p>
+        </div>
+        <span
+          className="ml-auto text-[11.5px] font-semibold rounded-md px-2.5 py-1"
+          style={{ background: s.bg, color: s.color }}
+        >
+          {s.label}
+        </span>
       </div>
-      <span
-        className="ml-auto text-[11.5px] font-semibold rounded-md px-2.5 py-1"
-        style={{ background: s.bg, color: s.color }}
-      >
-        {s.label}
-      </span>
+
+      {/* horizontal phase stepper */}
+      <div className="mt-4 flex items-start gap-0 overflow-x-auto pb-1">
+        {RESIGNATION_FLOW_LABELS.map((label, i) => {
+          const isDone = i < doneThrough;
+          const isCurrent = i === current;
+          const isHaltedHere = halted != null && i === doneThrough;
+          const dotColor = isHaltedHere
+            ? halted!.kind === "hold"
+              ? "#6b7280"
+              : "#dc2626"
+            : isDone
+              ? "#16a34a"
+              : isCurrent
+                ? "#FF014F"
+                : "#d1d5db";
+          const labelColor =
+            isDone || isCurrent || isHaltedHere ? "#374151" : "#9ca3af";
+          return (
+            <div
+              key={label}
+              className="flex flex-col items-center min-w-[70px] relative"
+            >
+              {/* connector to previous step */}
+              {i > 0 && (
+                <span
+                  className="absolute top-[9px] right-1/2 w-full h-[2px]"
+                  style={{ background: i <= doneThrough ? "#16a34a" : "#e5e7eb" }}
+                />
+              )}
+              <span
+                className="relative z-10 flex items-center justify-center rounded-full"
+                style={{
+                  width: isCurrent || isHaltedHere ? 20 : 18,
+                  height: isCurrent || isHaltedHere ? 20 : 18,
+                  background: isDone ? dotColor : "#fff",
+                  border: `2px solid ${dotColor}`,
+                  boxShadow: isCurrent ? "0 0 0 3px #ffe4ec" : "none",
+                }}
+              >
+                {isDone && (
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#fff"
+                    strokeWidth="4"
+                  >
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </span>
+              <span
+                className="mt-1.5 text-[10.5px] font-medium text-center leading-tight px-0.5"
+                style={{ color: labelColor }}
+              >
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {(subnote || halted) && (
+        <p
+          className="mt-1 text-[11.5px] leading-snug m-0"
+          style={{
+            color: halted
+              ? halted.kind === "hold"
+                ? "#6b7280"
+                : "#b91c1c"
+              : "#92400e",
+          }}
+        >
+          {halted ? halted.label : subnote}
+        </p>
+      )}
     </div>
   );
 }

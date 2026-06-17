@@ -7,6 +7,8 @@ import { documentUpload } from "@/middleware/upload.middleware";
 import { OFFBOARDING_PERMISSIONS } from "@/modules/offboarding/offboarding.permissions";
 import {
   clearanceTaskUpdateSchema,
+  buyoutDecisionSchema,
+  clearanceTemplateCreateSchema,
   clearanceTemplatePatchSchema,
   decisionRemarksSchema,
   docTemplatePatchSchema,
@@ -145,6 +147,18 @@ offboardingRouter.post("/manager/resignations/:id/reject", async (req, res, next
   }
 });
 
+offboardingRouter.post("/manager/resignations/:id/discuss", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+    const body = decisionRemarksSchema.parse(req.body ?? {});
+    res.json({
+      data: await svc.managerRequestDiscussion(mgr.id, idParam(req), body.remarks ?? null, auditCtx(req)),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ───────────────────────── HR ─────────────────────────
 
 offboardingRouter.get("/hr/resignations", hrAccess, async (_req, res, next) => {
@@ -180,6 +194,24 @@ offboardingRouter.post("/hr/resignations/:id/reject", hrAccess, async (req, res,
     const hr = await loadCurrentEmployee(req.user!.id);
     const body = decisionRemarksSchema.parse(req.body ?? {});
     res.json({ data: await svc.hrReject(hr.id, idParam(req), body.remarks ?? null, auditCtx(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+offboardingRouter.post("/hr/resignations/:id/buyout", hrAccess, async (req, res, next) => {
+  try {
+    const hr = await loadCurrentEmployee(req.user!.id);
+    const body = buyoutDecisionSchema.parse(req.body ?? {});
+    res.json({
+      data: await svc.hrBuyoutDecision(
+        hr.id,
+        idParam(req),
+        body.decision,
+        body.note ?? null,
+        auditCtx(req),
+      ),
+    });
   } catch (e) {
     next(e);
   }
@@ -295,15 +327,27 @@ offboardingRouter.get("/clearance-templates", adminAccess, async (_req, res, nex
   }
 });
 
-const CLEARANCE_TEAMS = ["ReportingManager", "IT", "Admin", "Finance", "HR", "Operations"];
-offboardingRouter.patch("/clearance-templates/:team", adminAccess, async (req, res, next) => {
+offboardingRouter.post("/clearance-templates", adminAccess, async (req, res, next) => {
   try {
-    const team = req.params.team ?? "";
-    if (!CLEARANCE_TEAMS.includes(team)) {
-      throw new ApiError(400, "BAD_TEAM", "Unknown clearance team.");
-    }
+    const body = clearanceTemplateCreateSchema.parse(req.body ?? {});
+    res.status(201).json({ data: await svc.createClearanceTemplate(body) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+offboardingRouter.patch("/clearance-templates/:id", adminAccess, async (req, res, next) => {
+  try {
     const body = clearanceTemplatePatchSchema.parse(req.body ?? {});
-    res.json({ data: await svc.updateClearanceTemplate(team, body) });
+    res.json({ data: await svc.updateClearanceTemplate(idParam(req), body) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+offboardingRouter.delete("/clearance-templates/:id", adminAccess, async (req, res, next) => {
+  try {
+    res.json({ data: await svc.deleteClearanceTemplate(idParam(req)) });
   } catch (e) {
     next(e);
   }

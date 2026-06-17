@@ -1406,7 +1406,7 @@ function SubTabs<K extends string>({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type MainTab = "leave" | "regularisation" | "resignation";
+type MainTab = "leave" | "regularisation" | "resignation" | "discussion";
 type LeaveSubTab = "all" | "pending" | "approved" | "rejected" | "forwarded";
 type RegSubTab = "all" | "pending" | "approved" | "rejected";
 
@@ -1801,6 +1801,7 @@ export default function Approvals() {
             { key: "leave" as MainTab, label: "Leave Approvals" },
             { key: "regularisation" as MainTab, label: "Regularisation" },
             { key: "resignation" as MainTab, label: "Resignation" },
+            { key: "discussion" as MainTab, label: "Discussion" },
           ].map((t) => (
             <button
               key={t.key}
@@ -1957,6 +1958,7 @@ export default function Approvals() {
       )}
 
       {mainTab === "resignation" && <ManagerResignations />}
+      {mainTab === "discussion" && <ManagerResignations mode="discussion" />}
     </div>
   );
 }

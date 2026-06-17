@@ -53,6 +53,7 @@ export type ResignationFlowDetail = ResignationFlow & { scope: FlowScopeRow[] };
 
 export type ResignationStatus =
   | "Submitted"
+  | "ManagerDiscussion"
   | "ManagerApproved"
   | "ManagerRejected"
   | "HRApproved"
@@ -77,6 +78,8 @@ export type Resignation = {
   detailedRemark: string | null;
   attachmentPath: string | null;
   buyoutRequested: boolean;
+  buyoutStatus: "None" | "Requested" | "Approved" | "Rejected";
+  buyoutDecisionNote: string | null;
   status: ResignationStatus;
   submittedOn: string;
   noticePeriodDays: number | null;
@@ -96,6 +99,9 @@ export type Resignation = {
   finalSettlementEligible: boolean | null;
   currentStage: number;
   createdAt: string;
+  /** Present once HR approval has spawned an offboarding case. */
+  caseNumber?: string | null;
+  caseStatus?: string | null;
 };
 
 export type ResignationWithEmployee = Resignation & { employee: EmployeeRef };
@@ -120,6 +126,13 @@ export type OffboardingCase = {
   createdAt: string;
   employee: EmployeeRef;
   departmentName: string | null;
+  // Enriched fields returned by getCase (single-case detail) only.
+  subDepartmentName?: string | null;
+  reportingManagerName?: string | null;
+  buyoutRequested?: boolean;
+  buyoutStatus?: "None" | "Requested" | "Approved" | "Rejected";
+  resignationReason?: string | null;
+  fnfStatus?: "Processing" | "Approved" | "Paid" | null;
 };
 
 export type SubmitResult = {
@@ -249,6 +262,18 @@ export function managerReject(id: number, remarks?: string | null): Promise<Resi
   );
 }
 
+export function managerRequestDiscussion(
+  id: number,
+  remarks?: string | null,
+): Promise<Resignation> {
+  return unwrap(
+    jsonFetch<{ data: Resignation }>(`/manager/resignations/${id}/discuss`, {
+      method: "POST",
+      body: JSON.stringify({ remarks }),
+    }),
+  );
+}
+
 // ── HR ──
 
 export function listHrResignations(): Promise<ResignationWithEmployee[]> {
@@ -288,6 +313,19 @@ export function hrReject(id: number, remarks?: string | null): Promise<Resignati
     jsonFetch<{ data: Resignation }>(`/hr/resignations/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ remarks }),
+    }),
+  );
+}
+
+export function hrBuyoutDecision(
+  id: number,
+  decision: "Approved" | "Rejected",
+  note?: string | null,
+): Promise<Resignation> {
+  return unwrap(
+    jsonFetch<{ data: Resignation }>(`/hr/resignations/${id}/buyout`, {
+      method: "POST",
+      body: JSON.stringify({ decision, note }),
     }),
   );
 }
@@ -375,15 +413,22 @@ export function getCase(id: number): Promise<OffboardingCase> {
 
 // ── Clearance (Phase 2) ──
 
-export type ClearanceTeam =
+export type BuiltinClearanceTeam =
   | "ReportingManager"
   | "IT"
   | "Admin"
   | "Finance"
   | "HR"
   | "Operations";
+// Built-in teams plus any custom team slug admins create.
+export type ClearanceTeam = BuiltinClearanceTeam | (string & {});
 
 export type ClearanceTaskStatus = "Pending" | "Completed" | "NA";
+
+export type ClearanceScopeRow = {
+  scopeType: "Department" | "SubDepartment";
+  scopeId: number;
+};
 
 export type ClearanceTemplate = {
   id: number;
@@ -391,6 +436,8 @@ export type ClearanceTemplate = {
   name: string;
   tasks: string[];
   isActive: boolean;
+  isBuiltin: boolean;
+  scope: ClearanceScopeRow[];
   createdAt: string;
   updatedAt: string;
 };
@@ -419,14 +466,36 @@ export function listClearanceTemplates(): Promise<ClearanceTemplate[]> {
   return unwrap(jsonFetch<{ data: ClearanceTemplate[] }>("/clearance-templates"));
 }
 
+export function createClearanceTemplate(body: {
+  name: string;
+  tasks: string[];
+  isActive: boolean;
+  scope: ClearanceScopeRow[];
+}): Promise<ClearanceTemplate> {
+  return unwrap(
+    jsonFetch<{ data: ClearanceTemplate }>("/clearance-templates", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
 export function updateClearanceTemplate(
-  team: ClearanceTeam,
-  body: { name?: string; tasks?: string[]; isActive?: boolean },
+  id: number,
+  body: { name?: string; tasks?: string[]; isActive?: boolean; scope?: ClearanceScopeRow[] },
 ): Promise<ClearanceTemplate> {
   return unwrap(
-    jsonFetch<{ data: ClearanceTemplate }>(`/clearance-templates/${team}`, {
+    jsonFetch<{ data: ClearanceTemplate }>(`/clearance-templates/${id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
+    }),
+  );
+}
+
+export function deleteClearanceTemplate(id: number): Promise<ClearanceTemplate> {
+  return unwrap(
+    jsonFetch<{ data: ClearanceTemplate }>(`/clearance-templates/${id}`, {
+      method: "DELETE",
     }),
   );
 }
@@ -448,7 +517,7 @@ export function updateClearanceTask(
   );
 }
 
-export const CLEARANCE_TEAM_LABEL: Record<ClearanceTeam, string> = {
+export const CLEARANCE_TEAM_LABEL: Record<BuiltinClearanceTeam, string> = {
   ReportingManager: "Reporting Manager",
   IT: "IT Team",
   Admin: "Admin Team",
@@ -456,6 +525,11 @@ export const CLEARANCE_TEAM_LABEL: Record<ClearanceTeam, string> = {
   HR: "HR Team",
   Operations: "Operations Team",
 };
+
+// Human label for a team — built-in label, or the custom team slug as-is.
+export function clearanceTeamLabel(team: string): string {
+  return CLEARANCE_TEAM_LABEL[team as BuiltinClearanceTeam] ?? team;
+}
 
 // ── My Clearances (team-scoped view) ──
 

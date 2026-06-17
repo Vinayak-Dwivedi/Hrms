@@ -33,6 +33,12 @@ export const decisionRemarksSchema = z.object({
   remarks: z.string().trim().max(2000).optional().nullable(),
 });
 
+// HR decision on a requested notice buyout.
+export const buyoutDecisionSchema = z.object({
+  decision: z.enum(["Approved", "Rejected"]),
+  note: z.string().trim().max(2000).optional().nullable(),
+});
+
 // HR approval — verification fields + optional modified LWD.
 export const hrApproveSchema = z.object({
   modifiedLwd: dateString.optional().nullable(),
@@ -86,10 +92,27 @@ export const exitReasonPatchSchema = exitReasonUpsertSchema.partial();
 export type ExitReasonUpsertInput = z.infer<typeof exitReasonUpsertSchema>;
 
 // Phase 2 — clearance template + task.
+const clearanceScopeSchema = z
+  .array(
+    z.object({
+      scopeType: z.enum(["Department", "SubDepartment"]),
+      scopeId: z.number().int().positive(),
+    }),
+  )
+  .max(200);
+
 export const clearanceTemplatePatchSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   tasks: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   isActive: z.boolean().optional(),
+  scope: clearanceScopeSchema.optional(),
+});
+
+export const clearanceTemplateCreateSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  tasks: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
+  isActive: z.boolean().default(true),
+  scope: clearanceScopeSchema.default([]),
 });
 
 export const clearanceTaskUpdateSchema = z.object({

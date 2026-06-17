@@ -4,6 +4,7 @@ import {
   accessRevocations,
   clearanceTasks,
   clearanceTemplates,
+  clearanceTemplateScope,
   departments,
   designations,
   employees,
@@ -19,12 +20,15 @@ import {
   resignationFlowScope,
   resignationFlows,
   resignations,
+  subDepartments,
 } from "@/db/schema/hrms";
+import { alias } from "drizzle-orm/pg-core";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { extractPostgresError, mapDbErrorToApiError } from "@/lib/db-error";
 import { ApiError } from "@/middleware/error";
 import { CLEARANCE_TEAM_PERMISSION } from "@/modules/offboarding/offboarding.permissions";
 import { resolveResignationFlowForEmployee } from "@/modules/offboarding/resignation-flow-resolver";
+import { notify } from "@/services/notifications";
 import type {
   ExitReasonUpsertInput,
   FlowUpsertInput,
@@ -312,7 +316,13 @@ export async function submitResignation(
     .where(
       and(
         eq(resignations.employeeId, emp.id),
-        inArray(resignations.status, ["Submitted", "ManagerApproved", "HRApproved", "OnHold"]),
+        inArray(resignations.status, [
+          "Submitted",
+          "ManagerDiscussion",
+          "ManagerApproved",
+          "HRApproved",
+          "OnHold",
+        ]),
       ),
     )
     .limit(1);
@@ -338,6 +348,7 @@ export async function submitResignation(
         detailedRemark: input.detailedRemark,
         attachmentPath,
         buyoutRequested: input.buyoutRequested,
+        buyoutStatus: input.buyoutRequested ? "Requested" : "None",
         status: "Submitted",
         submittedOn: todayIso(),
         flowId: flow?.id ?? null,
@@ -366,11 +377,17 @@ export async function submitResignation(
 }
 
 export async function getMyResignations(employeeId: number) {
-  return db
-    .select()
+  const rows = await db
+    .select({
+      r: resignations,
+      caseNumber: offboardingCases.caseNumber,
+      caseStatus: offboardingCases.status,
+    })
     .from(resignations)
+    .leftJoin(offboardingCases, eq(offboardingCases.resignationId, resignations.id))
     .where(eq(resignations.employeeId, employeeId))
     .orderBy(desc(resignations.createdAt));
+  return rows.map(({ r, caseNumber, caseStatus }) => ({ ...r, caseNumber, caseStatus }));
 }
 
 export async function withdrawResignation(employeeId: number, id: number, auditCtx: AuditCtx) {
@@ -427,7 +444,7 @@ export async function managerApprove(
   if (row.managerId !== managerId) {
     throw new ApiError(403, "NOT_YOUR_REPORT", "This resignation is not in your team.");
   }
-  if (row.status !== "Submitted") {
+  if (!["Submitted", "ManagerDiscussion"].includes(row.status)) {
     throw new ApiError(409, "NOT_PENDING_MANAGER", "This resignation is not pending manager review.");
   }
   const [updated] = await db
@@ -455,6 +472,44 @@ export async function managerApprove(
     },
     auditCtx,
   );
+  notify(row.employeeId, "hr", "Resignation approved by your manager", "It has moved to HR for review.");
+  return updated!;
+}
+
+export async function managerRequestDiscussion(
+  managerId: number,
+  id: number,
+  note: string | null,
+  auditCtx: AuditCtx,
+) {
+  const [row] = await db.select().from(resignations).where(eq(resignations.id, id)).limit(1);
+  if (!row) throw new ApiError(404, "NOT_FOUND", "Resignation not found.");
+  if (row.managerId !== managerId) {
+    throw new ApiError(403, "NOT_YOUR_REPORT", "This resignation is not in your team.");
+  }
+  if (!["Submitted", "ManagerDiscussion"].includes(row.status)) {
+    throw new ApiError(409, "NOT_PENDING_MANAGER", "This resignation is not pending manager review.");
+  }
+  const [updated] = await db
+    .update(resignations)
+    .set({ status: "ManagerDiscussion", discussionNote: note ?? null })
+    .where(eq(resignations.id, id))
+    .returning();
+  writeAuditLogAsync(
+    {
+      actorEmployeeId: managerId,
+      action: "RESIGNATION_DISCUSSION_REQUESTED",
+      entityType: "resignation",
+      entityId: String(id),
+    },
+    auditCtx,
+  );
+  notify(
+    row.employeeId,
+    "hr",
+    "Your manager has requested a discussion on your resignation",
+    note ?? "Please connect with your reporting manager.",
+  );
   return updated!;
 }
 
@@ -469,7 +524,7 @@ export async function managerReject(
   if (row.managerId !== managerId) {
     throw new ApiError(403, "NOT_YOUR_REPORT", "This resignation is not in your team.");
   }
-  if (row.status !== "Submitted") {
+  if (!["Submitted", "ManagerDiscussion"].includes(row.status)) {
     throw new ApiError(409, "NOT_PENDING_MANAGER", "This resignation is not pending manager review.");
   }
   const [updated] = await db
@@ -491,6 +546,7 @@ export async function managerReject(
     },
     auditCtx,
   );
+  notify(row.employeeId, "hr", "Your resignation was rejected by your manager", remarks ?? undefined);
   return updated!;
 }
 
@@ -579,11 +635,9 @@ export async function hrApprove(
       })
       .returning();
 
-    // Seed clearance tasks from the active templates (Phase 2).
-    const templates = await tx
-      .select()
-      .from(clearanceTemplates)
-      .where(eq(clearanceTemplates.isActive, true));
+    // Seed clearance tasks from the templates that apply to this employee's
+    // department / sub-department (templates with no scope apply to everyone).
+    const templates = await clearanceTemplatesForEmployee(row.employeeId);
     const taskRows: Array<typeof clearanceTasks.$inferInsert> = [];
     for (const t of templates) {
       const labels = Array.isArray(t.tasks) ? (t.tasks as string[]) : [];
@@ -630,6 +684,12 @@ export async function hrApprove(
       },
       auditCtx,
     );
+    notify(
+      row.employeeId,
+      "hr",
+      "Your resignation is approved — offboarding has started",
+      `Case ${caseNumber} created. Track progress on your profile.`,
+    );
     return { resignation: updated!, case: createdCase! };
   });
 }
@@ -654,6 +714,7 @@ export async function hrHold(hrId: number, id: number, remarks: string | null, a
     },
     auditCtx,
   );
+  notify(row.employeeId, "hr", "Your resignation is on hold", remarks ?? undefined);
   return updated!;
 }
 
@@ -677,6 +738,61 @@ export async function hrReject(hrId: number, id: number, remarks: string | null,
     },
     auditCtx,
   );
+  notify(row.employeeId, "hr", "Your resignation was rejected by HR", remarks ?? undefined);
+  return updated!;
+}
+
+// HR decides on a requested notice buyout. Approving waives the notice-period
+// recovery (the FnF deduction is dropped); rejecting nudges the parties to
+// discuss. Either way the employee is notified.
+export async function hrBuyoutDecision(
+  hrId: number,
+  id: number,
+  decision: "Approved" | "Rejected",
+  note: string | null,
+  auditCtx: AuditCtx,
+) {
+  const [row] = await db.select().from(resignations).where(eq(resignations.id, id)).limit(1);
+  if (!row) throw new ApiError(404, "NOT_FOUND", "Resignation not found.");
+  if (!row.buyoutRequested) {
+    throw new ApiError(409, "NO_BUYOUT", "This resignation has no notice buyout to decide on.");
+  }
+  if (row.buyoutStatus !== "Requested") {
+    throw new ApiError(409, "BUYOUT_ALREADY_DECIDED", "The notice buyout has already been decided.");
+  }
+  if (["Rejected", "Withdrawn"].includes(row.status)) {
+    throw new ApiError(409, "RESIGNATION_CLOSED", "This resignation is no longer active.");
+  }
+  const [updated] = await db
+    .update(resignations)
+    .set({ buyoutStatus: decision, buyoutDecisionNote: note ?? null })
+    .where(eq(resignations.id, id))
+    .returning();
+  writeAuditLogAsync(
+    {
+      actorEmployeeId: hrId,
+      action: "RESIGNATION_BUYOUT_DECISION",
+      entityType: "resignation",
+      entityId: String(id),
+      metadata: { decision },
+    },
+    auditCtx,
+  );
+  if (decision === "Approved") {
+    notify(
+      row.employeeId,
+      "hr",
+      "Your notice buyout was approved",
+      note ?? "The notice-period recovery has been waived from your settlement.",
+    );
+  } else {
+    notify(
+      row.employeeId,
+      "hr",
+      "Your notice buyout was declined — let's discuss",
+      note ?? "HR would like to discuss your notice period before settling.",
+    );
+  }
   return updated!;
 }
 
@@ -693,43 +809,192 @@ export async function listCases() {
 }
 
 export async function getCase(id: number) {
+  const mgr = alias(employees, "case_mgr");
   const [row] = await db
-    .select({ c: offboardingCases, e: EMP_FIELDS, deptName: departments.name })
+    .select({
+      c: offboardingCases,
+      e: EMP_FIELDS,
+      deptName: departments.name,
+      subDeptName: subDepartments.name,
+      mgrFirst: mgr.firstName,
+      mgrLast: mgr.lastName,
+      buyoutRequested: resignations.buyoutRequested,
+      buyoutStatus: resignations.buyoutStatus,
+      resignationReason: resignations.reason,
+      fnfStatus: fnfSettlements.status,
+    })
     .from(offboardingCases)
     .innerJoin(employees, eq(employees.id, offboardingCases.employeeId))
     .leftJoin(departments, eq(departments.id, offboardingCases.departmentId))
+    .leftJoin(subDepartments, eq(subDepartments.id, employees.subDepartmentId))
+    .leftJoin(mgr, eq(mgr.id, offboardingCases.reportingManagerId))
+    .leftJoin(resignations, eq(resignations.id, offboardingCases.resignationId))
+    .leftJoin(fnfSettlements, eq(fnfSettlements.caseId, offboardingCases.id))
     .where(eq(offboardingCases.id, id))
     .limit(1);
   if (!row) throw new ApiError(404, "NOT_FOUND", "Offboarding case not found.");
-  return { ...row.c, employee: row.e, departmentName: row.deptName };
+  const managerName =
+    row.mgrFirst || row.mgrLast
+      ? `${row.mgrFirst ?? ""} ${row.mgrLast ?? ""}`.trim()
+      : null;
+  return {
+    ...row.c,
+    employee: row.e,
+    departmentName: row.deptName,
+    subDepartmentName: row.subDeptName,
+    reportingManagerName: managerName,
+    buyoutRequested: row.buyoutRequested ?? false,
+    buyoutStatus: row.buyoutStatus ?? "None",
+    resignationReason: row.resignationReason ?? null,
+    fnfStatus: row.fnfStatus ?? null,
+  };
 }
 
 // ── Clearance templates (admin config) ──
 
+export type ClearanceScopeRow = { scopeType: "Department" | "SubDepartment"; scopeId: number };
+
+async function loadTemplateScopes(templateIds: number[]) {
+  if (templateIds.length === 0) return new Map<number, ClearanceScopeRow[]>();
+  const rows = await db
+    .select()
+    .from(clearanceTemplateScope)
+    .where(inArray(clearanceTemplateScope.templateId, templateIds));
+  const byTemplate = new Map<number, ClearanceScopeRow[]>();
+  for (const r of rows) {
+    const arr = byTemplate.get(r.templateId) ?? [];
+    arr.push({ scopeType: r.scopeType as ClearanceScopeRow["scopeType"], scopeId: r.scopeId });
+    byTemplate.set(r.templateId, arr);
+  }
+  return byTemplate;
+}
+
 export async function listClearanceTemplates() {
-  return db.select().from(clearanceTemplates).orderBy(clearanceTemplates.id);
+  const templates = await db.select().from(clearanceTemplates).orderBy(clearanceTemplates.id);
+  const scopes = await loadTemplateScopes(templates.map((t) => t.id));
+  return templates.map((t) => ({ ...t, scope: scopes.get(t.id) ?? [] }));
+}
+
+// Derive a PascalCase team key from a display name (matches the built-in style
+// e.g. "Legal Clearance" -> "LegalClearance"), capped at 40 chars.
+function slugifyTeam(name: string): string {
+  const base = name.replace(/[^A-Za-z0-9]+/g, "").slice(0, 40);
+  return base || "Team";
+}
+
+async function replaceTemplateScope(
+  tx: Tx,
+  templateId: number,
+  scope: ClearanceScopeRow[],
+) {
+  await tx.delete(clearanceTemplateScope).where(eq(clearanceTemplateScope.templateId, templateId));
+  if (scope.length > 0) {
+    await tx
+      .insert(clearanceTemplateScope)
+      .values(scope.map((s) => ({ templateId, scopeType: s.scopeType, scopeId: s.scopeId })));
+  }
+}
+
+export async function createClearanceTemplate(input: {
+  name: string;
+  tasks: string[];
+  isActive: boolean;
+  scope?: ClearanceScopeRow[];
+}) {
+  // Generate a unique team key (the 6 built-ins already own their slugs).
+  const existing = await db
+    .select({ team: clearanceTemplates.team })
+    .from(clearanceTemplates);
+  const taken = new Set(existing.map((r) => r.team.toLowerCase()));
+  const baseSlug = slugifyTeam(input.name);
+  let team = baseSlug;
+  let n = 2;
+  while (taken.has(team.toLowerCase())) team = `${baseSlug}${n++}`;
+  try {
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(clearanceTemplates)
+        .values({
+          team,
+          name: input.name,
+          tasks: input.tasks,
+          isActive: input.isActive,
+          isBuiltin: false,
+        })
+        .returning();
+      await replaceTemplateScope(tx, row!.id, input.scope ?? []);
+      return { ...row!, scope: input.scope ?? [] };
+    });
+  } catch (e) {
+    wrapDbError(e);
+  }
 }
 
 export async function updateClearanceTemplate(
-  team: string,
-  input: { name?: string; tasks?: string[]; isActive?: boolean },
+  id: number,
+  input: { name?: string; tasks?: string[]; isActive?: boolean; scope?: ClearanceScopeRow[] },
 ) {
-  const patch: Record<string, unknown> = {};
-  if (input.name !== undefined) patch.name = input.name;
-  if (input.tasks !== undefined) patch.tasks = input.tasks;
-  if (input.isActive !== undefined) patch.isActive = input.isActive;
-  try {
-    const [row] = await db
-      .update(clearanceTemplates)
-      .set(patch)
-      .where(eq(clearanceTemplates.team, team as never))
-      .returning();
+  return db.transaction(async (tx) => {
+    const patch: Record<string, unknown> = {};
+    if (input.name !== undefined) patch.name = input.name;
+    if (input.tasks !== undefined) patch.tasks = input.tasks;
+    if (input.isActive !== undefined) patch.isActive = input.isActive;
+    if (Object.keys(patch).length > 0) {
+      const [exists] = await tx
+        .update(clearanceTemplates)
+        .set(patch)
+        .where(eq(clearanceTemplates.id, id))
+        .returning();
+      if (!exists) throw new ApiError(404, "NOT_FOUND", "Clearance template not found.");
+    }
+    if (input.scope !== undefined) await replaceTemplateScope(tx, id, input.scope);
+    const [row] = await tx
+      .select()
+      .from(clearanceTemplates)
+      .where(eq(clearanceTemplates.id, id))
+      .limit(1);
     if (!row) throw new ApiError(404, "NOT_FOUND", "Clearance template not found.");
-    return row;
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    wrapDbError(e);
+    const scopes = await loadTemplateScopes([id]);
+    return { ...row, scope: scopes.get(id) ?? [] };
+  });
+}
+
+// Active templates that apply to an employee: those with NO scope rows
+// (company-wide) OR a scope row matching the employee's department/sub-department.
+export async function clearanceTemplatesForEmployee(employeeId: number) {
+  const [emp] = await db
+    .select({ departmentId: employees.departmentId, subDepartmentId: employees.subDepartmentId })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+  const templates = await db
+    .select()
+    .from(clearanceTemplates)
+    .where(eq(clearanceTemplates.isActive, true));
+  const scopes = await loadTemplateScopes(templates.map((t) => t.id));
+  return templates.filter((t) => {
+    const rows = scopes.get(t.id) ?? [];
+    if (rows.length === 0) return true; // company-wide
+    return rows.some(
+      (s) =>
+        (s.scopeType === "Department" && s.scopeId === emp?.departmentId) ||
+        (s.scopeType === "SubDepartment" && s.scopeId === emp?.subDepartmentId),
+    );
+  });
+}
+
+export async function deleteClearanceTemplate(id: number) {
+  const [tmpl] = await db
+    .select()
+    .from(clearanceTemplates)
+    .where(eq(clearanceTemplates.id, id))
+    .limit(1);
+  if (!tmpl) throw new ApiError(404, "NOT_FOUND", "Clearance template not found.");
+  if (tmpl.isBuiltin) {
+    throw new ApiError(400, "BUILTIN_TEMPLATE", "Built-in clearance teams cannot be deleted.");
   }
+  await db.delete(clearanceTemplates).where(eq(clearanceTemplates.id, id));
+  return tmpl;
 }
 
 // ── Case clearance (runtime) ──
@@ -898,13 +1163,18 @@ export async function getMyClearances(employeeId: number, permCodes: Set<string>
     byCase.set(t.caseId, arr);
   }
 
+  // Super admins see every team (including custom areas with no dedicated
+  // permission); everyone else is scoped to their accessible teams.
+  const superAdmin = permCodes.has("admin.roles");
   const result = [];
   for (const row of cases) {
     const isRM = row.c.reportingManagerId === employeeId;
     const teams = accessibleClearanceTeams(permCodes, isRM);
-    if (teams.size === 0) continue;
+    if (!superAdmin && teams.size === 0) continue;
 
-    const mine = (byCase.get(row.c.id) ?? []).filter((t) => teams.has(t.team));
+    const mine = (byCase.get(row.c.id) ?? []).filter(
+      (t) => superAdmin || teams.has(t.team),
+    );
     if (mine.length === 0) continue;
 
     const groupMap = new Map<string, ClearanceTeamGroup["tasks"]>();
@@ -956,7 +1226,7 @@ export async function updateMyClearanceTask(
     .limit(1);
   const isRM = cse?.rm === employeeId;
   const teams = accessibleClearanceTeams(permCodes, isRM);
-  if (!teams.has(task.team)) {
+  if (!permCodes.has("admin.roles") && !teams.has(task.team)) {
     throw new ApiError(403, "FORBIDDEN", "You are not allowed to update this team's clearance.");
   }
 
@@ -1216,6 +1486,7 @@ async function ensureFnfForCase(caseId: number): Promise<number> {
       leaveEncashmentEligible: resignations.leaveEncashmentEligible,
       gratuityEligible: resignations.gratuityEligible,
       recoveryAmount: resignations.recoveryAmount,
+      buyoutStatus: resignations.buyoutStatus,
     })
     .from(resignations)
     .where(eq(resignations.id, cse.resignationId))
@@ -1242,8 +1513,10 @@ async function ensureFnfForCase(caseId: number): Promise<number> {
   if (res?.gratuityEligible) {
     lines.push({ settlementId: settlement!.id, kind: "Earning", label: "Gratuity", amount: "0", sortOrder: 2 });
   }
+  // An approved notice buyout waives the notice-period recovery, so the
+  // deduction is only seeded when the buyout was not approved.
   const recovery = Number(res?.recoveryAmount ?? 0);
-  if (recovery > 0) {
+  if (recovery > 0 && res?.buyoutStatus !== "Approved") {
     lines.push({
       settlementId: settlement!.id,
       kind: "Deduction",

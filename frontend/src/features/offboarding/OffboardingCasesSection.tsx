@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import CaseClearanceDialog from "@/features/offboarding/CaseClearanceDialog";
 import CaseClosureDialog from "@/features/offboarding/CaseClosureDialog";
+import CaseDetailDialog from "@/features/offboarding/CaseDetailDialog";
 import CaseDocumentsDialog from "@/features/offboarding/CaseDocumentsDialog";
 import CaseExitInterviewDialog from "@/features/offboarding/CaseExitInterviewDialog";
 import CaseFnfDialog from "@/features/offboarding/CaseFnfDialog";
@@ -35,6 +36,7 @@ const CASE_STATUS: Record<OffboardingCase["status"], { bg: string; color: string
 export default function OffboardingCasesSection() {
   const [rows, setRows] = useState<OffboardingCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailCase, setDetailCase] = useState<OffboardingCase | null>(null);
   const [clearanceCase, setClearanceCase] = useState<OffboardingCase | null>(null);
   const [interviewCase, setInterviewCase] = useState<OffboardingCase | null>(null);
   const [fnfCase, setFnfCase] = useState<OffboardingCase | null>(null);
@@ -79,8 +81,14 @@ export default function OffboardingCasesSection() {
             const s = CASE_STATUS[c.status];
             return (
               <tr key={c.id} className="hover:bg-[#fafbfc] transition-colors">
-                <td style={{ ...cellStyle, fontWeight: 600, color: "#111827", whiteSpace: "nowrap" }}>
-                  {c.caseNumber}
+                <td style={{ ...cellStyle, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => setDetailCase(c)}
+                    className="text-[#7c3aed] hover:underline cursor-pointer"
+                  >
+                    {c.caseNumber}
+                  </button>
                 </td>
                 <td style={cellStyle}>
                   <div className="flex items-center gap-2.5">
@@ -91,9 +99,13 @@ export default function OffboardingCasesSection() {
                       {initials(c.employee.firstName, c.employee.lastName)}
                     </div>
                     <div className="min-w-0">
-                      <span className="block font-semibold text-gray-900 truncate">
+                      <button
+                        type="button"
+                        onClick={() => setDetailCase(c)}
+                        className="block font-semibold text-gray-900 truncate hover:text-[#7c3aed] hover:underline cursor-pointer text-left"
+                      >
                         {c.employee.firstName} {c.employee.lastName}
-                      </span>
+                      </button>
                       <span className="block text-[11px] text-gray-400">{c.employee.empId}</span>
                     </div>
                   </div>
@@ -130,6 +142,9 @@ export default function OffboardingCasesSection() {
         )}
       </tbody>
     </TableShell>
+    {detailCase && (
+      <CaseDetailDialog caseRow={detailCase} onClose={() => setDetailCase(null)} />
+    )}
     {clearanceCase && (
       <CaseClearanceDialog caseRow={clearanceCase} onClose={() => setClearanceCase(null)} onChanged={load} />
     )}

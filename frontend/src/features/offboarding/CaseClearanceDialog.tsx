@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   type CaseClearance,
   type ClearanceTaskStatus,
-  CLEARANCE_TEAM_LABEL,
+  clearanceTeamLabel,
   getCaseClearance,
   type OffboardingCase,
   updateClearanceTask,
@@ -93,7 +93,7 @@ export default function CaseClearanceDialog({
                 <div key={g.team} className="border border-gray-200 rounded-xl overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
                     <span className="text-[13px] font-semibold text-gray-800">
-                      {CLEARANCE_TEAM_LABEL[g.team]}
+                      {clearanceTeamLabel(g.team)}
                     </span>
                     <StatusPill bg={ts.bg} color={ts.color} label={g.status === "InProgress" ? "In Progress" : g.status} />
                   </div>

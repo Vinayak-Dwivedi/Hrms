@@ -212,7 +212,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       const diffDays = Math.floor((start.getTime() - todayDate.getTime()) / 86400000);
       if (diffDays < minNoticeDays) {
         setSubmitError(
-          `${selectedType?.name ?? "This leave type"} requires at least ${minNoticeDays} day(s) notice. Pick a later "From" date.`,
+          `${types[leaveTypeIdx]?.name ?? "This leave type"} requires at least ${minNoticeDays} day(s) notice. Pick a later "From" date.`,
         );
         return;
       }
@@ -288,7 +288,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                   </strong>{" "}
                   of {types[leaveTypeIdx]!.total} days available
                 </span>
-                {policy && <span>· Policy: {policy.name}</span>}
+                {policyName && <span>· Policy: {policyName}</span>}
               </div>
             )}
           </div>

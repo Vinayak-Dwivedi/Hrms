@@ -24,40 +24,41 @@ export async function sendPhoneVerificationOtp(
 ): Promise<void> {
   const body = buildSmsBody(params);
 
-  if (isSmsConfigured()) {
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
-    const auth = Buffer.from(
-      `${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`,
-    ).toString("base64");
-    const form = new URLSearchParams({
-      To: params.to,
-      From: env.TWILIO_FROM_NUMBER!,
-      Body: body,
-    });
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form,
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(
-        `SMS delivery failed (${res.status})${detail ? `: ${detail}` : ""}`,
-      );
-    }
-    return;
-  }
+  // TEMP: SMS delivery is disabled (Twilio/AWS not configured). Log the OTP
+  // instead of sending, so phone verification still works with the constant
+  // code (see generateOtpCode / DEV_CONSTANT_OTP). Restore the Twilio block
+  // below once SMS delivery is set up.
+  console.info("[sms] sending disabled — phone OTP (dev log):");
+  console.info(`To: ${params.to}`);
+  console.info(`Message: ${body}`);
+  console.info(`OTP: ${params.otp}`);
+  return;
 
-  if (env.NODE_ENV !== "production") {
-    console.info("[sms] SMS not configured — phone OTP (dev log):");
-    console.info(`To: ${params.to}`);
-    console.info(`Message: ${body}`);
-    console.info(`OTP: ${params.otp}`);
-    return;
-  }
-
-  throw new Error("SMS is not configured for phone verification.");
+  // if (isSmsConfigured()) {
+  //   const url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`;
+  //   const auth = Buffer.from(
+  //     `${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`,
+  //   ).toString("base64");
+  //   const form = new URLSearchParams({
+  //     To: params.to,
+  //     From: env.TWILIO_FROM_NUMBER!,
+  //     Body: body,
+  //   });
+  //   const res = await fetch(url, {
+  //     method: "POST",
+  //     headers: {
+  //       Authorization: `Basic ${auth}`,
+  //       "Content-Type": "application/x-www-form-urlencoded",
+  //     },
+  //     body: form,
+  //   });
+  //   if (!res.ok) {
+  //     const detail = await res.text().catch(() => "");
+  //     throw new Error(
+  //       `SMS delivery failed (${res.status})${detail ? `: ${detail}` : ""}`,
+  //     );
+  //   }
+  //   return;
+  // }
+  // throw new Error("SMS is not configured for phone verification.");
 }

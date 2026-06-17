@@ -36,6 +36,7 @@ export type CurrentEmployee = {
   gradeId: number | null;
   branchId: number | null;
   employmentTypeId: number | null;
+  orgHierarchyStructureId: number | null;
   reportingManagerId: number | null;
   currentAddress: string | null;
   permanentAddress: string | null;
@@ -70,6 +71,7 @@ export async function loadCurrentEmployee(
     gradeId: employees.gradeId,
     branchId: employees.branchId,
     employmentTypeId: employees.employmentTypeId,
+    orgHierarchyStructureId: employees.orgHierarchyStructureId,
     reportingManagerId: employees.reportingManagerId,
     currentAddress: employees.currentAddress,
     permanentAddress: employees.permanentAddress,
@@ -133,6 +135,7 @@ export async function loadCurrentEmployee(
     gradeId: (row.gradeId as number | null) ?? null,
     branchId: (row.branchId as number | null) ?? null,
     employmentTypeId: (row.employmentTypeId as number | null) ?? null,
+    orgHierarchyStructureId: (row.orgHierarchyStructureId as number | null) ?? null,
     reportingManagerId: (row.reportingManagerId as number | null) ?? null,
     currentAddress: (row.currentAddress as string | null) ?? null,
     permanentAddress: (row.permanentAddress as string | null) ?? null,

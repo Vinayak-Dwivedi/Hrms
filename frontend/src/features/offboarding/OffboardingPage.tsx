@@ -25,14 +25,18 @@ type Tab =
   | "documents"
   | "reasons";
 
+// Ordered to follow the offboarding lifecycle: intake (Resignations) →
+// case tracking (Active Cases) → the per-case steps in the sequence they
+// happen (Clearances → Exit Interview → FnF → Exit Documents) → one-time
+// configuration/masters (Resignation Flows, Exit Reasons) last.
 const TABS: { key: Tab; label: string }[] = [
   { key: "resignations", label: "Resignations" },
   { key: "cases", label: "Active Cases" },
-  { key: "fnf", label: "FnF Settlement" },
-  { key: "flows", label: "Resignation Flows" },
   { key: "clearance", label: "Clearance Templates" },
   { key: "interviews", label: "Exit Interviews" },
+  { key: "fnf", label: "FnF Settlement" },
   { key: "documents", label: "Exit Documents" },
+  { key: "flows", label: "Resignation Flows" },
   { key: "reasons", label: "Exit Reasons" },
 ];
 

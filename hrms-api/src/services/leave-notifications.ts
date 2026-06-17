@@ -35,17 +35,21 @@ export interface WorkflowEmailTemplate {
   body?: string;
 }
 
-function createTransport() {
-  if (!env.SMTP_HOST) return null;
-  return nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    auth:
-      env.SMTP_USER && env.SMTP_PASS
-        ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
-        : undefined,
-  });
+function createTransport(): nodemailer.Transporter | null {
+  // TEMP: outbound email is disabled (AWS SES not configured). Returning null
+  // makes leave/offboarding notifications fall back to the console-log path,
+  // so no SES call is made. Restore the body once email delivery is set up.
+  return null;
+  // if (!env.SMTP_HOST) return null;
+  // return nodemailer.createTransport({
+  //   host: env.SMTP_HOST,
+  //   port: env.SMTP_PORT,
+  //   secure: env.SMTP_SECURE,
+  //   auth:
+  //     env.SMTP_USER && env.SMTP_PASS
+  //       ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
+  //       : undefined,
+  // });
 }
 
 function applyTemplate(

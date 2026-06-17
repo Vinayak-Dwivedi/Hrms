@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, Eye, Paperclip, X } from "lucide-react";
+import { Check, Eye, MessageSquare, Paperclip, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   listManagerResignations,
   managerApprove,
   managerReject,
+  managerRequestDiscussion,
   type ResignationStatus,
   type ResignationWithEmployee,
 } from "@/features/offboarding/api/offboarding.client";
@@ -33,6 +34,7 @@ const headStyle: React.CSSProperties = {
 
 const STATUS_STYLE: Record<ResignationStatus, { bg: string; color: string; label: string }> = {
   Submitted: { bg: "#fef9c3", color: "#b45309", label: "Pending" },
+  ManagerDiscussion: { bg: "#fef3c7", color: "#92400e", label: "In Discussion" },
   ManagerApproved: { bg: "#dbeafe", color: "#1d4ed8", label: "Approved" },
   ManagerRejected: { bg: "#fee2e2", color: "#b91c1c", label: "Rejected" },
   HRApproved: { bg: "#dcfce7", color: "#15803d", label: "HR Approved" },
@@ -66,12 +68,19 @@ function fmtDate(iso: string | null) {
     : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function ManagerResignations() {
+export default function ManagerResignations({
+  mode = "all",
+}: {
+  // "all" → the full resignation queue with sub-tabs; "discussion" → only the
+  // resignations the manager has put In Discussion (no sub-tabs).
+  mode?: "all" | "discussion";
+}) {
   const [rows, setRows] = useState<ResignationWithEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [subTab, setSubTab] = useState<SubTab>("pending");
   const [approveTarget, setApproveTarget] = useState<ResignationWithEmployee | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ResignationWithEmployee | null>(null);
+  const [discussTarget, setDiscussTarget] = useState<ResignationWithEmployee | null>(null);
   const [viewTarget, setViewTarget] = useState<ResignationWithEmployee | null>(null);
 
   async function load() {
@@ -90,16 +99,18 @@ export default function ManagerResignations() {
 
   const pendingCount = rows.filter((r) => r.status === "Submitted").length;
   const filtered = useMemo(() => {
+    if (mode === "discussion") return rows.filter((r) => r.status === "ManagerDiscussion");
     if (subTab === "all") return rows;
     if (subTab === "pending") return rows.filter((r) => r.status === "Submitted");
     if (subTab === "approved")
       return rows.filter((r) => r.status === "ManagerApproved" || r.status === "HRApproved");
     return rows.filter((r) => r.status === "ManagerRejected" || r.status === "Rejected");
-  }, [rows, subTab]);
+  }, [rows, subTab, mode]);
 
   return (
     <div className="pt-4 space-y-4">
-      {/* Sub-tabs */}
+      {/* Sub-tabs (hidden in discussion mode) */}
+      {mode !== "discussion" && (
       <div className="flex items-center gap-1">
         {SUB_TABS.map((t) => {
           const active = subTab === t.key;
@@ -127,6 +138,7 @@ export default function ManagerResignations() {
           );
         })}
       </div>
+      )}
 
       <div
         style={{ background: "#fff", borderRadius: 16, border: "1px solid #eef0f3", overflow: "hidden" }}
@@ -207,10 +219,13 @@ export default function ManagerResignations() {
                       </td>
                       <td style={{ ...cellStyle, textAlign: "right" }}>
                         <div className="flex items-center justify-end gap-2">
-                          {r.status === "Submitted" ? (
+                          {r.status === "Submitted" || r.status === "ManagerDiscussion" ? (
                             <>
                               <ActionBtn title="Approve" border="#86efac" color="#16a34a" onClick={() => setApproveTarget(r)}>
                                 <Check size={16} />
+                              </ActionBtn>
+                              <ActionBtn title="Request discussion" border="#fde68a" color="#b45309" onClick={() => setDiscussTarget(r)}>
+                                <MessageSquare size={16} />
                               </ActionBtn>
                               <ActionBtn title="Reject" border="#fca5a5" color="#dc2626" onClick={() => setRejectTarget(r)}>
                                 <X size={16} />
@@ -248,6 +263,16 @@ export default function ManagerResignations() {
           onClose={() => setRejectTarget(null)}
           onDone={() => {
             setRejectTarget(null);
+            void load();
+          }}
+        />
+      )}
+      {discussTarget && (
+        <DiscussDialog
+          target={discussTarget}
+          onClose={() => setDiscussTarget(null)}
+          onDone={() => {
+            setDiscussTarget(null);
             void load();
           }}
         />
@@ -428,6 +453,63 @@ function RejectDialog({
         <button className={ghostBtn} onClick={onClose} type="button">Cancel</button>
         <button className="px-5 py-2.5 bg-[#dc2626] hover:bg-[#b91c1c] text-white font-medium rounded-lg text-sm transition-colors disabled:opacity-60" onClick={submit} disabled={busy} type="button">
           {busy ? "Rejecting…" : "Reject"}
+        </button>
+      </div>
+    </DialogShell>
+  );
+}
+
+function DiscussDialog({
+  target,
+  onClose,
+  onDone,
+}: {
+  target: ResignationWithEmployee;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [remarks, setRemarks] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit() {
+    setBusy(true);
+    try {
+      await managerRequestDiscussion(target.id, remarks.trim() || null);
+      toast.success("Discussion requested — the employee has been notified.");
+      onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to request discussion.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <DialogShell
+      title="Request Discussion"
+      subtitle={`${target.employee.firstName} ${target.employee.lastName} · ${target.employee.empId}`}
+      onClose={onClose}
+    >
+      <div className="px-6 py-5">
+        <label className={labelClass}>Message to the employee</label>
+        <textarea
+          className={`${inputClass} h-auto min-h-[88px] py-2 resize-y`}
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          placeholder="e.g. Let's discuss your last working day / knowledge transfer before I approve…"
+        />
+        <p className="text-[11.5px] text-gray-400 mt-2">
+          The resignation is marked <strong>In Discussion</strong> and the employee gets a
+          notification. You can still approve or reject afterward.
+        </p>
+      </div>
+      <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+        <button className={ghostBtn} onClick={onClose} type="button">Cancel</button>
+        <button
+          className="px-5 py-2.5 bg-[#b45309] hover:bg-[#92400e] text-white font-medium rounded-lg text-sm transition-colors disabled:opacity-60"
+          onClick={submit}
+          disabled={busy}
+          type="button"
+        >
+          {busy ? "Requesting…" : "Request Discussion"}
         </button>
       </div>
     </DialogShell>

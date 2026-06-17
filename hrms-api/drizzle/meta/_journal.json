@@ -253,6 +253,34 @@
       "when": 1781661600000,
       "tag": "20260616150000_offboarding_access_closure",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781740800000,
+      "tag": "20260617100000_clearance_custom_teams",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781744400000,
+      "tag": "20260617110000_clearance_template_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781748000000,
+      "tag": "20260617120000_resignation_discussion",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781751600000,
+      "tag": "20260617130000_resignation_buyout",
+      "breakpoints": true
     }
   ]
 }

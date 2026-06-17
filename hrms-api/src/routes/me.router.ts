@@ -15,6 +15,10 @@ import {
   leaveBalances,
   leaveRequests,
   leaveTypes,
+  orgHierarchyDepartments,
+  orgHierarchyDesignations,
+  orgHierarchyLevels,
+  orgHierarchyStructure,
   regularisationRequests,
 } from "@/db/schema/hrms";
 import {
@@ -53,6 +57,11 @@ import { holidaysForEmployee } from "@/services/holiday-calendar-resolver";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { loadLeaveRequestParticipants } from "@/services/leave-routing";
 import { notifyManagerOnSubmission } from "@/services/leave-notifications";
+import {
+  listMyNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "@/services/notifications";
 
 function resolveProfilePhotoDiskPath(
   profilePhotoUrl: string | null | undefined,
@@ -69,6 +78,47 @@ export const meRouter: Router = Router();
 meRouter.use("/onboarding", meOnboardingRouter);
 
 // ── GET /api/me ─────────────────────────────────────────────────────────────
+// ── Notifications ───────────────────────────────────────────────────────────
+meRouter.get("/notifications", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const { items, unread } = await listMyNotifications(emp.id);
+    res.json({
+      unread,
+      items: items.map((n) => ({
+        id: String(n.id),
+        kind: n.kind,
+        title: n.title,
+        sub: n.sub,
+        isRead: n.isRead,
+        createdAt: n.createdAt.toISOString(),
+      })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+meRouter.patch("/notifications/:id/read", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    await markNotificationRead(emp.id, BigInt(req.params.id ?? "0"));
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+meRouter.post("/notifications/read-all", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    await markAllNotificationsRead(emp.id);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 meRouter.get("/", async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
@@ -105,6 +155,34 @@ meRouter.get("/", async (req, res, next) => {
           .limit(1)
       : [];
 
+    // Employees are configured via the org-hierarchy structure, so the legacy
+    // departmentId/designationId/gradeId are usually null. Resolve department,
+    // designation and grade (level) from the structure when present; fall back
+    // to the legacy lookups above otherwise.
+    const [orgRole] = emp.orgHierarchyStructureId
+      ? await db
+          .select({
+            department: orgHierarchyDepartments.name,
+            designation: orgHierarchyDesignations.name,
+            levelCode: orgHierarchyLevels.code,
+          })
+          .from(orgHierarchyStructure)
+          .leftJoin(
+            orgHierarchyDepartments,
+            eq(orgHierarchyDepartments.id, orgHierarchyStructure.departmentId),
+          )
+          .leftJoin(
+            orgHierarchyDesignations,
+            eq(orgHierarchyDesignations.id, orgHierarchyStructure.designationId),
+          )
+          .leftJoin(
+            orgHierarchyLevels,
+            eq(orgHierarchyLevels.id, orgHierarchyStructure.levelId),
+          )
+          .where(eq(orgHierarchyStructure.id, emp.orgHierarchyStructureId))
+          .limit(1)
+      : [];
+
     const [authUser] = await db
       .select({
         name: users.name,
@@ -120,7 +198,10 @@ meRouter.get("/", async (req, res, next) => {
       authUser?.userTypeId ?? userTypeIdFromAuthRole(authRole);
     const fullName =
       formatEmployeeFullName(emp) || authUser?.name?.trim() || emp.empId;
-    const designationName = designation?.name ?? null;
+    // Prefer the org-hierarchy structure; fall back to the legacy lookups.
+    const designationName = orgRole?.designation ?? designation?.name ?? null;
+    const departmentName = orgRole?.department ?? department?.name ?? null;
+    const gradeName = orgRole?.levelCode ?? grade?.code ?? null;
     const initials = `${emp.firstName[0] ?? ""}${emp.lastName[0] ?? ""}`.toUpperCase();
 
     res.json({
@@ -150,8 +231,8 @@ meRouter.get("/", async (req, res, next) => {
       userTypeId,
       userType: userTypeSlugFromId(userTypeId),
       userTypeLabel: userTypeLabelFromId(userTypeId),
-      department: department?.name ?? null,
-      grade: grade?.code ?? null,
+      department: departmentName,
+      grade: gradeName,
       branch: branch?.name ?? null,
       employmentType: employmentType?.name ?? null,
       reportingManager: manager
