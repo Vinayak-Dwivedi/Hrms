@@ -32,6 +32,7 @@ interface Props {
   leaveBalances?: LeaveType[];
   holidays?: UpcomingHoliday[];
   onSubmitLeave?: (input: LeaveSubmission) => Promise<void>;
+  onCancelLeave?: (id: string) => Promise<void>;
   onSubmitRegularisation?: (input: RegularisationSubmission) => Promise<void>;
   regularisationHistory?: ReadonlyArray<RegularisationHistoryItem>;
   onMonthChange?: (year: number, month0: number) => void;
@@ -746,10 +747,12 @@ interface ModalProps {
   onClose: () => void;
   onApplyReg: () => void;
   onApplyLeave?: () => void;
+  onCancelLeave?: (id: string) => Promise<void>;
   isToday?: boolean;
 }
 
-function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalProps) {
+function DayModal({ entry, onClose, onApplyReg, onApplyLeave, onCancelLeave, isToday }: ModalProps) {
+  const [cancelling, setCancelling] = useState(false);
   const badge = STATUS_BADGE[entry.status];
   const isLeave  = entry.status === "Leave" || entry.status === "LeavePending";
   const isAbsent = entry.status === "Absent";
@@ -757,6 +760,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
   const canRegularise = isToday || isAbsent;
   const entryTodayStr = toYMD(new Date());
   const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave) && entry.date >= entryTodayStr;
+  const canCancel = isLeave && Boolean(onCancelLeave) && Boolean(entry.leaveRequestId);
 
   const cards = [
     { label: "Punch In",    value: entry.punchIn ?? "—" },
@@ -843,6 +847,25 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
           <button onClick={onClose} style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", fontSize: 14, fontWeight: 500, color: "#374151", cursor: "pointer" }}>
             Close
           </button>
+          {canCancel && onCancelLeave && entry.leaveRequestId && (
+            <button
+              disabled={cancelling}
+              onClick={async () => {
+                const label = isPending ? "pending" : "approved";
+                if (!window.confirm(`Cancel this ${label} leave? This cannot be undone.`)) return;
+                setCancelling(true);
+                try {
+                  await onCancelLeave(entry.leaveRequestId!);
+                  onClose();
+                } finally {
+                  setCancelling(false);
+                }
+              }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: "1.5px solid #e91e8c", background: "#fff", fontSize: 14, fontWeight: 700, color: "#e91e8c", cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? 0.6 : 1 }}
+            >
+              {cancelling ? "Cancelling…" : "Cancel Leave"}
+            </button>
+          )}
           {canApplyLeave && onApplyLeave && (
             <button
               onClick={onApplyLeave}
@@ -875,6 +898,7 @@ export default function AttendanceCalendar({
   leaveBalances = [],
   holidays = [],
   onSubmitLeave,
+  onCancelLeave,
   onSubmitRegularisation,
   regularisationHistory = [],
   onMonthChange,
@@ -1057,11 +1081,11 @@ export default function AttendanceCalendar({
           onClose={() => setSelected(null)}
           onApplyReg={() => { setRegDate(selected.date); setSelected(null); }}
           onApplyLeave={() => {
-            // Reuse the same leave-form flow as future-day clicks.
             setUpcomingYmd(selected.date);
             setShowLeaveForm(true);
             setSelected(null);
           }}
+          onCancelLeave={onCancelLeave}
         />
       )}
 

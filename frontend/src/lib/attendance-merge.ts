@@ -64,6 +64,7 @@ export function mergeLeavesIntoDays(
         date: key,
         status: lr.status === "Approved" ? "Leave" : "LeavePending",
         leaveType: lr.leaveType,
+        leaveRequestId: lr.id,
       });
       cur.setDate(cur.getDate() + 1);
     }

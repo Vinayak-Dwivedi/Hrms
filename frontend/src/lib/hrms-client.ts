@@ -874,7 +874,7 @@ export interface ApprovalLeaveRequest {
 }
 
 export async function fetchOrgLeaveRequests(args?: {
-  status?: "all" | "pending" | "approved" | "rejected" | "forwarded";
+  status?: "all" | "pending" | "approved" | "rejected" | "forwarded" | "cancelled";
   limit?: number;
 }): Promise<{ requests: ApprovalLeaveRequest[]; pendingCount: number }> {
   const params = new URLSearchParams();

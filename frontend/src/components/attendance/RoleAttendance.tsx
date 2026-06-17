@@ -28,6 +28,7 @@ import {
   fetchMyRegularisationRequests,
   type MyRegularisationRow,
   type UpcomingHoliday,
+  cancelLeaveRequest,
   submitLeaveRequest,
   submitRegularisationRequest,
 } from "@/lib/hrms-client";
@@ -165,6 +166,22 @@ export default function RoleAttendance({ role }: { role: Role }) {
     }
   }
 
+  async function handleCancelLeave(id: string) {
+    try {
+      await cancelLeaveRequest(id);
+      const [fresh, bal] = await Promise.all([
+        refreshDays(calYear, calMonth0),
+        adapters.fetchLeaveBalances(),
+      ]);
+      setData(fresh);
+      setBalances(bal);
+      toast.success("Leave request cancelled");
+    } catch (e) {
+      toast.error(`Failed to cancel: ${(e as Error).message}`);
+      throw e;
+    }
+  }
+
   async function handleSubmitRegularisation(input: RegularisationSubmission) {
     try {
       await submitRegularisationRequest(input, adapters.regScope);
@@ -202,6 +219,7 @@ export default function RoleAttendance({ role }: { role: Role }) {
                 leaveBalances={balances}
                 holidays={holidays}
                 onSubmitLeave={handleSubmitLeave}
+                onCancelLeave={handleCancelLeave}
                 onSubmitRegularisation={handleSubmitRegularisation}
                 onMonthChange={handleMonthChange}
                 regularisationHistory={regHistory.map(

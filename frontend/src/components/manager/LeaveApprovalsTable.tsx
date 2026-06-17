@@ -12,7 +12,8 @@ import {
   APPROVAL_STATUS_CLASS,
   approveIconBtnClass,
   fmtAppliedOn,
-  fmtRange,
+  fmtDaysCount,
+  fmtRangeDatesOnly,
   forwardIconBtnClass,
   PAGE_SIZE,
   rejectIconBtnClass,
@@ -61,7 +62,7 @@ export default function LeaveApprovalsTable({
     ? [
         "Employee",
         "Emp ID",
-        "Leave Type",
+        "Code",
         "Period",
         "Duration",
         "Reason",
@@ -71,7 +72,7 @@ export default function LeaveApprovalsTable({
     : [
         "Employee",
         "Emp ID",
-        "Leave Type",
+        "Code",
         "Period",
         "Duration",
         "Reason",
@@ -82,9 +83,9 @@ export default function LeaveApprovalsTable({
 
   return (
     <div
-      className={embedded ? "overflow-hidden" : `${employeeCardClass} overflow-hidden`}
+      className={embedded ? "flex flex-col h-full overflow-hidden" : `${employeeCardClass} overflow-hidden`}
     >
-      <div className="overflow-x-auto">
+      <div className={embedded ? "flex-1 min-h-0 overflow-auto" : "overflow-x-auto"}>
         <table className="w-full min-w-[1100px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-nowrap">
@@ -130,14 +131,17 @@ export default function LeaveApprovalsTable({
                   </td>
                   <td className={tableBodyCellClass}>{req.empId}</td>
                   <td className={tableBodyCellClass}>
-                    <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-pink-100 text-[#ff014f]">
-                      {req.leaveTypeName}
+                    <span
+                      className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-pink-100 text-[#ff014f]"
+                      title={req.leaveTypeName}
+                    >
+                      {req.leaveTypeCode}
                     </span>
                   </td>
                   <td className={`${tableBodyCellClass} whitespace-nowrap`}>
-                    {fmtRange(req.fromDate, req.toDate, req.days)}
+                    {fmtRangeDatesOnly(req.fromDate, req.toDate)}
                   </td>
-                  <td className={tableBodyCellClass}>{req.durationType}</td>
+                  <td className={tableBodyCellClass}>{fmtDaysCount(req.days)}</td>
                   <td className={tableBodyCellClass}>
                     <span
                       className="block max-w-[200px] truncate"
@@ -208,7 +212,7 @@ export default function LeaveApprovalsTable({
       </div>
 
       {requests.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
           <p className="text-sm text-gray-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}

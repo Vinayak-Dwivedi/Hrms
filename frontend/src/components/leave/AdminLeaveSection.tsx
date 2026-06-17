@@ -9,7 +9,7 @@ import {
 } from "@/lib/hrms-client";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "all" | "pending" | "approved" | "rejected" | "forwarded";
+type StatusFilter = "all" | "pending" | "approved" | "rejected" | "forwarded" | "cancelled";
 
 export default function AdminLeaveSection() {
   const [requests, setRequests] = useState<ApprovalLeaveRequest[]>([]);
@@ -70,6 +70,7 @@ export default function AdminLeaveSection() {
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="forwarded">Forwarded</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </div>
 

@@ -274,21 +274,37 @@ export default function LeaveTable({
                         className={cancelIconBtnClass}
                         disabled={!onCancel || busyId === req.id}
                         onClick={() => onCancel?.(req.id)}
-                        title={busyId === req.id ? "Cancelling…" : "Cancel"}
+                        title={busyId === req.id ? "Cancelling…" : "Cancel request"}
                         type="button"
                       >
                         <XCircle className={employeeIconMd} />
                       </button>
                     )}
                     {req.status === "Approved" && (
-                      <button
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors"
-                        onClick={() => setContesting(req)}
-                        type="button"
-                      >
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        Contest Leave
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-white text-blue-700 hover:bg-blue-50 transition-colors"
+                          onClick={() => setContesting(req)}
+                          type="button"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Contest
+                        </button>
+                        <button
+                          aria-label="Cancel approved leave"
+                          className={cancelIconBtnClass}
+                          disabled={!onCancel || busyId === req.id}
+                          onClick={() => {
+                            if (window.confirm("Cancel this approved leave? This cannot be undone.")) {
+                              onCancel?.(req.id);
+                            }
+                          }}
+                          title={busyId === req.id ? "Cancelling…" : "Cancel leave"}
+                          type="button"
+                        >
+                          <XCircle className={employeeIconMd} />
+                        </button>
+                      </div>
                     )}
                     {(req.status === "Cancelled" || req.status === "Rejected") && (
                       <span className="text-sm text-gray-400">No action</span>

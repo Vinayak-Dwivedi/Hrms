@@ -50,6 +50,25 @@ export function fmtRange(from: string, to: string, days: string) {
   return `${fmtDayMonth(f, true)} – ${fmtDayMonth(t, true)} (${daysLabel})`;
 }
 
+export function fmtRangeDatesOnly(from: string, to: string) {
+  const f = parseYmd(from);
+  const t = parseYmd(to);
+  if (from === to) return fmtDayMonth(f, true);
+  if (f.getFullYear() === t.getFullYear()) {
+    return `${fmtDayMonth(f)} – ${fmtDayMonth(t)} ${t.getFullYear()}`;
+  }
+  return `${fmtDayMonth(f, true)} – ${fmtDayMonth(t, true)}`;
+}
+
+export function fmtDaysCount(days: string) {
+  const n = Number(days);
+  if (!Number.isFinite(n)) return `${days} Days`;
+  const rounded = Math.round(n * 10) / 10;
+  const display = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  const unit = Math.abs(rounded) <= 1 ? "Day" : "Days";
+  return `${display} ${unit}`;
+}
+
 export const approveIconBtnClass =
   "text-green-700 hover:text-green-800 bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
