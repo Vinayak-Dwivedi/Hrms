@@ -65,6 +65,12 @@ function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function isWeekendDate(ymd: string): boolean {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 || day === 6;
+}
+
 function buildGrid(year: number, month: number): Date[][] {
   const first = new Date(year, month, 1);
   const dow = (first.getDay() + 6) % 7;
@@ -112,12 +118,15 @@ interface LeaveFormProps {
 
 function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmit }: LeaveFormProps) {
   const types = leaveBalances;
+  const todayStr = toYMD(new Date());
+
   const [leaveTypeIdx, setLeaveTypeIdx] = useState(0);
   const [reason, setReason]             = useState("");
   const [durationMode, setDurationMode] = useState<"Full Day" | "Half Day">("Full Day");
   const [halfDayPart, setHalfDayPart]   = useState<"First Half" | "Second Half">("First Half");
-  const [fromDate, setFromDate]         = useState(defaultDate);
-  const [toDate, setToDate]             = useState(defaultDate);
+  const safeDefault = defaultDate >= todayStr ? defaultDate : todayStr;
+  const [fromDate, setFromDate]         = useState(safeDefault);
+  const [toDate, setToDate]             = useState(safeDefault);
   const [fileName, setFileName]         = useState<string | null>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
@@ -207,6 +216,18 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
     const code = leaveOptions[leaveTypeIdx]?.code;
     if (!code) {
       setSubmitError("Pick a leave type.");
+      return;
+    }
+    if (fromDate < todayStr) {
+      setSubmitError("Cannot apply leave for past dates.");
+      return;
+    }
+    if (isWeekendDate(fromDate)) {
+      setSubmitError("Cannot apply leave on a weekend.");
+      return;
+    }
+    if (durationMode === "Full Day" && workingDays === 0) {
+      setSubmitError("Selected date range has no working days (all weekends or holidays).");
       return;
     }
     if (minNoticeDays > 0) {
@@ -387,7 +408,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Date</label>
               <input
-                type="date" value={fromDate}
+                type="date" value={fromDate} min={todayStr}
                 onChange={(e) => { setFromDate(e.target.value); setToDate(e.target.value); }}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
               />
@@ -397,7 +418,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>From</label>
                 <input
-                  type="date" value={fromDate}
+                  type="date" value={fromDate} min={todayStr}
                   onChange={(e) => { setFromDate(e.target.value); if (toDate < e.target.value) setToDate(e.target.value); }}
                   style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
                 />
@@ -734,7 +755,8 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
   const isAbsent = entry.status === "Absent";
   const isPending = entry.status === "LeavePending";
   const canRegularise = isToday || isAbsent;
-  const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave);
+  const entryTodayStr = toYMD(new Date());
+  const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave) && entry.date >= entryTodayStr;
 
   const cards = [
     { label: "Punch In",    value: entry.punchIn ?? "—" },
@@ -902,6 +924,8 @@ export default function AttendanceCalendar({
     if (entry) {
       setSelected(entry);
     } else {
+      if (ymd < today) return;
+      if (isWeekendDate(ymd)) return;
       openLeaveFormForDate(ymd);
     }
   }
