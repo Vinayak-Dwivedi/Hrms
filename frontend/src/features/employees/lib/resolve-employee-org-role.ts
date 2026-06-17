@@ -3,7 +3,7 @@ import {
   resolveOrgHierarchyRoleDisplay,
   type OrgHierarchyRoleDisplay,
   type OrgHierarchyRoleLookups,
-} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+} from "@/features/org-hierarchy/lib/org-hierarchy-role";
 
 export function resolveEmployeeOrgRoleIds(
   emp: Pick<

@@ -28,11 +28,12 @@ import {
   type LookupItem,
   type OnboardingPipelineStatus,
 } from "@/features/employees/api/employees.client";
+import { resolveEmployeeOrgRoleIds } from "@/features/employees/lib/resolve-employee-org-role";
 import {
   fetchOrgHierarchyRoleLookups,
-  type OrgHierarchyRoleLookups,
   resolveOrgHierarchyRoleDisplay,
-} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/lib/org-hierarchy-role";
 
 const ALL_STATUS = "All";
 const ALL_ONBOARDING = "All";
@@ -395,7 +396,6 @@ export default function EmployeesPage() {
           designationNames={designationNames}
           orgLookups={orgLookups}
           employees={filteredEmployees}
-          orgLookups={orgLookups}
           showOnboardingAction={showOnboardingAction}
         />
       )}

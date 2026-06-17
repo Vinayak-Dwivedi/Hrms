@@ -9,10 +9,8 @@ import {
   type EmployeeListItem,
   type EmployeeStatus,
 } from "../api/employees.client";
-import {
-  type OrgHierarchyRoleLookups,
-  resolveOrgHierarchyRoleDisplay,
-} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+import { type OrgHierarchyRoleLookups } from "@/features/org-hierarchy/lib/org-hierarchy-role";
+import { resolveEmployeeListRoleDisplay } from "../lib/resolve-employee-org-role";
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
@@ -29,29 +27,7 @@ interface Props {
   orgLookups: OrgHierarchyRoleLookups | null;
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
-  // Org-hierarchy lookups — used to resolve department/designation from the
-  // employee's structure mapping (the source of truth the Add/Edit forms write
-  // to). Falls back to the legacy departmentId/designationId when absent.
-  orgLookups?: OrgHierarchyRoleLookups | null;
   showOnboardingAction?: boolean;
-}
-
-// Resolve an employee's department + designation labels, preferring the
-// org-hierarchy structure and falling back to the legacy id→name maps.
-function resolveRole(
-  emp: EmployeeListItem,
-  orgLookups: OrgHierarchyRoleLookups | null | undefined,
-  departmentNames: Map<number, string>,
-  designationNames: Map<number, string>,
-): { department: string; designation: string } {
-  if (emp.orgHierarchyStructureId != null && orgLookups) {
-    const d = resolveOrgHierarchyRoleDisplay(emp.orgHierarchyStructureId, orgLookups);
-    return { department: d.department, designation: d.designation };
-  }
-  return {
-    department: emp.departmentId != null ? (departmentNames.get(emp.departmentId) ?? "—") : "—",
-    designation: emp.designationId != null ? (designationNames.get(emp.designationId) ?? "—") : "—",
-  };
 }
 
 const STATUS_CLASS: Record<EmployeeStatus, string> = {
@@ -78,7 +54,6 @@ export default function EmployeeTable({
   orgLookups,
   departmentNames,
   designationNames,
-  orgLookups,
   showOnboardingAction = false,
 }: Props) {
   const [page, setPage] = useState(1);
@@ -162,12 +137,8 @@ export default function EmployeeTable({
                   </td>
                   <td className="px-4 py-2.5">{emp.workEmail ?? "—"}</td>
                   <td className="px-4 py-2.5">{emp.phone}</td>
-                  <td className="px-4 py-2.5">
-                    {resolveRole(emp, orgLookups, departmentNames, designationNames).department}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {resolveRole(emp, orgLookups, departmentNames, designationNames).designation}
-                  </td>
+                  <td className="px-4 py-2.5">{roleDisplay.department}</td>
+                  <td className="px-4 py-2.5">{roleDisplay.designation}</td>
                   <td className="px-4 py-2.5">
                     <span
                       className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${STATUS_CLASS[emp.employeeStatus]}`}
