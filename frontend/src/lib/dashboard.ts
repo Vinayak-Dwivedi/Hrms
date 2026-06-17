@@ -79,6 +79,7 @@ export interface DayAttendance {
   location?: string;
   leaveType?: string;
   approvedBy?: string;
+  leaveRequestId?: string;
 }
 
 // ── Leave Requests ────────────────────────────────────────────────────────────

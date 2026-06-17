@@ -7,6 +7,7 @@ import NotificationBell from "@/components/app/NotificationBell";
 import type { Employee } from "@/lib/dashboard";
 import { signOut, type LoggedInUser } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
+import { enterpriseHeaderClass } from "@/lib/branding";
 
 // Universal app header — breadcrumb on the left, notifications + user menu on
 // the right. Mounted by AppShell so every authenticated page renders the same
@@ -70,7 +71,7 @@ function HeaderAvatar({
       className={[
         "rounded-full overflow-hidden flex items-center justify-center shrink-0",
         "w-[34px] h-[34px] text-[12px] font-bold text-white tracking-wide",
-        showImg ? "bg-white" : "bg-violet-600",
+        showImg ? "bg-white" : "bg-[lab(36.9089%_35.0961_-85.6872)]",
       ].join(" ")}
     >
       {showImg ? (
@@ -155,11 +156,11 @@ export default function AppHeader({
 
   return (
     <>
-      <header className="flex items-center justify-between px-6 h-16">
-        <nav className="flex items-center gap-2 text-sm">
-          <span className="text-gray-400">{rootLabelFor(role, sessionUser.role)}</span>
-          <span className="text-gray-300">/</span>
-          <span className="font-semibold text-gray-800">{crumb}</span>
+      <header className={["flex items-center justify-between px-6 h-14 shrink-0", enterpriseHeaderClass].join(" ")}>
+        <nav className="flex items-center gap-2 text-[13px]">
+          <span className="text-slate-400 font-medium">{rootLabelFor(role, sessionUser.role)}</span>
+          <span className="text-slate-300">/</span>
+          <span className="font-semibold text-slate-800">{crumb}</span>
         </nav>
         <div className="flex items-center gap-3">
           <NotificationBell />
@@ -169,13 +170,13 @@ export default function AppHeader({
               onClick={() => setMenuOpen((o) => !o)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-gray-100 cursor-pointer"
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100 transition-colors"
             >
               <HeaderAvatar
                 initials={initials}
                 src={identity?.avatarUrl}
               />
-              <span className="text-sm font-semibold text-gray-700">
+              <span className="text-[13px] font-medium text-slate-700">
                 {displayName}
               </span>
               <ChevronDown

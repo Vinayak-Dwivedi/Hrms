@@ -5,6 +5,15 @@ import {
   QUAL_CLASS_12,
   QUAL_OTHER,
 } from "@/features/onboarding/constants/academic";
+import { MARITAL_STATUS_OPTIONS } from "@/features/onboarding/constants/personal";
+import {
+  BOARD_ALPHA_ONLY_MESSAGE,
+  GRADE_FORMAT_MESSAGE,
+  INSTITUTION_ALPHA_ONLY_MESSAGE,
+  isAlphaOnlyBoardUniversity,
+  isAlphaOnlyInstitution,
+  isValidGradeOrPercentage,
+} from "@/lib/academic-field-validation";
 import {
   indianAadhaarSchema,
   indianBankAccountSchema,
@@ -39,6 +48,10 @@ export const academicDetailSchema = z
     gradeOrPercentage: z.string().trim().optional(),
   })
   .superRefine((row, ctx) => {
+    const qualification = row.qualification.trim();
+    const isSchoolQualification =
+      qualification === QUAL_CLASS_10 || qualification === QUAL_CLASS_12;
+
     if (row.qualification === QUAL_OTHER) {
       const other = row.qualificationOther?.trim() ?? "";
       if (other.length < 2) {
@@ -48,6 +61,54 @@ export const academicDetailSchema = z
           message: "Enter the qualification name (at least 2 characters).",
         });
       }
+    }
+
+    if (!isAlphaOnlyInstitution(row.institution)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["institution"],
+        message: INSTITUTION_ALPHA_ONLY_MESSAGE,
+      });
+    }
+
+    if (!isAlphaOnlyBoardUniversity(row.boardUniversity ?? "")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["boardUniversity"],
+        message: BOARD_ALPHA_ONLY_MESSAGE,
+      });
+    }
+
+    if (isSchoolQualification && !(row.boardUniversity ?? "").trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["boardUniversity"],
+        message: "Board / University is required.",
+      });
+    }
+
+    if (row.yearTo == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["yearTo"],
+        message: "Passing year is required.",
+      });
+    }
+
+    if (!(row.gradeOrPercentage ?? "").trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gradeOrPercentage"],
+        message: "Grade / % is required.",
+      });
+    }
+
+    if (!isValidGradeOrPercentage(row.gradeOrPercentage ?? "")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gradeOrPercentage"],
+        message: GRADE_FORMAT_MESSAGE,
+      });
     }
   })
   .transform((row) => ({
@@ -110,7 +171,7 @@ export const onboardingProfileSchema = z
     .trim()
     .min(1, "Emergency contact name is required."),
   emergencyContactPhone: phoneFieldSchema,
-  maritalStatus: z.enum(["Single", "Married"], {
+  maritalStatus: z.enum(MARITAL_STATUS_OPTIONS, {
     message: "Marital status is required.",
   }),
   spouseName: z.string().trim().max(200).optional(),

@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { employeeCardClass } from "@/features/employees/employee-theme";
+import {
+  enterpriseCardClass,
+  enterpriseLinkClass,
+} from "@/lib/branding";
 import type { PendingReviewEmployee } from "@/features/employees/api/hr-onboarding.client";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +30,13 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className={cn(employeeCardClass, "p-4 min-w-0")}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 m-0">
+    <div className={cn(enterpriseCardClass, "p-4 min-w-0")}>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 m-0">
         {label}
       </p>
-      <p className="text-2xl font-bold text-gray-900 m-0 mt-1">{value}</p>
+      <p className="text-2xl font-semibold text-slate-900 m-0 mt-1">{value}</p>
       {sub && (
-        <p className="text-[12px] text-gray-500 m-0 mt-1">{sub}</p>
+        <p className="text-[12px] text-slate-500 m-0 mt-1">{sub}</p>
       )}
     </div>
   );
@@ -54,7 +57,7 @@ export default function HrDashboardSection({
 
   if (loading && !data.completionStats && data.employeeCount == null) {
     return (
-      <div className={cn(employeeCardClass, "p-5 h-32 animate-pulse bg-gray-50")} />
+      <div className={cn(enterpriseCardClass, "p-5 h-32 animate-pulse bg-slate-50")} />
     );
   }
 
@@ -63,11 +66,13 @@ export default function HrDashboardSection({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-gray-900 m-0">HR Operations</h2>
+        <h2 className="text-[15px] font-semibold text-slate-800 tracking-tight m-0">
+          HR Operations
+        </h2>
         {showEmployees && (
           <Link
             href="/employees"
-            className="text-[12px] font-semibold text-[#be185d] no-underline hover:underline"
+            className={cn(enterpriseLinkClass, "text-[12px] hover:underline")}
           >
             View all employees →
           </Link>
@@ -101,8 +106,8 @@ export default function HrDashboardSection({
       {showOnboarding && !loading && pendingCount === 0 && (
         <div
           className={cn(
-            employeeCardClass,
-            "p-4 flex items-center gap-2 text-[12px] text-gray-500",
+            enterpriseCardClass,
+            "p-4 flex items-center gap-2 text-[12px] text-slate-500",
           )}
         >
           <Users size={14} />

@@ -8,6 +8,7 @@ import ManagerLeaveView, {
 } from "@/components/manager/ManagerLeaveView";
 import { useAuth } from "@/lib/auth-context";
 import { resolveUiRole } from "@/lib/resolve-ui-role";
+import { enterpriseLoadingClass } from "@/lib/branding";
 import { useRouter, useSearchParams } from "next/navigation";
 
 function LeavePageContent() {
@@ -37,7 +38,7 @@ function LeavePageContent() {
 
 export default function LeavePage() {
   return (
-    <Suspense fallback={<div className="p-6 text-gray-500">Loading leave…</div>}>
+    <Suspense fallback={<div className={enterpriseLoadingClass}>Loading leave…</div>}>
       <LeavePageContent />
     </Suspense>
   );

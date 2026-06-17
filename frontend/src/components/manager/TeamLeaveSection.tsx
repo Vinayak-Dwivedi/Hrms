@@ -5,7 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import LeaveApprovalsTable from "@/components/manager/LeaveApprovalsTable";
 import RejectApprovalModal from "@/components/manager/RejectApprovalModal";
-import { employeeErrorBannerClass } from "@/features/employees/employee-theme";
+import {
+  enterpriseCardClass,
+  enterpriseCardTitleClass,
+  enterpriseLinkClass,
+  enterpriseLoadingClass,
+} from "@/lib/branding";
 import {
   approveLeaveRequest,
   fetchLeaveApprovals,
@@ -13,6 +18,7 @@ import {
   rejectLeaveRequest,
   type ApprovalLeaveRequest,
 } from "@/lib/hrms-client";
+import { cn } from "@/lib/utils";
 
 export default function TeamLeaveSection() {
   const [requests, setRequests] = useState<ApprovalLeaveRequest[]>([]);
@@ -84,19 +90,21 @@ export default function TeamLeaveSection() {
   return (
     <>
       {loadError && (
-        <div className={employeeErrorBannerClass}>
+        <div className="mb-3 bg-red-50 border border-red-200 text-red-800 text-[13px] rounded-md px-3.5 py-2.5">
           Failed to load team leave: {loadError}
         </div>
       )}
       <div
-        className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col"
-        style={{ height: "calc(100vh - 6rem)" }}
+        className={cn(
+          enterpriseCardClass,
+          "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
+        )}
       >
-        <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
-          <h3 className="text-[15px] font-bold text-gray-900 m-0">Team Leave</h3>
+        <div className="flex items-center justify-between gap-3 mb-2 shrink-0">
+          <h3 className={enterpriseCardTitleClass}>Team Leave</h3>
           <Link
             href="/manager/approvals"
-            className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#eb0249]"
+            className={cn(enterpriseLinkClass, "text-[12px] hover:underline shrink-0")}
           >
             View all approvals →
           </Link>
@@ -105,14 +113,16 @@ export default function TeamLeaveSection() {
         {loading ? (
           <div className="p-6 text-gray-500">Loading team leave…</div>
         ) : (
-          <LeaveApprovalsTable
-            busyId={busyId}
-            embedded
-            onApprove={handleApprove}
-            onForward={handleForward}
-            onOpenReject={setRejectId}
-            requests={requests}
-          />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <LeaveApprovalsTable
+              busyId={busyId}
+              embedded
+              onApprove={handleApprove}
+              onForward={handleForward}
+              onOpenReject={setRejectId}
+              requests={requests}
+            />
+          </div>
         )}
       </div>
 

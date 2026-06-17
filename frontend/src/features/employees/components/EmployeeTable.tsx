@@ -9,44 +9,25 @@ import {
   type EmployeeListItem,
   type EmployeeStatus,
 } from "../api/employees.client";
-import {
-  type OrgHierarchyRoleLookups,
-  resolveOrgHierarchyRoleDisplay,
-} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+import { type OrgHierarchyRoleLookups } from "@/features/org-hierarchy/lib/org-hierarchy-role";
+import { resolveEmployeeListRoleDisplay } from "../lib/resolve-employee-org-role";
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
   employeeIconSm,
+  employeeListPaginationBtnActiveClass,
+  employeeListPaginationBtnClass,
+  employeeListPaginationBtnInactiveClass,
   employeeViewIconBtnClass,
 } from "../employee-theme";
+import { cn } from "@/lib/utils";
 
 interface Props {
   employees: EmployeeListItem[];
+  orgLookups: OrgHierarchyRoleLookups | null;
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
-  // Org-hierarchy lookups — used to resolve department/designation from the
-  // employee's structure mapping (the source of truth the Add/Edit forms write
-  // to). Falls back to the legacy departmentId/designationId when absent.
-  orgLookups?: OrgHierarchyRoleLookups | null;
   showOnboardingAction?: boolean;
-}
-
-// Resolve an employee's department + designation labels, preferring the
-// org-hierarchy structure and falling back to the legacy id→name maps.
-function resolveRole(
-  emp: EmployeeListItem,
-  orgLookups: OrgHierarchyRoleLookups | null | undefined,
-  departmentNames: Map<number, string>,
-  designationNames: Map<number, string>,
-): { department: string; designation: string } {
-  if (emp.orgHierarchyStructureId != null && orgLookups) {
-    const d = resolveOrgHierarchyRoleDisplay(emp.orgHierarchyStructureId, orgLookups);
-    return { department: d.department, designation: d.designation };
-  }
-  return {
-    department: emp.departmentId != null ? (departmentNames.get(emp.departmentId) ?? "—") : "—",
-    designation: emp.designationId != null ? (designationNames.get(emp.designationId) ?? "—") : "—",
-  };
 }
 
 const STATUS_CLASS: Record<EmployeeStatus, string> = {
@@ -70,9 +51,9 @@ function fmtDate(iso: string) {
 
 export default function EmployeeTable({
   employees,
+  orgLookups,
   departmentNames,
   designationNames,
-  orgLookups,
   showOnboardingAction = false,
 }: Props) {
   const [page, setPage] = useState(1);
@@ -92,7 +73,7 @@ export default function EmployeeTable({
     <div className={`${employeeCardClass} overflow-hidden`}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1020px]">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-nowrap">
               {[
                 "Emp ID",
@@ -108,14 +89,14 @@ export default function EmployeeTable({
               ].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider"
+                  className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {pageRows.length === 0 ? (
               <tr>
                 <td
@@ -126,10 +107,29 @@ export default function EmployeeTable({
                 </td>
               </tr>
             ) : (
-              pageRows.map((emp) => (
+              pageRows.map((emp) => {
+                const roleDisplay = orgLookups
+                  ? resolveEmployeeListRoleDisplay(
+                      emp,
+                      orgLookups,
+                      departmentNames,
+                      designationNames,
+                    )
+                  : {
+                      department:
+                        emp.departmentId != null
+                          ? (departmentNames.get(emp.departmentId) ?? "—")
+                          : "—",
+                      designation:
+                        emp.designationId != null
+                          ? (designationNames.get(emp.designationId) ?? "—")
+                          : "—",
+                    };
+
+                return (
                 <tr
                   key={emp.id}
-                  className="hover:bg-gray-50 transition-colors text-[13px] text-gray-600"
+                  className="hover:bg-slate-50 transition-colors text-[13px] text-slate-600"
                 >
                   <td className="px-4 py-2.5">{emp.empId}</td>
                   <td className="px-4 py-2.5">
@@ -137,12 +137,8 @@ export default function EmployeeTable({
                   </td>
                   <td className="px-4 py-2.5">{emp.workEmail ?? "—"}</td>
                   <td className="px-4 py-2.5">{emp.phone}</td>
-                  <td className="px-4 py-2.5">
-                    {resolveRole(emp, orgLookups, departmentNames, designationNames).department}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    {resolveRole(emp, orgLookups, departmentNames, designationNames).designation}
-                  </td>
+                  <td className="px-4 py-2.5">{roleDisplay.department}</td>
+                  <td className="px-4 py-2.5">{roleDisplay.designation}</td>
                   <td className="px-4 py-2.5">
                     <span
                       className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${STATUS_CLASS[emp.employeeStatus]}`}
@@ -177,7 +173,7 @@ export default function EmployeeTable({
                       {showOnboardingAction && (
                         <Link
                           aria-label={`Onboarding for ${emp.firstName} ${emp.lastName}`}
-                          className="text-pink-700 hover:text-pink-800 bg-transparent border-0 cursor-pointer p-0 transition-colors"
+                          className={employeeEditIconBtnClass}
                           href={`/employees/${emp.id}/onboarding`}
                           title="Onboarding"
                         >
@@ -187,22 +183,23 @@ export default function EmployeeTable({
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
       {employees.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-100">
-          <p className="text-[13px] text-gray-500 m-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-200">
+          <p className="text-[13px] text-slate-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
             <span className="font-medium">{employees.length}</span> results
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -214,12 +211,11 @@ export default function EmployeeTable({
               .map((p) => (
                 <button
                   key={p}
-                  className={[
-                    "px-3 py-1.5 text-[13px] rounded-lg transition-colors border",
+                  className={cn(
                     p === safePage
-                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
-                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
-                  ].join(" ")}
+                      ? employeeListPaginationBtnActiveClass
+                      : employeeListPaginationBtnInactiveClass,
+                  )}
                   onClick={() => setPage(p)}
                   type="button"
                 >
@@ -227,7 +223,7 @@ export default function EmployeeTable({
                 </button>
               ))}
             <button
-              className="px-3 py-1.5 text-[13px] text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={employeeListPaginationBtnClass}
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

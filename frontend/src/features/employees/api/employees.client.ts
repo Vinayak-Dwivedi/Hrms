@@ -1,4 +1,5 @@
 import { API_BASE } from "@/lib/hrms-client";
+import type { MaritalStatus } from "@/features/onboarding/constants/personal";
 
 export type EmployeeStatus =
   | "Active"
@@ -36,7 +37,7 @@ export type EmployeeDetail = EmployeeListItem & {
   dob: string;
   gender: "Male" | "Female" | "Other";
   nationality: string;
-  maritalStatus: "Single" | "Married" | null;
+  maritalStatus: MaritalStatus | null;
   spouseName: string | null;
   gradeId: number | null;
   branchId: number | null;
@@ -117,7 +118,7 @@ export type CreateEmployeePayload = {
   gradeId?: number;
   branchId?: number;
   reportingManagerId?: number;
-  maritalStatus?: "Single" | "Married" | null;
+  maritalStatus?: MaritalStatus | null;
   spouseName?: string | null;
 };
 
@@ -137,7 +138,7 @@ export type UpdateEmployeePayload = {
   branchId?: number | null;
   reportingManagerId?: number | null;
   reportingChain?: number[];
-  maritalStatus?: "Single" | "Married" | null;
+  maritalStatus?: MaritalStatus | null;
   spouseName?: string | null;
   password?: string;
   roleId?: number;
@@ -216,7 +217,7 @@ type RawEmployeeRow = {
   dob: string;
   gender: "Male" | "Female" | "Other";
   nationality: string;
-  maritalStatus: "Single" | "Married" | null;
+  maritalStatus: MaritalStatus | null;
   spouseName: string | null;
   departmentId: number | null;
   subDepartmentId: number | null;

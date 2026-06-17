@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import type { DayAttendance, LeaveType } from "@/lib/dashboard";
 import { countLeaveDays, holidayDateSet } from "@/lib/attendance-merge";
 import type { UpcomingHoliday } from "@/lib/hrms-client";
+import { brandStyle } from "@/lib/branding";
 
 export interface LeaveSubmission {
   leaveTypeCode: string;
@@ -32,6 +33,7 @@ interface Props {
   leaveBalances?: LeaveType[];
   holidays?: UpcomingHoliday[];
   onSubmitLeave?: (input: LeaveSubmission) => Promise<void>;
+  onCancelLeave?: (id: string) => Promise<void>;
   onSubmitRegularisation?: (input: RegularisationSubmission) => Promise<void>;
   regularisationHistory?: ReadonlyArray<RegularisationHistoryItem>;
   onMonthChange?: (year: number, month0: number) => void;
@@ -43,6 +45,7 @@ const MONTHS = [
 ];
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const B = brandStyle;
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   Present:      { label: "Present",  color: "#16a34a", bg: "#dcfce7" },
@@ -63,6 +66,12 @@ const LEGEND = [
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isWeekendDate(ymd: string): boolean {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 || day === 6;
 }
 
 function buildGrid(year: number, month: number): Date[][] {
@@ -112,11 +121,15 @@ interface LeaveFormProps {
 
 function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmit }: LeaveFormProps) {
   const types = leaveBalances;
+  const todayStr = toYMD(new Date());
+
   const [leaveTypeIdx, setLeaveTypeIdx] = useState(0);
   const [reason, setReason]             = useState("");
-  const [duration, setDuration]         = useState<"Full Day" | "First Half" | "Second Half">("Full Day");
-  const [fromDate, setFromDate]         = useState(defaultDate);
-  const [toDate, setToDate]             = useState(defaultDate);
+  const [durationMode, setDurationMode] = useState<"Full Day" | "Half Day">("Full Day");
+  const [halfDayPart, setHalfDayPart]   = useState<"First Half" | "Second Half">("First Half");
+  const safeDefault = defaultDate >= todayStr ? defaultDate : todayStr;
+  const [fromDate, setFromDate]         = useState(safeDefault);
+  const [toDate, setToDate]             = useState(safeDefault);
   const [fileName, setFileName]         = useState<string | null>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
@@ -126,6 +139,9 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   const selectedType = types[leaveTypeIdx];
   const allowHalfDay = selectedType?.allowHalfDay ?? true;
   const minNoticeDays = selectedType?.minNoticeDays ?? 0;
+
+  const duration: LeaveSubmission["durationType"] =
+    durationMode === "Full Day" ? "Full Day" : halfDayPart;
 
   const workingDays = countLeaveDays(fromDate, toDate, holidayDateSet(holidays));
 
@@ -146,7 +162,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           <button
             type="button"
             onClick={onClose}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#e91e8c", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: B.primary, color: "#fff", fontWeight: 600, cursor: "pointer" }}
           >
             Close
           </button>
@@ -180,10 +196,10 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   }, [leaveTypeIdx, types]);
 
   useEffect(() => {
-    if (!allowHalfDay && duration !== "Full Day") {
-      setDuration("Full Day");
+    if (!allowHalfDay && durationMode !== "Full Day") {
+      setDurationMode("Full Day");
     }
-  }, [allowHalfDay, duration]);
+  }, [allowHalfDay, durationMode]);
 
   const leaveOptions = types.map((l) => ({
     label: `${l.name} — ${l.available} days left`,
@@ -203,6 +219,18 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
     const code = leaveOptions[leaveTypeIdx]?.code;
     if (!code) {
       setSubmitError("Pick a leave type.");
+      return;
+    }
+    if (fromDate < todayStr) {
+      setSubmitError("Cannot apply leave for past dates.");
+      return;
+    }
+    if (isWeekendDate(fromDate)) {
+      setSubmitError("Cannot apply leave on a weekend.");
+      return;
+    }
+    if (durationMode === "Full Day" && workingDays === 0) {
+      setSubmitError("Selected date range has no working days (all weekends or holidays).");
       return;
     }
     if (minNoticeDays > 0) {
@@ -296,7 +324,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           {/* Reason */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Reason <span style={{ color: "#e91e8c" }}>*</span>
+              Reason <span style={{ color: B.primary }}>*</span>
             </label>
             <textarea
               value={reason}
@@ -307,33 +335,62 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             />
           </div>
 
-          {/* Duration — half-day options disabled when the resolved policy
-              forbids them (settings.allowHalfDay === false on the leave-type's
-              policy). */}
+          {/* Duration */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>Duration</label>
+
+            {/* Top-level: Full Day / Half Day */}
             <div style={{ display: "flex", gap: 0, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", background: "#f9fafb" }}>
-              {(["Full Day", "First Half", "Second Half"] as const).map((opt) => {
-                const halfBlocked = !allowHalfDay && opt !== "Full Day";
+              {(["Full Day", "Half Day"] as const).map((opt) => {
+                const blocked = opt === "Half Day" && !allowHalfDay;
+                const active = durationMode === opt;
                 return (
-                <button
-                  key={opt}
-                  onClick={() => !halfBlocked && setDuration(opt)}
-                  disabled={Boolean(halfBlocked)}
-                  title={halfBlocked ? "Half-day not allowed by policy for this leave type." : undefined}
-                  style={{
-                    flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
-                    border: "none", cursor: halfBlocked ? "not-allowed" : "pointer",
-                    background: duration === opt ? "#e91e8c" : "transparent",
-                    color: halfBlocked ? "#cbd5e1" : duration === opt ? "#fff" : "#6b7280",
-                    transition: "background 0.15s",
-                  }}
-                >
-                  {opt}
-                </button>
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => !blocked && setDurationMode(opt)}
+                    disabled={blocked}
+                    title={blocked ? "Half-day not allowed by policy for this leave type." : undefined}
+                    style={{
+                      flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
+                      border: "none", cursor: blocked ? "not-allowed" : "pointer",
+                      background: active ? B.primary : "transparent",
+                      color: blocked ? "#cbd5e1" : active ? "#fff" : "#6b7280",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    {opt}
+                  </button>
                 );
               })}
             </div>
+
+            {/* Sub-option: First Half / Second Half */}
+            {durationMode === "Half Day" && (
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                {(["First Half", "Second Half"] as const).map((part) => {
+                  const active = halfDayPart === part;
+                  return (
+                    <button
+                      key={part}
+                      type="button"
+                      onClick={() => setHalfDayPart(part)}
+                      style={{
+                        flex: 1, padding: "8px 0", fontSize: 13, fontWeight: 600,
+                        border: `1.5px solid ${active ? B.primary : "#e5e7eb"}`,
+                        borderRadius: 8, cursor: "pointer",
+                        background: active ? B.primaryLight : "#fff",
+                        color: active ? B.primaryMuted : "#6b7280",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {part}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {policyName && (
               <p style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
                 Policy: <strong>{policyName}</strong>
@@ -349,31 +406,42 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             )}
           </div>
 
-          {/* From / To */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>From</label>
+          {/* Date(s) */}
+          {durationMode === "Half Day" ? (
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Date</label>
               <input
-                type="date" value={fromDate}
-                onChange={(e) => { setFromDate(e.target.value); if (toDate < e.target.value) setToDate(e.target.value); }}
+                type="date" value={fromDate} min={todayStr}
+                onChange={(e) => { setFromDate(e.target.value); setToDate(e.target.value); }}
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
               />
             </div>
-            <div>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>To</label>
-              <input
-                type="date" value={toDate} min={fromDate}
-                onChange={(e) => setToDate(e.target.value)}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
-              />
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>From</label>
+                <input
+                  type="date" value={fromDate} min={todayStr}
+                  onChange={(e) => { setFromDate(e.target.value); if (toDate < e.target.value) setToDate(e.target.value); }}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>To</label>
+                <input
+                  type="date" value={toDate} min={fromDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Working days badge */}
           {workingDays > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <span style={{ display: "inline-block", background: "#fce7f3", color: "#be185d", fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
-                {workingDays} Working {workingDays === 1 ? "Day" : "Days"}
+              <span style={{ display: "inline-block", background: B.primaryLight, color: B.primaryMuted, fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
+                {durationMode === "Half Day" ? "0.5" : workingDays} Working {durationMode === "Half Day" || workingDays === 1 ? "Day" : "Days"}
               </span>
             </div>
           )}
@@ -416,14 +484,14 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             <button
               onClick={onClose}
               disabled={submitting}
-              style={{ padding: "10px 22px", borderRadius: 20, border: "1.5px solid #e91e8c", background: "#fff", fontSize: 14, fontWeight: 600, color: "#e91e8c", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
+              style={{ padding: "10px 22px", borderRadius: 20, border: "1.5px solid " + B.primary, background: "#fff", fontSize: 14, fontWeight: 600, color: B.primary, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              style={{ padding: "10px 22px", borderRadius: 20, border: "none", background: "#e91e8c", fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
+              style={{ padding: "10px 22px", borderRadius: 20, border: "none", background: B.primary, fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -495,7 +563,7 @@ function UpcomingDayModal({ ymd, onClose, onApplyLeave }: UpcomingModalProps) {
           </button>
           <button
             onClick={onApplyLeave}
-            style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: "#e91e8c", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
+            style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: B.primary, fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
           >
             Apply Leave
           </button>
@@ -619,7 +687,7 @@ function RegularisationModal({
           {/* Reason */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Reason <span style={{ color: "#dc143c" }}>*</span>
+              Reason <span style={{ color: B.primary }}>*</span>
             </label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
@@ -663,7 +731,7 @@ function RegularisationModal({
             <button
               disabled={submitting}
               onClick={handleSubmit}
-              style={{ flex: 2, padding: "8px 0", borderRadius: 18, border: "none", background: "#dc143c", fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
+              style={{ flex: 2, padding: "8px 0", borderRadius: 18, border: "none", background: B.primary, fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -681,16 +749,20 @@ interface ModalProps {
   onClose: () => void;
   onApplyReg: () => void;
   onApplyLeave?: () => void;
+  onCancelLeave?: (id: string) => Promise<void>;
   isToday?: boolean;
 }
 
-function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalProps) {
+function DayModal({ entry, onClose, onApplyReg, onApplyLeave, onCancelLeave, isToday }: ModalProps) {
+  const [cancelling, setCancelling] = useState(false);
   const badge = STATUS_BADGE[entry.status];
   const isLeave  = entry.status === "Leave" || entry.status === "LeavePending";
   const isAbsent = entry.status === "Absent";
   const isPending = entry.status === "LeavePending";
   const canRegularise = isToday || isAbsent;
-  const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave);
+  const entryTodayStr = toYMD(new Date());
+  const canApplyLeave = canApplyLeaveForDay(entry) && Boolean(onApplyLeave) && entry.date >= entryTodayStr;
+  const canCancel = isLeave && Boolean(onCancelLeave) && Boolean(entry.leaveRequestId);
 
   const cards = [
     { label: "Punch In",    value: entry.punchIn ?? "—" },
@@ -777,10 +849,29 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
           <button onClick={onClose} style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #e5e7eb", background: "#fff", fontSize: 14, fontWeight: 500, color: "#374151", cursor: "pointer" }}>
             Close
           </button>
+          {canCancel && onCancelLeave && entry.leaveRequestId && (
+            <button
+              disabled={cancelling}
+              onClick={async () => {
+                const label = isPending ? "pending" : "approved";
+                if (!window.confirm(`Cancel this ${label} leave? This cannot be undone.`)) return;
+                setCancelling(true);
+                try {
+                  await onCancelLeave(entry.leaveRequestId!);
+                  onClose();
+                } finally {
+                  setCancelling(false);
+                }
+              }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: `1.5px solid ${B.primary}`, background: "#fff", fontSize: 14, fontWeight: 700, color: B.primary, cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? 0.6 : 1 }}
+            >
+              {cancelling ? "Cancelling…" : "Cancel Leave"}
+            </button>
+          )}
           {canApplyLeave && onApplyLeave && (
             <button
               onClick={onApplyLeave}
-              style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #be185d", background: "#fff", fontSize: 14, fontWeight: 700, color: "#be185d", cursor: "pointer" }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: `1px solid ${B.primaryMuted}`, background: "#fff", fontSize: 14, fontWeight: 700, color: B.primaryMuted, cursor: "pointer" }}
             >
               Apply Leave
             </button>
@@ -788,7 +879,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
           {canRegularise && (
             <button
               onClick={onApplyReg}
-              style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: "#dc143c", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: B.primary, fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
             >
               Regularisation
             </button>
@@ -809,6 +900,7 @@ export default function AttendanceCalendar({
   leaveBalances = [],
   holidays = [],
   onSubmitLeave,
+  onCancelLeave,
   onSubmitRegularisation,
   regularisationHistory = [],
   onMonthChange,
@@ -858,6 +950,8 @@ export default function AttendanceCalendar({
     if (entry) {
       setSelected(entry);
     } else {
+      if (ymd < today) return;
+      if (isWeekendDate(ymd)) return;
       openLeaveFormForDate(ymd);
     }
   }
@@ -884,11 +978,11 @@ export default function AttendanceCalendar({
                 style={{
                   padding: "6px 14px",
                   borderRadius: 8,
-                  border: "1px solid #fecdd3",
-                  background: "#fff1f2",
+                  border: `1px solid ${B.primaryBorder}`,
+                  background: B.primaryLight,
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "#be185d",
+                  color: B.primaryMuted,
                   cursor: "pointer",
                 }}
               >
@@ -929,7 +1023,7 @@ export default function AttendanceCalendar({
                 let bg = "#fff";
                 if (!inMonth)                                              bg = "#f9fafb";
                 else if (entry?.status === "Present" || entry?.status === "HalfDay") bg = "#f0fdf4";
-                else if (entry?.status === "Absent")                       bg = "#fff1f2";
+                else if (entry?.status === "Absent")                       bg = "#fef2f2";
                 else if (entry?.status === "Leave")                        bg = "#fef9c3";
                 else if (entry?.status === "LeavePending")                 bg = "#ffedd5";
                 else if (isHoliday || isWeekend)                           bg = "#f5f3ff";
@@ -941,7 +1035,7 @@ export default function AttendanceCalendar({
                     style={{
                       background: bg,
                       borderRight: di < 6 ? "1px solid #e5e7eb" : undefined,
-                      outline: isToday ? "2px solid #e91e8c" : undefined,
+                      outline: isToday ? `2px solid ${B.primary}` : undefined,
                       outlineOffset: "-2px",
                       padding: "10px 12px",
                       minHeight: 92,
@@ -989,11 +1083,11 @@ export default function AttendanceCalendar({
           onClose={() => setSelected(null)}
           onApplyReg={() => { setRegDate(selected.date); setSelected(null); }}
           onApplyLeave={() => {
-            // Reuse the same leave-form flow as future-day clicks.
             setUpcomingYmd(selected.date);
             setShowLeaveForm(true);
             setSelected(null);
           }}
+          onCancelLeave={onCancelLeave}
         />
       )}
 

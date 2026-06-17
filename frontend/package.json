@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/lib/route-access.test.ts src/lib/resolve-ui-role.test.ts src/lib/role-config.test.ts src/features/employees/schemas/employee.schema.test.ts",
+    "test": "node --import tsx --test src/lib/route-access.test.ts src/lib/resolve-ui-role.test.ts src/lib/role-config.test.ts src/features/employees/schemas/employee.schema.test.ts src/features/onboarding/schemas/onboarding.schema.test.ts",
     "lint": "biome check",
     "format": "biome format --write"
   },

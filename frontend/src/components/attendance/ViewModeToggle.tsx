@@ -1,11 +1,12 @@
 "use client";
 
 import { Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type ViewMode = "calendar" | "table";
 
 function TableIcon({
-  size = 16,
+  size = 15,
   className,
 }: {
   size?: number;
@@ -32,12 +33,12 @@ function TableIcon({
 }
 
 const btnClass = (active: boolean) =>
-  [
-    "w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer transition-colors",
+  cn(
+    "w-7 h-7 rounded-[5px] flex items-center justify-center cursor-pointer transition-colors border-0",
     active
-      ? "bg-[#fff1f2] text-[#be185d] border border-[#fecdd3]"
-      : "bg-white text-gray-400 border border-gray-200 hover:bg-gray-50",
-  ].join(" ");
+      ? "bg-white text-slate-900 shadow-sm"
+      : "text-slate-500 hover:text-slate-700 bg-transparent",
+  );
 
 export default function ViewModeToggle({
   view,
@@ -47,26 +48,30 @@ export default function ViewModeToggle({
   onChange: (view: ViewMode) => void;
 }) {
   return (
-    <div className="flex items-center justify-end gap-1.5 shrink-0">
+    <div
+      className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 p-0.5 gap-0.5 shrink-0"
+      role="group"
+      aria-label="Attendance view mode"
+    >
       <button
         type="button"
         onClick={() => onChange("calendar")}
         aria-label="Calendar view"
-        aria-pressed={view === "calendar" ? true : undefined}
+        aria-pressed={view === "calendar"}
         title="Calendar view"
         className={btnClass(view === "calendar")}
       >
-        <CalendarIcon size={16} />
+        <CalendarIcon size={15} />
       </button>
       <button
         type="button"
         onClick={() => onChange("table")}
         aria-label="Table view"
-        aria-pressed={view === "table" ? true : undefined}
+        aria-pressed={view === "table"}
         title="Table view"
         className={btnClass(view === "table")}
       >
-        <TableIcon size={16} />
+        <TableIcon />
       </button>
     </div>
   );

@@ -51,11 +51,11 @@ function SubmittedProfilePanel({
 }) {
   return (
     <section className={onboardingReviewCardClass}>
-      <header className="px-5 py-4 border-b border-gray-100 bg-slate-50/70">
-        <h2 className="text-base font-semibold text-gray-900 m-0">
+      <header className="px-5 py-4 border-b border-slate-100 bg-slate-50/70">
+        <h2 className="text-base font-semibold text-slate-900 m-0">
           Submitted profile details
         </h2>
-        <p className="text-xs text-gray-600 mt-1 mb-0">
+        <p className="text-xs text-slate-600 mt-1 mb-0">
           Review personal, compliance, and education details while completing HR
           checks.
           {submittedAt && (
@@ -160,16 +160,16 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
 
       {!loading && !loadError && employee && (
         <div className={`${employeeCardClass} overflow-hidden`}>
-          <div className="border-b border-gray-100 px-5 py-4 bg-white">
+          <div className="border-b border-slate-200 px-5 py-4 bg-white">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wider text-gray-500 m-0">
+                <p className="text-xs font-medium uppercase tracking-wider text-slate-500 m-0">
                   Employee onboarding
                 </p>
-                <h1 className="text-xl font-semibold text-gray-900 mt-1 mb-0 tracking-tight">
+                <h1 className="text-xl font-semibold text-slate-900 mt-1 mb-0 tracking-tight">
                   {formatEmployeeDisplayName(employee)}
                 </h1>
-                <p className="text-sm text-gray-500 mt-1 mb-0">
+                <p className="text-sm text-slate-500 mt-1 mb-0">
                   {employee.empId}
                 </p>
               </div>

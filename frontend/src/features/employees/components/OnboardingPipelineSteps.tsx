@@ -36,7 +36,7 @@ export default function OnboardingPipelineSteps({
 }: Props) {
   const isHorizontal = layout === "horizontal";
   const activeIndex = steps.findIndex((s) => s.status === "active");
-  const progress =
+  const rawProgress =
     steps.length <= 1
       ? 0
       : Math.round(
@@ -45,10 +45,11 @@ export default function OnboardingPipelineSteps({
             (steps.length - 1)) *
             100,
         );
+  const progress = Math.max(0, Math.min(rawProgress, 100));
 
   if (isHorizontal) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white px-4 py-5 shadow-sm">
+      <div className="rounded-md border border-slate-200 bg-white px-4 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <div className="flex items-center justify-between gap-4 mb-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 m-0">
             Onboarding progress
@@ -92,7 +93,7 @@ export default function OnboardingPipelineSteps({
                       isDone
                         ? "bg-emerald-600 text-white"
                         : isActive
-                          ? "bg-slate-800 text-white"
+                          ? "bg-[lab(36.9089%_35.0961_-85.6872)] text-white"
                           : "bg-gray-200 text-gray-600",
                     ].join(" ")}
                   >
@@ -146,7 +147,7 @@ export default function OnboardingPipelineSteps({
                 isDone
                   ? "bg-emerald-600 text-white"
                   : isActive
-                    ? "bg-slate-800 text-white"
+                    ? "bg-[lab(36.9089%_35.0961_-85.6872)] text-white"
                     : "bg-gray-200 text-gray-600",
               ].join(" ")}
             >

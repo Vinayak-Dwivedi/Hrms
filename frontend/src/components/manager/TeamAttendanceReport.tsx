@@ -11,10 +11,13 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  employeeBtnOutlineSmClass,
-  employeeCardClass,
-  employeeLoadingClass,
-} from "@/features/employees/employee-theme";
+  enterpriseBtnOutlineSmClass,
+  enterpriseBtnSmClass,
+  enterpriseCardClass,
+  enterpriseCardTitleClass,
+  enterpriseLinkClass,
+  enterpriseLoadingClass,
+} from "@/lib/branding";
 import type { TeamAttendanceResponse } from "@/lib/hrms-client";
 import { cn } from "@/lib/utils";
 import {
@@ -115,9 +118,9 @@ function DetailSheet({
         onClick={onClose}
         type="button"
       />
-      <div className="fixed top-0 right-0 h-full z-50 bg-white flex flex-col shadow-2xl w-full max-w-[680px]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800 m-0">
+      <div className="fixed top-0 right-0 h-full z-50 bg-white flex flex-col shadow-2xl w-full max-w-[680px] border-l border-slate-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className={enterpriseCardTitleClass}>
             Details · {member.firstName} {member.lastName}
           </h2>
           <button
@@ -148,15 +151,15 @@ function DetailSheet({
           </div>
         </div>
 
-        <div className="px-6 border-b border-gray-100">
-          <span className="inline-block py-3 text-sm font-semibold text-[#ff014f] border-b-2 border-[#ff014f]">
+        <div className="px-6 border-b border-slate-100">
+          <span className="inline-block py-3 text-[13px] font-semibold text-slate-800 border-b-2 border-[lab(36.9089%_35.0961_-85.6872)]">
             Attendance Data
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           <table className="w-full min-w-[640px]">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="text-nowrap">
                 {[
                   "Day",
@@ -173,7 +176,7 @@ function DetailSheet({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {dates.map((d) => {
                 const row = detailRow(d, recByDate.get(d));
                 return (
@@ -262,7 +265,7 @@ export default function TeamAttendanceReport({
   }
 
   if (loading || !data) {
-    return <div className={employeeLoadingClass}>Loading team report…</div>;
+    return <div className={enterpriseLoadingClass}>Loading team report…</div>;
   }
 
   const dates = eachDateInRange(data.from, data.to);
@@ -289,10 +292,10 @@ export default function TeamAttendanceReport({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 m-0">
+          <h1 className="text-xl font-semibold text-slate-900 m-0 tracking-tight">
             Team Attendance – Full Report
           </h1>
-          <p className="text-sm text-gray-500 mt-1 m-0">
+          <p className="text-sm text-slate-500 mt-1 m-0">
             {monthLabel ?? `${data.from} → ${data.to}`} · {data.team.length}{" "}
             members
           </p>
@@ -301,34 +304,34 @@ export default function TeamAttendanceReport({
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#fecdd3] bg-white text-[#be185d] hover:bg-[#fff1f2] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <Upload size={14} /> Upload Attendance
           </button>
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
             All Members <ChevronDown size={14} />
           </button>
           <button
             type="button"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-[#dc143c] text-[#dc143c] hover:bg-red-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <Download size={14} /> Export
           </button>
         </div>
       </div>
 
-      <div className={`${employeeCardClass} overflow-hidden`}>
+      <div className={cn(enterpriseCardClass, "overflow-hidden")}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1020px]">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="text-nowrap">
                 <th
                   className={cn(
                     tableHeadCellClass,
-                    "sticky left-0 z-10 bg-gray-50 min-w-[260px]",
+                    "sticky left-0 z-10 bg-slate-50 min-w-[260px]",
                   )}
                 >
                   Employee
@@ -341,7 +344,7 @@ export default function TeamAttendanceReport({
                       className={cn(
                         tableHeadCellCenterClass,
                         "min-w-[44px]",
-                        day === todayDay && "text-[#ff014f]",
+                        day === todayDay && "text-[lab(52%_28_-70)] font-semibold",
                       )}
                     >
                       {day}
@@ -350,7 +353,7 @@ export default function TeamAttendanceReport({
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {data.team.length === 0 ? (
                 <tr>
                   <td
@@ -366,7 +369,7 @@ export default function TeamAttendanceReport({
                     <td
                       className={cn(
                         tableBodyCellClass,
-                        "sticky left-0 z-10 bg-white group-hover:bg-gray-50 border-r border-gray-100",
+                        "sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100",
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -387,7 +390,7 @@ export default function TeamAttendanceReport({
                           </p>
                         </div>
                         <button
-                          className={`${employeeBtnOutlineSmClass} ml-auto shrink-0`}
+                          className={cn(enterpriseBtnOutlineSmClass, "ml-auto shrink-0")}
                           onClick={() => setSelectedId(m.id)}
                           type="button"
                         >
@@ -425,14 +428,14 @@ export default function TeamAttendanceReport({
             if (e.target === e.currentTarget && !isUploading) closeUpload();
           }}
         >
-          <div className="w-full max-w-xl rounded-2xl bg-white border border-gray-200 shadow-2xl overflow-hidden">
+          <div className={cn(enterpriseCardClass, "w-full max-w-xl shadow-2xl overflow-hidden")}>
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
-                <h2 className="text-[16px] font-bold text-gray-900">
+                <h2 className={cn(enterpriseCardTitleClass, "text-[16px]")}>
                   Upload Attendance
                 </h2>
-                <p className="text-[12px] text-gray-500 mt-0.5">
+                <p className="text-[12px] text-slate-500 mt-0.5">
                   Excel/CSV with: Employee Code, Date, In Time, Out Time,
                   Worked Hours, Location.
                 </p>
@@ -453,11 +456,11 @@ export default function TeamAttendanceReport({
               {/* Dropzone */}
               <label
                 htmlFor="att-upload-input"
-                className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-[#fecdd3] rounded-xl cursor-pointer bg-[#fff8fa] hover:bg-[#fff1f2]"
+                className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-slate-200 rounded-md cursor-pointer bg-slate-50 hover:bg-slate-100"
               >
-                <Upload className="w-8 h-8 mb-2 text-[#be185d]" />
+                <Upload className="w-8 h-8 mb-2 text-[lab(52%_28_-70)]" />
                 <p className="text-[13px] text-gray-700">
-                  <span className="font-semibold text-[#be185d]">
+                  <span className="font-semibold text-[lab(52%_28_-70)]">
                     Click to upload
                   </span>{" "}
                   or drag and drop
@@ -481,7 +484,7 @@ export default function TeamAttendanceReport({
               {/* Selected file */}
               {file && (
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <FileUp className="h-5 w-5 text-[#be185d] shrink-0" />
+                  <FileUp className="h-5 w-5 text-[lab(52%_28_-70)] shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-medium text-gray-800 truncate">
                       {file.name}
@@ -527,11 +530,11 @@ export default function TeamAttendanceReport({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-100">
               <a
                 href="/Book1.xlsx"
                 download="Book1.xlsx"
-                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 rounded px-2 py-1 no-underline"
+                className={cn(enterpriseLinkClass, "inline-flex items-center gap-1.5 text-[12px] font-semibold rounded px-2 py-1 hover:underline")}
               >
                 <Download size={14} />
                 Export Sample
@@ -541,7 +544,7 @@ export default function TeamAttendanceReport({
                   type="button"
                   onClick={closeUpload}
                   disabled={isUploading}
-                  className="px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 text-[12px] font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
@@ -549,7 +552,7 @@ export default function TeamAttendanceReport({
                   type="button"
                   onClick={handleUpload}
                   disabled={!file || isUploading}
-                  className="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-gradient-to-br from-[#ec4899] to-[#be185d] text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={cn(enterpriseBtnSmClass, "px-3 py-1.5 text-[12px] disabled:opacity-50 disabled:cursor-not-allowed")}
                 >
                   {isUploading ? "Uploading…" : "Upload"}
                 </button>

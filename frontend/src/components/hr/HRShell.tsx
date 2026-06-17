@@ -178,7 +178,7 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/dashboard"
             title={collapsed ? "Back to HRMS" : undefined}
-            className={navLinkClassName(false, { collapsed })}
+            className={navLinkClassName(false, { collapsed, theme: "light" })}
           >
             <ArrowLeft size={16} />
             {!collapsed && "Back to HRMS"}
