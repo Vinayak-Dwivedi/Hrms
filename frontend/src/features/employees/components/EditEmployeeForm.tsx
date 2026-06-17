@@ -36,6 +36,7 @@ import {
   createUpdateEmployeeFormSchema,
   detailToFormValues,
   formatEmployeeValidationErrors,
+  isJoiningDateAfterMaxWindow,
   maxDateOfBirthForAdult,
   PASSWORD_MIN_MESSAGE,
   sanitizePhoneInput,
@@ -351,11 +352,7 @@ function EditEmployeeFormContent({
               {(field) => (
                 <DateField
                   {...employeeFieldControl}
-                  disabled={(date) => {
-                    const today = new Date();
-                    today.setHours(23, 59, 59, 999);
-                    return date > today;
-                  }}
+                  disabled={(date) => isJoiningDateAfterMaxWindow(date)}
                   field={field}
                   label="Joining date"
                 />

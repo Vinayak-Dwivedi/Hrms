@@ -28,6 +28,14 @@ import {
   type LookupItem,
   type OnboardingPipelineStatus,
 } from "@/features/employees/api/employees.client";
+import {
+  resolveEmployeeListRoleDisplay,
+  resolveEmployeeOrgRoleIds,
+} from "@/features/employees/lib/resolve-employee-org-role";
+import {
+  fetchOrgHierarchyRoleLookups,
+  type OrgHierarchyRoleLookups,
+} from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
 
 const ALL_STATUS = "All";
 const ALL_ONBOARDING = "All";
@@ -43,6 +51,9 @@ export default function EmployeesPage() {
   >([]);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
   const [designations, setDesignations] = useState<LookupItem[]>([]);
+  const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups | null>(
+    null,
+  );
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUS);
@@ -62,10 +73,12 @@ export default function EmployeesPage() {
 
   const loadEmployees = useCallback(async () => {
     try {
-      const [empsResult, deptsResult, desigsResult] = await Promise.allSettled([
+      const [empsResult, deptsResult, desigsResult, orgResult] =
+        await Promise.allSettled([
         fetchEmployees(),
         fetchDepartments(),
         fetchDesignations(),
+        fetchOrgHierarchyRoleLookups(),
       ]);
 
       const failures: string[] = [];
@@ -99,6 +112,16 @@ export default function EmployeesPage() {
         );
         setDesignations([]);
       }
+      if (orgResult.status === "fulfilled") {
+        setOrgLookups(orgResult.value);
+      } else {
+        failures.push(
+          orgResult.reason instanceof Error
+            ? orgResult.reason.message
+            : "org hierarchy",
+        );
+        setOrgLookups(null);
+      }
 
       setLoadError(failures.length > 0 ? failures.join("; ") : null);
     } catch (e) {
@@ -121,6 +144,20 @@ export default function EmployeesPage() {
     [designations],
   );
 
+  const filterDepartments = useMemo(() => {
+    if (orgLookups) {
+      return orgLookups.departments.map((d) => ({ id: d.id, name: d.name }));
+    }
+    return departments;
+  }, [orgLookups, departments]);
+
+  const filterDesignations = useMemo(() => {
+    if (orgLookups) {
+      return orgLookups.designations.map((d) => ({ id: d.id, name: d.name }));
+    }
+    return designations;
+  }, [orgLookups, designations]);
+
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
     return employees.filter((emp) => {
@@ -133,27 +170,51 @@ export default function EmployeesPage() {
       ) {
         return false;
       }
+
+      const roleIds =
+        orgLookups != null
+          ? resolveEmployeeOrgRoleIds(emp, orgLookups)
+          : {
+              departmentId: emp.departmentId,
+              designationId: emp.designationId,
+            };
+
       if (
         departmentFilter &&
-        String(emp.departmentId ?? "") !== departmentFilter
+        String(roleIds.departmentId ?? "") !== departmentFilter
       ) {
         return false;
       }
       if (
         designationFilter &&
-        String(emp.designationId ?? "") !== designationFilter
+        String(roleIds.designationId ?? "") !== designationFilter
       ) {
         return false;
       }
+
       if (!q) return true;
+
+      const roleDisplay =
+        orgLookups != null
+          ? resolveEmployeeListRoleDisplay(
+              emp,
+              orgLookups,
+              departmentNames,
+              designationNames,
+            )
+          : {
+              department: departmentNames.get(emp.departmentId ?? -1) ?? "",
+              designation: designationNames.get(emp.designationId ?? -1) ?? "",
+            };
+
       const haystack = [
         emp.empId,
         emp.firstName,
         emp.lastName,
         emp.workEmail ?? "",
         emp.phone,
-        departmentNames.get(emp.departmentId ?? -1) ?? "",
-        designationNames.get(emp.designationId ?? -1) ?? "",
+        roleDisplay.department,
+        roleDisplay.designation,
       ]
         .join(" ")
         .toLowerCase();
@@ -168,6 +229,7 @@ export default function EmployeesPage() {
     designationFilter,
     departmentNames,
     designationNames,
+    orgLookups,
   ]);
 
   function resetFilters() {
@@ -203,7 +265,7 @@ export default function EmployeesPage() {
                 type="text"
                 value={search}
               />
-              <Search className={`${employeeIconXs} text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2`} />
+              <Search className={`${employeeIconXs} text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2`} />
             </div>
           </div>
 
@@ -275,7 +337,7 @@ export default function EmployeesPage() {
               value={departmentFilter}
             >
               <option value="">All Departments</option>
-              {departments.map((d) => (
+              {filterDepartments.map((d) => (
                 <option key={d.id} value={String(d.id)}>
                   {d.name}
                 </option>
@@ -294,7 +356,7 @@ export default function EmployeesPage() {
               value={designationFilter}
             >
               <option value="">All Designations</option>
-              {designations.map((d) => (
+              {filterDesignations.map((d) => (
                 <option key={d.id} value={String(d.id)}>
                   {d.name}
                 </option>
@@ -303,9 +365,9 @@ export default function EmployeesPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
           <button
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-800 font-medium text-[13px] transition-colors bg-transparent border-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-600 hover:text-slate-800 font-medium text-[13px] transition-colors bg-transparent border-0 cursor-pointer"
             onClick={resetFilters}
             type="button"
           >
@@ -343,6 +405,7 @@ export default function EmployeesPage() {
           departmentNames={departmentNames}
           designationNames={designationNames}
           employees={filteredEmployees}
+          orgLookups={orgLookups}
           showOnboardingAction={showOnboardingAction}
         />
       )}

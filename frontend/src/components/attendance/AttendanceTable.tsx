@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { AttendanceStatus, DayAttendance } from "@/lib/dashboard";
+import { enterpriseCardTitleClass } from "@/lib/branding";
 
 interface Props {
   data: DayAttendance[];
@@ -65,7 +66,7 @@ function statusVisual(s: AttendanceStatus): StatusVisual {
     case "HalfDay":
       return { label: "Half Day", dot: "bg-orange-500", text: "text-gray-700" };
     case "Absent":
-      return { label: "Absent", dot: "bg-[#ec4899]", text: "text-gray-700" };
+      return { label: "Absent", dot: "bg-red-500", text: "text-slate-700" };
     case "Leave":
       return { label: "Leave", dot: "bg-blue-500", text: "text-gray-700" };
     case "LeavePending":
@@ -173,16 +174,16 @@ export default function AttendanceTable({
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[15px] font-bold text-gray-900">
+        <h3 className={enterpriseCardTitleClass}>
           Attendance Summary
         </h3>
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-[12px] font-medium text-gray-700">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-[12px] font-medium text-slate-700">
           {monthLabel}
         </div>
       </div>
 
       {/* Table — scrolls inside its container so the card height stays fixed */}
-      <div className="flex-1 min-h-0 overflow-auto border border-gray-100 rounded-xl">
+      <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-md">
         <table className="w-full border-collapse">
           <thead className="sticky top-0 bg-gray-50">
             <tr className="border-b border-gray-200">

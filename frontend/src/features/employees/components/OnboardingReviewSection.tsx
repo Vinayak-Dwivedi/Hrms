@@ -19,8 +19,8 @@ interface Props {
 }
 
 const BADGE_CLASS: Record<NonNullable<Props["status"]>, string> = {
-  default: "bg-gray-200 text-gray-700",
-  active: "bg-slate-800 text-white",
+  default: "bg-slate-200 text-slate-700",
+  active: "bg-[lab(36.9089%_35.0961_-85.6872)] text-white",
   complete: "bg-emerald-100 text-emerald-800",
 };
 

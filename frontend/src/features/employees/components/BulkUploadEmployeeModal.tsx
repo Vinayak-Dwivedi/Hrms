@@ -132,8 +132,8 @@ export default function BulkUploadEmployeeModal({
         </div>
 
         {file && (
-          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-100">
-            <FileUp className={`${employeeIconMd} text-[#ff014f] shrink-0`} />
+          <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-md border border-slate-200">
+            <FileUp className={`${employeeIconMd} text-[lab(52%_28_-70)] shrink-0`} />
             <div className="flex-1 overflow-hidden min-w-0">
               <p className="text-sm font-medium text-gray-800 truncate m-0">
                 {file.name}
@@ -170,7 +170,7 @@ export default function BulkUploadEmployeeModal({
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
           <button
             className={employeeBtnOutlineSmClass}
             onClick={onClose}

@@ -1,3 +1,9 @@
+import {
+  enterpriseNavActiveClass,
+  enterpriseNavActiveCollapsedClass,
+  enterpriseNavInactiveClass,
+} from "@/lib/branding";
+
 export type NavEntryLike = {
   label: string;
   href: string;
@@ -89,22 +95,40 @@ type NavLinkClassOptions = {
   collapsed?: boolean;
   nested?: boolean;
   hrNested?: boolean;
+  /** `enterprise` = white sidebar with blue active/hover; `light` = same nav styles (HR shell). */
+  theme?: "enterprise" | "light";
 };
 
 export function navLinkClassName(
   active: boolean,
   options: NavLinkClassOptions = {},
 ): string {
-  const { collapsed = false, nested = false, hrNested = false } = options;
+  const {
+    collapsed = false,
+    nested = false,
+    hrNested = false,
+    theme = "enterprise",
+  } = options;
+
+  const navActive = collapsed
+    ? enterpriseNavActiveCollapsedClass
+    : enterpriseNavActiveClass;
 
   return [
-    "flex items-center rounded-xl text-[13px] font-medium no-underline",
-    hrNested ? "gap-2.5 py-2 pl-9 pr-3" : "gap-3",
-    collapsed ? "py-2.5 justify-center" : !hrNested ? "px-3 py-2.5" : "",
-    nested && !collapsed ? "ml-2" : "",
-    active
-      ? "active text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
-      : "text-gray-600 bg-transparent hover:bg-gray-50 hover:text-gray-900",
+    "flex items-center text-[13px] font-medium no-underline transition-colors duration-150",
+    theme === "enterprise"
+      ? collapsed
+        ? "rounded-md"
+        : "rounded-r-md rounded-l-none"
+      : "rounded-xl",
+    hrNested ? "gap-2.5 py-2 pl-9 pr-3" : "gap-2.5",
+    collapsed
+      ? "py-2.5 justify-center"
+      : !hrNested
+        ? "px-3 py-2"
+        : "",
+    nested && !collapsed ? "ml-1" : "",
+    active ? `active ${navActive}` : enterpriseNavInactiveClass,
   ]
     .filter(Boolean)
     .join(" ");

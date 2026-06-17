@@ -1,5 +1,13 @@
 import { z } from "zod";
 import {
+  BOARD_ALPHA_ONLY_MESSAGE,
+  GRADE_FORMAT_MESSAGE,
+  INSTITUTION_ALPHA_ONLY_MESSAGE,
+  isAlphaOnlyBoardUniversity,
+  isAlphaOnlyInstitution,
+  isValidGradeOrPercentage,
+} from "@/lib/academic-field-validation";
+import {
   indianAadhaarSchema,
   indianBankAccountSchema,
   indianEsicSchema,
@@ -9,17 +17,71 @@ import {
   indianUanSchema,
 } from "@/lib/india-validation";
 import { MAX_ACADEMIC_RECORDS } from "@/modules/onboarding/constants/academic";
+import { MARITAL_STATUS_OPTIONS } from "@/modules/onboarding/constants/personal";
 
-export const academicDetailSchema = z.object({
-  id: z.number().int().positive().optional(),
-  qualification: z.string().trim().min(1).max(100),
-  institution: z.string().trim().min(1).max(200),
-  boardUniversity: z.string().trim().max(200).optional().nullable(),
-  fieldOfStudy: z.string().trim().max(100).optional().nullable(),
-  yearFrom: z.number().int().min(1950).max(2100).optional().nullable(),
-  yearTo: z.number().int().min(1950).max(2100).optional().nullable(),
-  gradeOrPercentage: z.string().trim().max(20).optional().nullable(),
-});
+export const academicDetailSchema = z
+  .object({
+    id: z.number().int().positive().optional(),
+    qualification: z.string().trim().min(1).max(100),
+    institution: z.string().trim().min(1).max(200),
+    boardUniversity: z.string().trim().max(200).optional().nullable(),
+    fieldOfStudy: z.string().trim().max(100).optional().nullable(),
+    yearFrom: z.number().int().min(1950).max(2100).optional().nullable(),
+    yearTo: z.number().int().min(1950).max(2100).optional().nullable(),
+    gradeOrPercentage: z.string().trim().max(20).optional().nullable(),
+  })
+  .superRefine((row, ctx) => {
+    const qualification = row.qualification.trim();
+    const isSchoolQualification = /^Class (10|12)\b/.test(qualification);
+
+    if (!isAlphaOnlyInstitution(row.institution)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["institution"],
+        message: INSTITUTION_ALPHA_ONLY_MESSAGE,
+      });
+    }
+
+    if (!isAlphaOnlyBoardUniversity(row.boardUniversity ?? "")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["boardUniversity"],
+        message: BOARD_ALPHA_ONLY_MESSAGE,
+      });
+    }
+
+    if (isSchoolQualification && !(row.boardUniversity ?? "").trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["boardUniversity"],
+        message: "Board / University is required.",
+      });
+    }
+
+    if (row.yearTo == null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["yearTo"],
+        message: "Passing year is required.",
+      });
+    }
+
+    if (!(row.gradeOrPercentage ?? "").trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gradeOrPercentage"],
+        message: "Grade / % is required.",
+      });
+    }
+
+    if (!isValidGradeOrPercentage(row.gradeOrPercentage ?? "")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["gradeOrPercentage"],
+        message: GRADE_FORMAT_MESSAGE,
+      });
+    }
+  });
 
 export const professionalDetailSchema = z.object({
   id: z.number().int().positive().optional(),
@@ -65,7 +127,7 @@ export const personalSchema = z
     permanentAddress: z.string().trim().min(1).max(5000),
     emergencyContactName: z.string().trim().min(1).max(200),
     emergencyContactPhone: indianMobileSchema,
-    maritalStatus: z.enum(["Single", "Married"]),
+    maritalStatus: z.enum(MARITAL_STATUS_OPTIONS),
     spouseName: z.string().trim().max(200).optional().nullable(),
     fatherName: z.string().trim().max(200).optional().nullable(),
     motherName: z.string().trim().max(200).optional().nullable(),

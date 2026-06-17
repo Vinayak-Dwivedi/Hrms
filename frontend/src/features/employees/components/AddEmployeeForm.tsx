@@ -31,7 +31,7 @@ import {
   defaultCreateEmployeeValues,
   formatEmployeeValidationErrors,
   maxDateOfBirthForAdult,
-  maxDateToday,
+  maxJoiningDate,
   PASSWORD_MIN_MESSAGE,
   sanitizePhoneInput,
   toApiPayload,
@@ -57,7 +57,7 @@ const employeeSelectControl = {
   controlClassName: employeeFormNativeSelectClass,
 };
 const maxDob = maxDateOfBirthForAdult();
-const maxJoiningDate = maxDateToday();
+const maxJoiningDateValue = maxJoiningDate();
 
 type FormLookups = OrgHierarchyRoleLookups & {
   branches: LookupItem[];
@@ -308,7 +308,7 @@ function AddEmployeeFormContent({
                   {...employeeFieldControl}
                   field={field}
                   label="Joining date"
-                  max={maxJoiningDate}
+                  max={maxJoiningDateValue}
                   type="date"
                 />
               )}
@@ -334,6 +334,12 @@ function AddEmployeeFormContent({
               {(field) => (
                 <NativeSelectField
                   {...employeeSelectControl}
+                  description={
+                    managers.length === 0
+                      ? "No employees are available to assign as reporting manager yet."
+                      : undefined
+                  }
+                  emptyOptionLabel="None"
                   field={field}
                   label="Reporting manager"
                   options={toManagerSelectOptions(managers)}

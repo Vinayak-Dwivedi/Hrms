@@ -4,6 +4,9 @@ import {
   type CreateEmployeeFormValues,
   createEmployeeFormSchema,
   detailToFormValues,
+  JOINING_DATE_MAX_FUTURE_DAYS,
+  JOINING_DATE_MAX_FUTURE_MESSAGE,
+  joiningDateFieldSchema,
   loginPasswordFieldSchema,
   PASSWORD_MIN_MESSAGE,
   phoneFieldSchema,
@@ -35,6 +38,71 @@ const baseValues: CreateEmployeeFormValues = {
   password: "",
   confirmPassword: "",
 };
+
+function toDateString(date: Date): string {
+  const year = date.getFullYear().toString().padStart(4, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(base: Date, days: number): Date {
+  const next = new Date(base);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+describe("joining date validation", () => {
+  it("rejects joining dates more than 60 days in the future", () => {
+    const tooFar = toDateString(addDays(new Date(), JOINING_DATE_MAX_FUTURE_DAYS + 1));
+    const result = joiningDateFieldSchema.safeParse(tooFar);
+    assert.equal(result.success, false);
+    if (!result.success) {
+      assert.ok(
+        result.error.issues.some(
+          (issue) => issue.message === JOINING_DATE_MAX_FUTURE_MESSAGE,
+        ),
+      );
+    }
+  });
+
+  it("accepts today, past dates, and dates within 60 days", () => {
+    const today = toDateString(new Date());
+    const past = toDateString(addDays(new Date(), -30));
+    const withinWindow = toDateString(addDays(new Date(), 30));
+
+    assert.equal(joiningDateFieldSchema.safeParse(today).success, true);
+    assert.equal(joiningDateFieldSchema.safeParse(past).success, true);
+    assert.equal(joiningDateFieldSchema.safeParse(withinWindow).success, true);
+  });
+
+  it("accepts exactly 60 days from today", () => {
+    const onMax = toDateString(addDays(new Date(), JOINING_DATE_MAX_FUTURE_DAYS));
+    assert.equal(joiningDateFieldSchema.safeParse(onMax).success, true);
+  });
+
+  it("rejects invalid joining date format and invalid calendar dates", () => {
+    assert.equal(joiningDateFieldSchema.safeParse("").success, false);
+    assert.equal(joiningDateFieldSchema.safeParse("01-01-2024").success, false);
+    assert.equal(joiningDateFieldSchema.safeParse("2024-02-30").success, false);
+  });
+
+  it("validates joining date through the full create form schema", () => {
+    const tooFar = toDateString(addDays(new Date(), JOINING_DATE_MAX_FUTURE_DAYS + 5));
+    const result = createEmployeeFormSchema({ validRoleIds: [1] }).safeParse({
+      ...baseValues,
+      joiningDate: tooFar,
+    });
+    assert.equal(result.success, false);
+    if (!result.success) {
+      assert.ok(
+        result.error.issues.some(
+          (issue) => issue.message === JOINING_DATE_MAX_FUTURE_MESSAGE,
+        ),
+      );
+    }
+  });
+});
 
 describe("create employee validation", () => {
   it("sanitizes phone input to digits only", () => {
@@ -114,6 +182,20 @@ describe("toApiPayload", () => {
     );
     assert.equal(payload.password, "Welcome@123");
   });
+
+  it("allows an empty reporting manager and omits it from the payload", () => {
+    const result = createEmployeeFormSchema({ validRoleIds: [1] }).safeParse({
+      ...baseValues,
+      reportingManagerId: "",
+    });
+    assert.equal(result.success, true);
+
+    const payload = toApiPayload(
+      { ...baseValues, reportingManagerId: "" },
+      42,
+    );
+    assert.equal("reportingManagerId" in payload, false);
+  });
 });
 
 const baseUpdateValues = {
@@ -167,6 +249,15 @@ describe("toUpdateApiPayload", () => {
   it("includes roleId when provided", () => {
     const payload = toUpdateApiPayload(baseUpdateValues, 42);
     assert.equal(payload.roleId, 1);
+  });
+
+  it("maps extended marital status values", () => {
+    const payload = toUpdateApiPayload(
+      { ...baseUpdateValues, maritalStatus: "Divorced" },
+      42,
+    );
+    assert.equal(payload.maritalStatus, "Divorced");
+    assert.equal(payload.spouseName, null);
   });
 });
 

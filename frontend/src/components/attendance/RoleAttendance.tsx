@@ -33,6 +33,8 @@ import {
 } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
 import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-available";
+import { enterpriseCardClass, enterpriseLoadingClass } from "@/lib/branding";
+import { cn } from "@/lib/utils";
 
 // ─── role adapters ──────────────────────────────────────────────────────────
 // Pick the right data sources per role. Employee and admin share the /me
@@ -69,7 +71,15 @@ function adaptersFor(role: Role, managerApisAvailable: boolean): Adapters {
 
 // ─── component ──────────────────────────────────────────────────────────────
 
-export default function RoleAttendance({ role }: { role: Role }) {
+export default function RoleAttendance({
+  role,
+  leadingToolbar,
+  showViewToggle = true,
+}: {
+  role: Role;
+  leadingToolbar?: React.ReactNode;
+  showViewToggle?: boolean;
+}) {
   const { available: reportingManager, loading: managerProbeLoading } =
     useReportingManagerAvailable();
   const useManagerApis = role === "manager" && reportingManager;
@@ -185,16 +195,32 @@ export default function RoleAttendance({ role }: { role: Role }) {
         </div>
       )}
       {loading || (role === "manager" && managerProbeLoading) ? (
-        <div className="p-6 text-gray-500">Loading attendance…</div>
+        <div className={enterpriseLoadingClass}>Loading attendance…</div>
       ) : (
         <div
-          className="flex flex-col gap-3"
-          style={{ height: "calc(100vh - 6rem)" }}
+          className="flex flex-col flex-1 min-h-0 gap-2"
+          style={{ height: "calc(100vh - 7rem)" }}
         >
-          <ViewModeToggle view={view} onChange={setView} />
+          {(leadingToolbar || showViewToggle) && (
+            <div
+              className={cn(
+                "flex items-center shrink-0",
+                leadingToolbar ? "justify-between gap-3" : "justify-end",
+              )}
+            >
+              {leadingToolbar}
+              {showViewToggle && (
+                <ViewModeToggle view={view} onChange={setView} />
+              )}
+            </div>
+          )}
           {view === "calendar" ? (
-            // Calendar-only view — full-width calendar card.
-            <div className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col flex-1 min-h-0">
+            <div
+              className={cn(
+                enterpriseCardClass,
+                "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
+              )}
+            >
               <AttendanceCalendar
                 data={data}
                 initialYear={calYear}
@@ -217,8 +243,12 @@ export default function RoleAttendance({ role }: { role: Role }) {
               />
             </div>
           ) : (
-            // Table-only view — full-width attendance summary.
-            <div className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col flex-1 min-h-0">
+            <div
+              className={cn(
+                enterpriseCardClass,
+                "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
+              )}
+            >
               <AttendanceTable
                 data={data}
                 year={calYear}

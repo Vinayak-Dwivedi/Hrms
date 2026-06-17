@@ -45,16 +45,16 @@ export default function EmployeeModalShell({
       <div
         className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full ${maxWidthClass} px-4 max-h-[90vh] flex flex-col`}
       >
-        <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="bg-white rounded-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
             <h3 className={employeeModalTitleClass}>{title}</h3>
             <button
               aria-label="Close"
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer"
+              className="p-2 rounded-md hover:bg-slate-100 transition-colors border-0 bg-transparent cursor-pointer"
               onClick={onClose}
               type="button"
             >
-              <X className={`${employeeIconMd} text-gray-500`} />
+              <X className={`${employeeIconMd} text-slate-500`} />
             </button>
           </div>
           <div className="overflow-y-auto flex-1">{children}</div>

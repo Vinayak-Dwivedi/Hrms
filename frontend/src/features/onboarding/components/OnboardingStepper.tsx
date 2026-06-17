@@ -91,13 +91,13 @@ export default function OnboardingStepper() {
           const isLast = index === STEPS.length - 1;
 
           const circleClass = isActive
-            ? "bg-[#e91e63] text-white border-[#e91e63]"
+            ? "bg-[lab(36.9089%_35.0961_-85.6872)] text-white border-[lab(36.9089%_35.0961_-85.6872)]"
             : completed
-              ? "bg-[#e91e63] text-white border-[#e91e63]"
-              : "bg-white text-gray-500 border-gray-300";
+              ? "bg-[lab(36.9089%_35.0961_-85.6872)] text-white border-[lab(36.9089%_35.0961_-85.6872)]"
+              : "bg-white text-slate-500 border-slate-300";
 
           const labelClass = isActive
-            ? "text-[#e91e63] font-semibold"
+            ? "text-[lab(52%_28_-70)] font-semibold"
             : completed
               ? "text-gray-700 font-medium"
               : "text-gray-400";
@@ -108,7 +108,7 @@ export default function OnboardingStepper() {
                 <div className="flex items-center w-full">
                   {index > 0 ? (
                     <div
-                      className={`h-0.5 flex-1 ${index <= activeIndex ? "bg-[#e91e63]" : "bg-gray-200"}`}
+                      className={`h-0.5 flex-1 ${index <= activeIndex ? "bg-[lab(36.9089%_35.0961_-85.6872)]" : "bg-slate-200"}`}
                       aria-hidden
                     />
                   ) : null}
@@ -131,7 +131,7 @@ export default function OnboardingStepper() {
                   </button>
                   {!isLast ? (
                     <div
-                      className={`h-0.5 flex-1 ${index < activeIndex ? "bg-[#e91e63]" : "bg-gray-200"}`}
+                      className={`h-0.5 flex-1 ${index < activeIndex ? "bg-[lab(36.9089%_35.0961_-85.6872)]" : "bg-slate-200"}`}
                       aria-hidden
                     />
                   ) : null}

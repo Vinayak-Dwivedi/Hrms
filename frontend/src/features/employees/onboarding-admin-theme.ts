@@ -1,10 +1,10 @@
 /** Enterprise styling for HR onboarding review workspace. */
 
 export const onboardingReviewCardClass =
-  "rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden";
+  "rounded-md border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden";
 
 export const onboardingReviewCardHeaderClass =
-  "flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-100 bg-slate-50/70";
+  "flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-slate-50/70";
 
 export const onboardingReviewCardTitleClass =
   "text-sm font-semibold text-gray-900 m-0";
@@ -27,12 +27,12 @@ export const onboardingStatusBannerWarningClass =
   "rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900";
 
 export const onboardingDocTableHeadClass =
-  "px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/80";
+  "px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/80";
 
 export const onboardingDocTableCellClass = "px-4 py-3 text-sm align-middle";
 
 export const onboardingPrimaryBtnClass =
-  "inline-flex items-center justify-center w-full px-4 py-2.5 text-sm font-semibold rounded-lg text-white bg-slate-800 hover:bg-slate-900 border-0 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
+  "inline-flex items-center justify-center w-full px-4 py-2.5 text-sm font-semibold rounded-md text-white bg-[lab(36.9089%_35.0961_-85.6872)] hover:bg-[lab(30%_38_-90)] border-0 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm";
 
 export const onboardingChecklistItemClass =
   "flex items-center gap-2.5 text-sm text-gray-700";

@@ -11,9 +11,20 @@ import type {
   OnboardingProfileValues,
 } from "@/features/onboarding/schemas/onboarding.schema";
 import { REQUIRED_ONBOARDING_DOCUMENTS } from "@/features/onboarding/constants/documents";
+import { MARITAL_STATUS_OPTIONS } from "@/features/onboarding/constants/personal";
 
 function buildUrl(path: string): string {
   return `${API_BASE}/api/hrms${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+class HrOnboardingRequestError extends Error {
+  details?: unknown;
+
+  constructor(message: string, details?: unknown) {
+    super(message);
+    this.name = "HrOnboardingRequestError";
+    this.details = details;
+  }
 }
 
 async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -27,9 +38,24 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {
-      error?: { message?: string };
+      error?: {
+        message?: string;
+        details?: {
+          message?: string;
+          postgresMessage?: string;
+        };
+      };
     };
-    throw new Error(body.error?.message ?? res.statusText);
+    const fallbackDetail =
+      body.error?.details?.postgresMessage ?? body.error?.details?.message;
+    const message =
+      body.error?.message && body.error.message !== "An unexpected error occurred."
+        ? body.error.message
+        : fallbackDetail ?? body.error?.message ?? res.statusText;
+    throw new HrOnboardingRequestError(
+      message,
+      body.error?.details,
+    );
   }
   return (await res.json()) as T;
 }
@@ -383,8 +409,10 @@ export function computeOnboardingReadiness(profile: EmployeeProfile) {
     !!profile.personal.permanentAddress &&
     !!profile.personal.emergencyContactName &&
     !!profile.personal.emergencyContactPhone &&
-    (profile.personal.maritalStatus === "Single" ||
-      profile.personal.maritalStatus === "Married") &&
+    profile.personal.maritalStatus != null &&
+    (MARITAL_STATUS_OPTIONS as readonly string[]).includes(
+      profile.personal.maritalStatus,
+    ) &&
     (profile.personal.maritalStatus !== "Married" ||
       !!profile.personal.spouseName?.trim()) &&
     !!profile.identity.panNumber &&

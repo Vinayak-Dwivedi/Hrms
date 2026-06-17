@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import type { DayAttendance, LeaveType } from "@/lib/dashboard";
 import { countLeaveDays, holidayDateSet } from "@/lib/attendance-merge";
 import type { UpcomingHoliday } from "@/lib/hrms-client";
+import { brandStyle } from "@/lib/branding";
 
 export interface LeaveSubmission {
   leaveTypeCode: string;
@@ -43,6 +44,7 @@ const MONTHS = [
 ];
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const B = brandStyle;
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   Present:      { label: "Present",  color: "#16a34a", bg: "#dcfce7" },
@@ -146,7 +148,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           <button
             type="button"
             onClick={onClose}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#e91e8c", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: B.primary, color: "#fff", fontWeight: 600, cursor: "pointer" }}
           >
             Close
           </button>
@@ -296,7 +298,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           {/* Reason */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Reason <span style={{ color: "#e91e8c" }}>*</span>
+              Reason <span style={{ color: B.primary }}>*</span>
             </label>
             <textarea
               value={reason}
@@ -324,7 +326,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
                   style={{
                     flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 600,
                     border: "none", cursor: halfBlocked ? "not-allowed" : "pointer",
-                    background: duration === opt ? "#e91e8c" : "transparent",
+                    background: duration === opt ? B.primary : "transparent",
                     color: halfBlocked ? "#cbd5e1" : duration === opt ? "#fff" : "#6b7280",
                     transition: "background 0.15s",
                   }}
@@ -372,7 +374,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
           {/* Working days badge */}
           {workingDays > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <span style={{ display: "inline-block", background: "#fce7f3", color: "#be185d", fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
+              <span style={{ display: "inline-block", background: B.primaryLight, color: B.primaryMuted, fontWeight: 700, fontSize: 13, borderRadius: 20, padding: "4px 14px" }}>
                 {workingDays} Working {workingDays === 1 ? "Day" : "Days"}
               </span>
             </div>
@@ -416,14 +418,14 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
             <button
               onClick={onClose}
               disabled={submitting}
-              style={{ padding: "10px 22px", borderRadius: 20, border: "1.5px solid #e91e8c", background: "#fff", fontSize: 14, fontWeight: 600, color: "#e91e8c", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
+              style={{ padding: "10px 22px", borderRadius: 20, border: "1.5px solid " + B.primary, background: "#fff", fontSize: 14, fontWeight: 600, color: B.primary, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              style={{ padding: "10px 22px", borderRadius: 20, border: "none", background: "#e91e8c", fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
+              style={{ padding: "10px 22px", borderRadius: 20, border: "none", background: B.primary, fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -495,7 +497,7 @@ function UpcomingDayModal({ ymd, onClose, onApplyLeave }: UpcomingModalProps) {
           </button>
           <button
             onClick={onApplyLeave}
-            style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: "#e91e8c", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
+            style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: B.primary, fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
           >
             Apply Leave
           </button>
@@ -619,7 +621,7 @@ function RegularisationModal({
           {/* Reason */}
           <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Reason <span style={{ color: "#dc143c" }}>*</span>
+              Reason <span style={{ color: B.primary }}>*</span>
             </label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
               style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
@@ -663,7 +665,7 @@ function RegularisationModal({
             <button
               disabled={submitting}
               onClick={handleSubmit}
-              style={{ flex: 2, padding: "8px 0", borderRadius: 18, border: "none", background: "#dc143c", fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
+              style={{ flex: 2, padding: "8px 0", borderRadius: 18, border: "none", background: B.primary, fontSize: 14, fontWeight: 600, color: "#fff", cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}
             >
               {submitting ? "Submitting…" : "Submit Request"}
             </button>
@@ -780,7 +782,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
           {canApplyLeave && onApplyLeave && (
             <button
               onClick={onApplyLeave}
-              style={{ padding: "8px 22px", borderRadius: 8, border: "1px solid #be185d", background: "#fff", fontSize: 14, fontWeight: 700, color: "#be185d", cursor: "pointer" }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: `1px solid ${B.primaryMuted}`, background: "#fff", fontSize: 14, fontWeight: 700, color: B.primaryMuted, cursor: "pointer" }}
             >
               Apply Leave
             </button>
@@ -788,7 +790,7 @@ function DayModal({ entry, onClose, onApplyReg, onApplyLeave, isToday }: ModalPr
           {canRegularise && (
             <button
               onClick={onApplyReg}
-              style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: "#dc143c", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
+              style={{ padding: "8px 22px", borderRadius: 8, border: "none", background: B.primary, fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer" }}
             >
               Regularisation
             </button>
@@ -884,11 +886,11 @@ export default function AttendanceCalendar({
                 style={{
                   padding: "6px 14px",
                   borderRadius: 8,
-                  border: "1px solid #fecdd3",
-                  background: "#fff1f2",
+                  border: `1px solid ${B.primaryBorder}`,
+                  background: B.primaryLight,
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "#be185d",
+                  color: B.primaryMuted,
                   cursor: "pointer",
                 }}
               >
@@ -929,7 +931,7 @@ export default function AttendanceCalendar({
                 let bg = "#fff";
                 if (!inMonth)                                              bg = "#f9fafb";
                 else if (entry?.status === "Present" || entry?.status === "HalfDay") bg = "#f0fdf4";
-                else if (entry?.status === "Absent")                       bg = "#fff1f2";
+                else if (entry?.status === "Absent")                       bg = "#fef2f2";
                 else if (entry?.status === "Leave")                        bg = "#fef9c3";
                 else if (entry?.status === "LeavePending")                 bg = "#ffedd5";
                 else if (isHoliday || isWeekend)                           bg = "#f5f3ff";
@@ -941,7 +943,7 @@ export default function AttendanceCalendar({
                     style={{
                       background: bg,
                       borderRight: di < 6 ? "1px solid #e5e7eb" : undefined,
-                      outline: isToday ? "2px solid #e91e8c" : undefined,
+                      outline: isToday ? `2px solid ${B.primary}` : undefined,
                       outlineOffset: "-2px",
                       padding: "10px 12px",
                       minHeight: 92,

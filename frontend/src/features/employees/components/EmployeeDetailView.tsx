@@ -55,7 +55,7 @@ function fmtDate(iso: string) {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="py-3 border-b border-gray-100 last:border-b-0">
+    <div className="py-3 border-b border-slate-100 last:border-b-0">
       <p className={`${employeeFieldLabelClass} mb-1.5 m-0`}>
         {label}
       </p>
@@ -89,14 +89,14 @@ export default function EmployeeDetailView({
 
   return (
     <div className={wrapperClass}>
-      <div className="flex items-start justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+      <div className="flex items-start justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
         <div>
           {!isModal && (
-            <h2 className="text-xl font-semibold text-gray-800 m-0">
+            <h2 className="text-xl font-semibold text-slate-800 m-0">
               {formatEmployeeDisplayName(employee)}
             </h2>
           )}
-          <p className={`text-sm text-gray-500 ${isModal ? "mt-0 mb-2" : "mt-1 mb-2"} m-0`}>
+          <p className={`text-sm text-slate-500 ${isModal ? "mt-0 mb-2" : "mt-1 mb-2"} m-0`}>
             {employee.empId}
           </p>
           <span
@@ -112,19 +112,19 @@ export default function EmployeeDetailView({
         </div>
         <div className="flex items-center gap-2">
           {onboardingHref && (
-            <Link
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-pink-200 bg-pink-50 text-pink-800 hover:bg-pink-100 no-underline transition-colors"
-              href={onboardingHref}
+            <p
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-blue-50 text-[lab(52%_28_-70)] hover:bg-blue-100/80 no-underline transition-colors"
+              
             >
               Onboarding
-            </Link>
+            </p>
           )}
           {onResendInvitation && employee.employeeStatus === "Active" && (
             <button
               type="button"
               onClick={onResendInvitation}
               disabled={resendingInvitation}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
             >
               <Mail size={14} />
               {resendingInvitation ? "Sending…" : "Resend invitation"}

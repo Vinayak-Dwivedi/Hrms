@@ -218,7 +218,7 @@ export default function OnboardingAdminPanel({
           </p>
         )}
 
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-md border border-slate-200">
           <table className="w-full border-collapse min-w-[280px]">
             <thead>
               <tr>
@@ -231,13 +231,13 @@ export default function OnboardingAdminPanel({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {timeline.documents.map((doc) => {
                 const isRequired = (
                   HR_VERIFICATION_DOCUMENTS as readonly string[]
                 ).includes(doc.documentType);
                 return (
-                  <tr key={doc.id} className="bg-white hover:bg-gray-50/60">
+                  <tr key={doc.id} className="bg-white hover:bg-slate-50/60">
                     <td className={onboardingDocTableCellClass}>
                       <p className="font-medium text-gray-900 m-0">
                         {doc.documentType}
@@ -358,7 +358,7 @@ export default function OnboardingAdminPanel({
           onChange={(e) => setApproveNotes(e.target.value)}
           placeholder="Add internal notes for this onboarding completion"
           rows={2}
-          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 resize-y mb-3 focus:outline-none focus:ring-1 focus:ring-slate-300"
+          className="w-full text-sm border border-slate-200 rounded-md px-3 py-2 resize-y mb-3 focus:outline-none focus:ring-1 focus:ring-slate-300"
           disabled={!pipeline.canMarkComplete || !!busy}
         />
 
@@ -385,11 +385,11 @@ export default function OnboardingAdminPanel({
 
   const invitationSection =
     showInvitationActions && !pipeline.isCompleted ? (
-      <details className="rounded-lg border border-gray-200 bg-white text-sm">
-        <summary className="cursor-pointer px-4 py-3 text-gray-700 font-medium hover:bg-gray-50 rounded-lg">
+      <details className="rounded-md border border-slate-200 bg-white text-sm">
+        <summary className="cursor-pointer px-4 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-md">
           Invitation management
         </summary>
-        <div className="flex flex-wrap gap-2 px-4 pb-4 pt-1 border-t border-gray-100">
+        <div className="flex flex-wrap gap-2 px-4 pb-4 pt-1 border-t border-slate-100">
           {canResendInvitation && (
             <button
               type="button"
@@ -399,7 +399,7 @@ export default function OnboardingAdminPanel({
                   regenerateToken(employeeId, { sendEmail: true }),
                 )
               }
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50"
             >
               Regenerate &amp; email
             </button>
@@ -411,7 +411,7 @@ export default function OnboardingAdminPanel({
               onClick={() =>
                 void runAction("invalidate", () => invalidateToken(employeeId))
               }
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50"
             >
               Invalidate token
             </button>
@@ -501,7 +501,7 @@ export default function OnboardingAdminPanel({
       <div
         className={[
           "space-y-5",
-          variant === "embedded" ? "border-t border-gray-100 pt-4 mt-4" : "",
+          variant === "embedded" ? "border-t border-slate-200 pt-4 mt-4" : "",
         ].join(" ")}
       >
         {variant === "embedded" && (

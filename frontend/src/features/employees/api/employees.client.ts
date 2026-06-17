@@ -1,4 +1,5 @@
 import { API_BASE } from "@/lib/hrms-client";
+import type { MaritalStatus } from "@/features/onboarding/constants/personal";
 
 export type EmployeeStatus =
   | "Active"
@@ -25,6 +26,7 @@ export type EmployeeListItem = {
   departmentId: number | null;
   subDepartmentId: number | null;
   designationId: number | null;
+  orgHierarchyStructureId: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
   onboardingStatus?: OnboardingPipelineStatus;
@@ -35,7 +37,7 @@ export type EmployeeDetail = EmployeeListItem & {
   dob: string;
   gender: "Male" | "Female" | "Other";
   nationality: string;
-  maritalStatus: "Single" | "Married" | null;
+  maritalStatus: MaritalStatus | null;
   spouseName: string | null;
   gradeId: number | null;
   branchId: number | null;
@@ -116,7 +118,7 @@ export type CreateEmployeePayload = {
   gradeId?: number;
   branchId?: number;
   reportingManagerId?: number;
-  maritalStatus?: "Single" | "Married" | null;
+  maritalStatus?: MaritalStatus | null;
   spouseName?: string | null;
 };
 
@@ -136,7 +138,7 @@ export type UpdateEmployeePayload = {
   branchId?: number | null;
   reportingManagerId?: number | null;
   reportingChain?: number[];
-  maritalStatus?: "Single" | "Married" | null;
+  maritalStatus?: MaritalStatus | null;
   spouseName?: string | null;
   password?: string;
   roleId?: number;
@@ -215,7 +217,7 @@ type RawEmployeeRow = {
   dob: string;
   gender: "Male" | "Female" | "Other";
   nationality: string;
-  maritalStatus: "Single" | "Married" | null;
+  maritalStatus: MaritalStatus | null;
   spouseName: string | null;
   departmentId: number | null;
   subDepartmentId: number | null;
@@ -282,6 +284,7 @@ function toListItem(row: RawEmployeeRow): EmployeeListItem {
     departmentId: row.departmentId,
     subDepartmentId: row.subDepartmentId,
     designationId: row.designationId,
+    orgHierarchyStructureId: row.orgHierarchyStructureId ?? null,
     employeeStatus: row.employeeStatus,
     joiningDate: row.joiningDate,
     onboardingStatus: row.onboardingStatus,

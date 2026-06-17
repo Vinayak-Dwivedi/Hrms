@@ -28,6 +28,7 @@ export default function OnboardingDocumentPreview({
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
+  const [imageOpen, setImageOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,11 +89,43 @@ export default function OnboardingDocumentPreview({
 
   if (isImage) {
     return (
-      <img
-        src={objectUrl}
-        alt={label}
-        className="max-w-full max-h-80 rounded-lg border border-gray-200 bg-gray-50 object-contain"
-      />
+      <>
+        <button
+          type="button"
+          onClick={() => setImageOpen(true)}
+          className="inline-flex cursor-zoom-in rounded-lg border border-gray-200 bg-gray-50 p-1"
+          title="Click to view full image"
+        >
+          <img
+            src={objectUrl}
+            alt={label}
+            className="h-[60px] w-[60px] rounded-md object-cover"
+          />
+        </button>
+        {imageOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={filename ?? label}
+            onClick={() => setImageOpen(false)}
+          >
+            <button
+              type="button"
+              className="absolute right-4 top-4 rounded-md bg-white/90 px-3 py-1 text-sm font-medium text-gray-800 hover:bg-white"
+              onClick={() => setImageOpen(false)}
+            >
+              Close
+            </button>
+            <img
+              src={objectUrl}
+              alt={label}
+              className="max-h-[90vh] max-w-[90vw] rounded-lg border border-white/20 bg-white object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </>
     );
   }
 
@@ -114,7 +147,7 @@ export default function OnboardingDocumentPreview({
       <a
         href={objectUrl}
         download={filename ?? "document"}
-        className="text-sm font-medium text-[#e91e63] hover:underline"
+        className="text-sm font-medium text-[lab(52%_28_-70)] hover:text-[lab(36.9089%_35.0961_-85.6872)] hover:underline"
       >
         Download {filename}
       </a>

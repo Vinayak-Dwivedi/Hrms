@@ -1,5 +1,6 @@
 import { API_BASE } from "@/lib/hrms-client";
 import { compressImageForUpload } from "@/lib/compress-image";
+import type { MaritalStatus } from "../constants/personal";
 import {
   academicQualificationFromApi,
   DEFAULT_ACADEMIC_ROWS,
@@ -16,7 +17,20 @@ export type OnboardingValidateResult = {
 export type OnboardingApiError = {
   code: string;
   message: string;
+  details?: unknown;
 };
+
+export class OnboardingRequestError extends Error {
+  code: string;
+  details?: unknown;
+
+  constructor(error: OnboardingApiError) {
+    super(error.message);
+    this.name = "OnboardingRequestError";
+    this.code = error.code;
+    this.details = error.details;
+  }
+}
 
 export type OnboardingDocumentRow = {
   id: string;
@@ -41,7 +55,7 @@ export type EmployeeProfile = {
     motherName: string | null;
     bloodGroup: string | null;
     nationality: string | null;
-    maritalStatus: "Single" | "Married" | null;
+    maritalStatus: MaritalStatus | null;
     spouseName: string | null;
   };
   identity: {
@@ -95,11 +109,25 @@ export type OnboardingStatus = {
 
 async function parseError(res: Response): Promise<OnboardingApiError> {
   const body = (await res.json().catch(() => ({}))) as {
-    error?: { code?: string; message?: string };
+    error?: {
+      code?: string;
+      message?: string;
+      details?: {
+        message?: string;
+        postgresMessage?: string;
+      };
+    };
   };
+  const fallbackDetail =
+    body.error?.details?.postgresMessage ?? body.error?.details?.message;
+  const message =
+    body.error?.message && body.error.message !== "An unexpected error occurred."
+      ? body.error.message
+      : fallbackDetail ?? body.error?.message ?? res.statusText ?? "Request failed.";
   return {
     code: body.error?.code ?? "UNKNOWN",
-    message: body.error?.message ?? res.statusText ?? "Request failed.",
+    message,
+    details: body.error?.details,
   };
 }
 
@@ -117,7 +145,7 @@ async function authJsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
       window.location.href = "/login";
     }
     const apiErr = await parseError(res);
-    throw new Error(apiErr.message);
+    throw new OnboardingRequestError(apiErr);
   }
   return (await res.json()) as T;
 }

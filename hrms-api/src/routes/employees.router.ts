@@ -10,6 +10,7 @@ import { departments, designations, employees, orgHierarchyStructure, roles } fr
 import { generatePassword } from "@/lib/generate-password";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { hashPassword } from "@/lib/password";
+import { MARITAL_STATUS_OPTIONS } from "@/modules/onboarding/constants/personal";
 import { optionalPasswordFieldSchema } from "@/lib/password-policy";
 import { mapDbErrorToApiError } from "@/lib/db-error";
 import { rbacCodeToAuthRole } from "@/lib/auth-role";
@@ -148,7 +149,7 @@ const updateEmployeeSchema = z
     branchId: nullableId.optional(),
     reportingManagerId: nullableId.optional(),
     reportingChain: z.array(z.number().int().positive()).optional(),
-    maritalStatus: z.enum(["Single", "Married"]).optional().nullable(),
+    maritalStatus: z.enum(MARITAL_STATUS_OPTIONS).optional().nullable(),
     spouseName: z.string().trim().max(200).optional().nullable(),
     password: optionalPasswordFieldSchema,
     roleId: z.coerce.number().int().positive().optional(),
@@ -360,7 +361,7 @@ const createEmployeeSchema = z
     gradeId: optionalId,
     branchId: optionalId,
     reportingManagerId: optionalId,
-    maritalStatus: z.enum(["Single", "Married"]).optional().nullable(),
+    maritalStatus: z.enum(MARITAL_STATUS_OPTIONS).optional().nullable(),
     spouseName: z.string().trim().max(200).optional().nullable(),
   })
   .superRefine((data, ctx) => {

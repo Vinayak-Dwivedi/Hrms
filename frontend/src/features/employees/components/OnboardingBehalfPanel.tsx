@@ -73,8 +73,10 @@ export default function OnboardingBehalfPanel({
       setProfileComplete(readiness.profileComplete);
       setPendingDocuments(readiness.pendingDocuments);
       setDocuments(readiness.documents);
+      return readiness;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -83,6 +85,12 @@ export default function OnboardingBehalfPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (manualStep === "documents" && pendingDocuments.length === 0) {
+      setManualStep("review");
+    }
+  }, [manualStep, pendingDocuments.length]);
 
   if (onboardingStatus === "COMPLETED" || submittedAt) {
     return null;
@@ -103,10 +111,11 @@ export default function OnboardingBehalfPanel({
       setPendingDocuments(readiness.pendingDocuments);
       setDocuments(readiness.documents);
       setSuccess("Profile saved on behalf of employee.");
-      setManualStep(null);
+      setManualStep(readiness.profileComplete ? "documents" : "profile");
       onUpdated?.();
     } catch (e) {
       setError((e as Error).message);
+      throw e;
     } finally {
       setSubmittingProfile(false);
     }
@@ -141,7 +150,7 @@ export default function OnboardingBehalfPanel({
   const containerClass =
     layout === "flat"
       ? `${onboardingReviewCardClass} p-5 space-y-4`
-      : "space-y-4 border border-[#fecdd3] rounded-lg bg-[#fffafb] p-4 mt-4";
+      : "space-y-4 border border-slate-200 rounded-md bg-slate-50/40 p-4 mt-4";
 
   const step =
     manualStep ?? resolveBehalfStep(profileComplete, pendingDocuments);
@@ -184,8 +193,16 @@ export default function OnboardingBehalfPanel({
             <OnboardingDocumentUpload
               documents={documents}
               onUploaded={() => {
-                setManualStep(null);
-                void load();
+                void load().then((readiness) => {
+                  if (!readiness) return;
+                  const noPendingDocuments = readiness.pendingDocuments.length === 0;
+                  setManualStep(noPendingDocuments ? "review" : "documents");
+                  if (noPendingDocuments) {
+                    setSuccess(
+                      "All required documents uploaded. You can now submit for HR review.",
+                    );
+                  }
+                });
               }}
               onUpload={handleUpload}
               onDelete={(documentId) => handleDelete(documentId)}
