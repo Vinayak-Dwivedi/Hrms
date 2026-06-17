@@ -155,6 +155,104 @@
       "when": 1781272800000,
       "tag": "20260612100000_onboarding_bank_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781359200000,
+      "tag": "20260611100000_leave_types_extend_phase1",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781362800000,
+      "tag": "20260611110000_holiday_calendars",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781366400000,
+      "tag": "20260611120000_weekly_off_configs",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781370000000,
+      "tag": "20260611130000_holiday_per_holiday_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781373600000,
+      "tag": "20260611140000_leave_approval_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1781377200000,
+      "tag": "20260612100000_leave_credit_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1781380800000,
+      "tag": "20260613100000_holiday_team_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1781384400000,
+      "tag": "20260613110000_employee_sub_department",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1781643600000,
+      "tag": "20260616100000_offboarding_phase1",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781647200000,
+      "tag": "20260616110000_offboarding_clearance",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781650800000,
+      "tag": "20260616120000_offboarding_exit_interview",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781654400000,
+      "tag": "20260616130000_offboarding_fnf",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781658000000,
+      "tag": "20260616140000_offboarding_exit_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781661600000,
+      "tag": "20260616150000_offboarding_access_closure",
+      "breakpoints": true
     }
   ]
 }

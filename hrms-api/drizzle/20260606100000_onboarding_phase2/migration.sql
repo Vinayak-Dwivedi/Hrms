@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS "employee_identity_details" (
 	"updated_at" timestamptz DEFAULT now() NOT NULL
 );--> statement-breakpoint
 
+-- The init migration creates an earlier `employee_documents` (integer id, fewer
+-- columns). This phase redefines it with a uuid PK + onboarding columns, so the
+-- old table must be dropped first — `CREATE TABLE IF NOT EXISTS` alone would keep
+-- the stale shape and the FK/column references below would then fail on a fresh
+-- migrate. CASCADE clears the old FKs; no real data exists this early in a build.
+DROP TABLE IF EXISTS "employee_documents" CASCADE;--> statement-breakpoint
+
 CREATE TABLE IF NOT EXISTS "employee_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"employee_id" integer NOT NULL,

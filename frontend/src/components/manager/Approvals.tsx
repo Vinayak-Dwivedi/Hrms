@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import ManagerResignations from "@/components/manager/ManagerResignations";
 import {
   employeeCardClass,
   employeeFilterLabelClass,
@@ -1799,9 +1800,7 @@ export default function Approvals() {
           {[
             { key: "leave" as MainTab, label: "Leave Approvals" },
             { key: "regularisation" as MainTab, label: "Regularisation" },
-            // Resignation approvals are not backed by a real API yet — tab
-            // hidden so we don't show placeholder data. Re-add once the
-            // resignation-approval endpoints exist.
+            { key: "resignation" as MainTab, label: "Resignation" },
           ].map((t) => (
             <button
               key={t.key}
@@ -1957,43 +1956,7 @@ export default function Approvals() {
         />
       )}
 
-      {mainTab === "resignation" && (
-        <div className="pt-4 space-y-4">
-          <SubTabs
-            tabs={RESIGN_SUB}
-            active={resignSubTab}
-            onSelect={setResignSubTab}
-            badgeKey="pending"
-            badgeCount={resignPending}
-          />
-
-          <FilterToolbar
-            filters={resignFilters}
-            onChange={setResignFilters}
-            onReset={() => setResignFilters(EMPTY_FILTERS)}
-            searchPlaceholder="Search by employee name or ID..."
-            typeLabel="Reason"
-            typeOptions={resignReasonOptions}
-            statusOptions={RESIGNATION_STATUS_OPTIONS}
-          />
-
-          <ResignationApprovalsTable
-            rows={pagedResign}
-            sort={resignSort}
-            onSort={handleResignSort}
-            onView={viewResignation}
-            onEdit={editResignation}
-            onDelete={deleteResignation}
-          />
-          <Pagination
-            total={filteredResign.length}
-            page={resignCurrentPage}
-            rowsPerPage={resignRowsPerPage}
-            onPage={setResignPage}
-            onRowsPerPage={setResignRowsPerPage}
-          />
-        </div>
-      )}
+      {mainTab === "resignation" && <ManagerResignations />}
     </div>
   );
 }

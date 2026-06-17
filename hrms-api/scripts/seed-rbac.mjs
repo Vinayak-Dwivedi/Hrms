@@ -28,6 +28,10 @@ const PERMISSIONS = [
   { code: "onboarding.verify_documents", name: "Verify Documents", module: "onboarding", description: "Verify or reject employee documents" },
   { code: "onboarding.resend_invitation", name: "Resend Invitations", module: "onboarding", description: "Resend or regenerate onboarding invitations" },
   { code: "onboarding.manage_bank", name: "Manage Bank Details", module: "onboarding", description: "Add and approve employee bank account details during onboarding" },
+  { code: "offboarding.view", name: "View Offboarding", module: "offboarding", description: "View offboarding cases and configuration" },
+  { code: "offboarding.manage_flows", name: "Manage Resignation Flows", module: "offboarding", description: "Create and edit resignation flows, notice rules and exit reasons" },
+  { code: "offboarding.approve_resignations", name: "Approve Resignations (HR)", module: "offboarding", description: "HR review and approval of resignations" },
+  { code: "offboarding.manage_cases", name: "Manage Offboarding Cases", module: "offboarding", description: "View and manage active offboarding cases" },
 ];
 
 const ROLES = [
@@ -68,6 +72,10 @@ const ROLE_PERMISSION_CODES = {
     "onboarding.verify_documents",
     "onboarding.resend_invitation",
     "onboarding.manage_bank",
+    "offboarding.view",
+    "offboarding.manage_flows",
+    "offboarding.approve_resignations",
+    "offboarding.manage_cases",
   ],
 };
 
