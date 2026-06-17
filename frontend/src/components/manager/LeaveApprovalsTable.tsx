@@ -212,11 +212,7 @@ export default function LeaveApprovalsTable({
       </div>
 
       {requests.length > 0 && (
-<<<<<<< HEAD
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
-=======
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-slate-200">
->>>>>>> 320ce206918df62429b36265c0a0fa14823f536c
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-slate-200">
           <p className="text-sm text-gray-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
