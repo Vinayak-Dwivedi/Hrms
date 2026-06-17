@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-// Holiday Policy — table-driven admin view (mirrors the Location page).
+// Holiday Policy â€” table-driven admin view (mirrors the Location page).
 //
 // Top: search + filter row, then two action buttons:
-//   - Add Team     → AddTeamDialog (name + dept + sub-dept + holiday checklist)
-//   - Add Holiday  → AddHolidayDialog (multi-row date/day/name)
+//   - Add Team     â†’ AddTeamDialog (name + dept + sub-dept + holiday checklist)
+//   - Add Holiday  â†’ AddHolidayDialog (multi-row date/day/name)
 //
 // Main table: one row per Team with NAME / DEPARTMENT / SUB-DEPARTMENT /
 // HOLIDAYS / STATUS / ACTION columns.
@@ -202,7 +202,7 @@ export default function HolidayPolicyPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search teams…"
+                placeholder="Search teamsâ€¦"
                 className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
               />
             </div>
@@ -233,7 +233,7 @@ export default function HolidayPolicyPage() {
             <button
               type="button"
               onClick={() => setView("holidays")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-[#FF014F] bg-white border border-[#FF014F] hover:bg-pink-50"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-[#ff014f] bg-white border border-[#ff014f] hover:bg-pink-50"
             >
               <Plus size={13} /> Add Holiday
             </button>
@@ -243,7 +243,7 @@ export default function HolidayPolicyPage() {
                 setEditingTeam(null);
                 setTeamDialogOpen(true);
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
             >
               <Plus size={13} /> Add Team
             </button>
@@ -277,7 +277,7 @@ export default function HolidayPolicyPage() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-gray-400">
                     <Loader2 size={18} className="animate-spin inline mr-2" />
-                    Loading…
+                    Loadingâ€¦
                   </td>
                 </tr>
               )}
@@ -308,16 +308,16 @@ export default function HolidayPolicyPage() {
                           status: r.status,
                         })
                       }
-                      className="font-semibold text-gray-900 hover:text-[#FF014F] hover:underline text-left"
+                      className="font-semibold text-gray-900 hover:text-[#eb0249] hover:underline text-left"
                     >
                       {r.name}
                     </button>
                   </Td>
                   <Td className="text-gray-700">
-                    {r.departmentName ?? <span className="text-gray-400 italic">—</span>}
+                    {r.departmentName ?? <span className="text-gray-400 italic">â€”</span>}
                   </Td>
                   <Td className="text-gray-700">
-                    {r.subDepartmentName ?? <span className="text-gray-400 italic">—</span>}
+                    {r.subDepartmentName ?? <span className="text-gray-400 italic">â€”</span>}
                   </Td>
                   <Td className="text-center">
                     <span className="inline-block bg-pink-50 text-[#be185d] font-semibold text-[12px] px-2.5 py-0.5 rounded-full">
@@ -353,7 +353,7 @@ export default function HolidayPolicyPage() {
                           }
                         }}
                         title="Edit"
-                        className="text-[#FF014F] hover:text-[#eb0249]"
+                        className="text-[#ff014f] hover:text-[#eb0249]"
                       >
                         <Pencil size={14} />
                       </button>
@@ -407,7 +407,7 @@ export default function HolidayPolicyPage() {
   );
 }
 
-// ─── tiny components ──────────────────────────────────────────────────────
+// â”€â”€â”€ tiny components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Field({
   label,

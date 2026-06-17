@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { CalendarOff, Loader2, Plus, RotateCcw } from "lucide-react";
@@ -70,7 +70,7 @@ export default function WeeklyOffPage() {
               <button
                 type="button"
                 onClick={() => setEditing("new")}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
               >
                 <Plus size={12} /> New Configuration
               </button>
@@ -90,7 +90,7 @@ export default function WeeklyOffPage() {
             {loading && items.length === 0 && (
               <div className="flex items-center justify-center py-12 text-gray-400">
                 <Loader2 size={18} className="animate-spin mr-2" />
-                <span className="text-[12px]">Loading…</span>
+                <span className="text-[12px]">Loadingâ€¦</span>
               </div>
             )}
 
@@ -159,13 +159,13 @@ function ConfigRow({
       onClick={onConfigure}
       className={[
         "group flex items-center gap-4 text-left p-4 rounded-xl border transition-all",
-        "bg-white hover:border-[#FF014F]/40 hover:shadow-sm",
+        "bg-white hover:border-[#ff014f]/40 hover:shadow-sm",
         selected
-          ? "border-[#FF014F] shadow-[0_4px_12px_-4px_rgba(255,1,79,0.25)]"
+          ? "border-[#ff014f] shadow-[0_4px_12px_-4px_rgba(255,1,79,0.25)]"
           : "border-gray-200",
       ].join(" ")}
     >
-      <div className="shrink-0 w-10 h-10 rounded-xl bg-pink-50 text-[#FF014F] flex items-center justify-center group-hover:bg-[#FF014F] group-hover:text-white transition-colors">
+      <div className="shrink-0 w-10 h-10 rounded-xl bg-pink-50 text-[#ff014f] flex items-center justify-center group-hover:bg-[#eb0249] group-hover:text-white transition-colors">
         <CalendarOff size={18} />
       </div>
       <div className="flex-1 min-w-0">

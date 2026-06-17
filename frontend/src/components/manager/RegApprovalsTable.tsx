@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Check, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -112,7 +112,7 @@ export default function RegApprovalsTable({
                     {fmtRegDateShort(req.date)}
                   </td>
                   <td className={tableBodyCellClass}>
-                    {req.originalIssue ?? "—"}
+                    {req.originalIssue ?? "â€”"}
                   </td>
                   <td className={`${tableBodyCellClass} whitespace-nowrap`}>
                     {fmtTime(req.requestedPunchIn)}
@@ -164,7 +164,7 @@ export default function RegApprovalsTable({
                         </button>
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">—</span>
+                      <span className="text-sm text-gray-400">â€”</span>
                     )}
                   </td>
                 </tr>
@@ -198,7 +198,7 @@ export default function RegApprovalsTable({
                   className={cn(
                     "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
                   )}
                   onClick={() => setPage(p)}

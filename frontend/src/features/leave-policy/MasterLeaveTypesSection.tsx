@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
-// Master Leave Types — table-driven catalog (mirrors the Holiday Policy table).
+// Master Leave Types â€” table-driven catalog (mirrors the Holiday Policy table).
 // "Create Leave Type" opens a modal dialog; rows have a Configure (edit) and a
-// deactivate action. No accent colour — the catalog is purely functional.
+// deactivate action. No accent colour â€” the catalog is purely functional.
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -102,7 +102,7 @@ export default function MasterLeaveTypesSection() {
           <button
             type="button"
             onClick={() => setDialog("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
           >
             <Plus size={13} /> Create Leave Type
           </button>
@@ -134,14 +134,14 @@ export default function MasterLeaveTypesSection() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-gray-400">
                     <Loader2 size={18} className="animate-spin inline mr-2" />
-                    Loading…
+                    Loadingâ€¦
                   </td>
                 </tr>
               )}
               {!loading && items.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-10 text-gray-400 text-[12.5px]">
-                    No leave types. Click “Create Leave Type” to add one.
+                    No leave types. Click â€œCreate Leave Typeâ€ to add one.
                   </td>
                 </tr>
               )}
@@ -189,7 +189,7 @@ export default function MasterLeaveTypesSection() {
                         type="button"
                         onClick={() => setDialog(it)}
                         title="Configure"
-                        className="text-[#FF014F] hover:text-[#eb0249]"
+                        className="text-[#ff014f] hover:text-[#eb0249]"
                       >
                         <Pencil size={14} />
                       </button>
@@ -230,7 +230,7 @@ export default function MasterLeaveTypesSection() {
   );
 }
 
-// ─── create / edit dialog ────────────────────────────────────────────────────
+// â”€â”€â”€ create / edit dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LeaveTypeDialog({
   target,
@@ -335,7 +335,7 @@ function LeaveTypeDialog({
             <textarea
               value={form.description ?? ""}
               onChange={(e) => setForm({ ...form, description: e.target.value || null })}
-              placeholder="Short description explaining eligibility and conditions…"
+              placeholder="Short description explaining eligibility and conditionsâ€¦"
               rows={2}
               className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
             />
@@ -434,7 +434,7 @@ function LeaveTypeDialog({
             type="button"
             onClick={save}
             disabled={saving || !form.name.trim() || !form.code.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {editing ? "Save Changes" : "Create Leave Type"}
@@ -451,7 +451,7 @@ function LeaveTypeDialog({
     : modal;
 }
 
-// ─── tiny primitives ─────────────────────────────────────────────────────────
+// â”€â”€â”€ tiny primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Toggle({
   checked,
@@ -466,7 +466,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={[
         "relative shrink-0 rounded-full transition-colors duration-200 w-9 h-5",
-        checked ? "bg-[#FF014F]" : "bg-gray-300",
+        checked ? "bg-[#ff014f]" : "bg-gray-300",
       ].join(" ")}
       aria-pressed={checked}
     >

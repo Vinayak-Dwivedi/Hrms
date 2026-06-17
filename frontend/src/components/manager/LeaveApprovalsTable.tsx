@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ArrowUpRight, Check, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -123,14 +123,14 @@ export default function LeaveApprovalsTable({
                           {req.firstName} {req.lastName}
                         </p>
                         <p className="text-xs text-gray-400 m-0 truncate">
-                          {req.designation ?? "—"}
+                          {req.designation ?? "â€”"}
                         </p>
                       </div>
                     </div>
                   </td>
                   <td className={tableBodyCellClass}>{req.empId}</td>
                   <td className={tableBodyCellClass}>
-                    <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-pink-100 text-[#FF014F]">
+                    <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-pink-100 text-[#ff014f]">
                       {req.leaveTypeName}
                     </span>
                   </td>
@@ -196,7 +196,7 @@ export default function LeaveApprovalsTable({
                           </button>
                         </div>
                       ) : (
-                        <span className="text-sm text-gray-400">—</span>
+                        <span className="text-sm text-gray-400">â€”</span>
                       )}
                     </td>
                   )}
@@ -231,7 +231,7 @@ export default function LeaveApprovalsTable({
                   className={cn(
                     "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
                   )}
                   onClick={() => setPage(p)}

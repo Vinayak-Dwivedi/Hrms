@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
-// Compensatory Off — settings. Deliberately minimal: a master enable, whether a
-// reason is required, and when the credit expires. The earn → request → approve
-// → credit → use workflow lives in the Comp-Off request flow (Leave page) and
+// Compensatory Off â€” settings. Deliberately minimal: a master enable, whether a
+// reason is required, and when the credit expires. The earn â†’ request â†’ approve
+// â†’ credit â†’ use workflow lives in the Comp-Off request flow (Leave page) and
 // the Approvals page; this tab only holds the policy defaults.
 //
 // Settings persist on the "CO" leave_policies row (status Active = enabled).
@@ -33,7 +33,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={[
         "relative shrink-0 rounded-full transition-colors duration-200 w-10 h-5.5 disabled:opacity-40",
-        checked ? "bg-[#FF014F]" : "bg-gray-300",
+        checked ? "bg-[#ff014f]" : "bg-gray-300",
       ].join(" ")}
       style={{ width: 40, height: 22 }}
       aria-pressed={checked}
@@ -68,7 +68,7 @@ export default function CompOffSection() {
       const co = types.find((t) => t.code === "CO");
       if (!co) {
         setError(
-          "No Compensatory Off (code “CO”) leave type found. Create one under Leave Types first.",
+          "No Compensatory Off (code â€œCOâ€) leave type found. Create one under Leave Types first.",
         );
         return;
       }
@@ -135,7 +135,7 @@ export default function CompOffSection() {
       {/* How it works */}
       <section className="bg-white border border-gray-200 rounded-2xl px-6 py-5">
         <div className="flex items-center gap-2 mb-2">
-          <CalendarClock size={16} className="text-[#FF014F]" />
+          <CalendarClock size={16} className="text-[#ff014f]" />
           <h3 className="text-[15px] font-bold text-gray-900">
             Compensatory Off
           </h3>
@@ -154,7 +154,7 @@ export default function CompOffSection() {
                 <span className="px-2.5 py-1 rounded-full bg-pink-50 text-[#be185d] border border-pink-100">
                   {step}
                 </span>
-                {i < arr.length - 1 && <span className="text-gray-300">→</span>}
+                {i < arr.length - 1 && <span className="text-gray-300">â†’</span>}
               </span>
             ),
           )}
@@ -169,7 +169,7 @@ export default function CompOffSection() {
 
       {loading ? (
         <div className="flex items-center gap-2 text-[12px] text-gray-500">
-          <Loader2 size={14} className="animate-spin" /> Loading…
+          <Loader2 size={14} className="animate-spin" /> Loadingâ€¦
         </div>
       ) : (
         <section className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">
@@ -222,7 +222,7 @@ export default function CompOffSection() {
           type="button"
           onClick={save}
           disabled={saving || loading || !compOffTypeId}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Save Settings

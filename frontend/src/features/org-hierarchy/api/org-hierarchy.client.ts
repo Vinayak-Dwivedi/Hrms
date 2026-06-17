@@ -1,4 +1,4 @@
-import { API_BASE } from "@/lib/hrms-client";
+import { API_BASE, resolveApiAssetUrl } from "@/lib/hrms-client";
 
 export type OrgHierarchyStatus = "Active" | "Inactive";
 
@@ -80,6 +80,7 @@ export type EmployeeReportingNode = {
   levelCode: string | null;
   levelName: string | null;
   levelSortOrder: number | null;
+  profilePhotoUrl: string | null;
   directReports: EmployeeReportingNode[];
 };
 
@@ -171,7 +172,23 @@ export async function fetchEmployeeReportingTree(): Promise<
   const res = await jsonFetch<ListResponse<EmployeeReportingTreeDepartment>>(
     `${BASE}/employee-tree`,
   );
-  return res.data;
+  return res.data.map((dept) => ({
+    ...dept,
+    subDepartments: dept.subDepartments.map((sub) => ({
+      ...sub,
+      roots: sub.roots.map(mapEmployeeReportingNode),
+    })),
+  }));
+}
+
+function mapEmployeeReportingNode(
+  node: EmployeeReportingNode,
+): EmployeeReportingNode {
+  return {
+    ...node,
+    profilePhotoUrl: resolveApiAssetUrl(node.profilePhotoUrl),
+    directReports: node.directReports.map(mapEmployeeReportingNode),
+  };
 }
 
 export async function fetchOrgDepartments(

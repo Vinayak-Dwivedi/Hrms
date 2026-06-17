@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // Employee comp-off panel for the Leave page: raise a comp-off request for a
 // holiday / weekly-off that was worked, and track the status of past requests.
@@ -53,7 +53,7 @@ export default function MyCompOff() {
         <button
           type="button"
           onClick={() => setDialogOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
         >
           <Plus size={13} /> Request Comp-Off
         </button>
@@ -66,7 +66,7 @@ export default function MyCompOff() {
       )}
 
       {loading ? (
-        <p className="text-center py-8 text-[12px] text-gray-400">Loading…</p>
+        <p className="text-center py-8 text-[12px] text-gray-400">Loadingâ€¦</p>
       ) : rows.length === 0 ? (
         <p className="text-center py-8 text-[12px] text-gray-400">
           No comp-off requests yet.
@@ -194,7 +194,7 @@ function RequestDialog({
             type="button"
             onClick={submit}
             disabled={saving || !valid}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#FF014F] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Submit

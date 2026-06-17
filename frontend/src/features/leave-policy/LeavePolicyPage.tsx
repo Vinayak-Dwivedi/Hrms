@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import CompOffSection from "./CompOffSection";
@@ -9,11 +9,11 @@ import LeavePoliciesSection from "./LeavePoliciesSection";
 // Leave Policy is a tabbed settings page. The tab indicator slides under the
 // active label, and the panel content slides + cross-fades when switching.
 //
-// Config flow order: define the catalog (Leave Types) → bundle quotas into
-// Leave Policies → tune Comp-Off → set Approval routing.
+// Config flow order: define the catalog (Leave Types) â†’ bundle quotas into
+// Leave Policies â†’ tune Comp-Off â†’ set Approval routing.
 //
-// Theme: matches the existing employee-portal cards — white card with subtle
-// gray border, brand pink (#FF014F / #be185d) for accents and active states.
+// Theme: matches the existing employee-portal cards â€” white card with subtle
+// gray border, brand pink (#ff014f / #be185d) for accents and active states.
 
 type Tab = "master" | "policies" | "comp-off" | "approval";
 const TAB_ORDER: Tab[] = ["master", "policies", "comp-off", "approval"];
@@ -26,7 +26,7 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export default function LeavePolicyPage() {
   const [tab, setTab] = useState<Tab>("master");
-  // Direction of slide for the new panel: forward when going comp-off → approval,
+  // Direction of slide for the new panel: forward when going comp-off â†’ approval,
   // backward when going the other way. Drives the CSS transform.
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
 
@@ -49,7 +49,7 @@ export default function LeavePolicyPage() {
       {/* Tab header */}
       <TabHeader active={tab} onChange={switchTab} />
 
-      {/* Animated panel — each panel slides in from its side and fades in */}
+      {/* Animated panel â€” each panel slides in from its side and fades in */}
       <div className="relative overflow-hidden">
         <div
           key={tab}
@@ -99,7 +99,7 @@ export default function LeavePolicyPage() {
   );
 }
 
-// ─── Tab header ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Tab header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TabHeader({
   active,
@@ -115,7 +115,7 @@ function TabHeader({
       {/* Sliding pink pill behind the active tab */}
       <div
         aria-hidden
-        className="absolute top-2 bottom-2 rounded-xl bg-gradient-to-r from-[#FF014F] to-[#eb0249] transition-transform duration-300 ease-out"
+        className="absolute top-2 bottom-2 rounded-xl bg-gradient-to-r from-[#ff014f] to-[#eb0249] transition-transform duration-300 ease-out"
         style={{
           width: TAB_WIDTH,
           left: 8,

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { AlertCircle, XCircle } from "lucide-react";
@@ -33,7 +33,7 @@ const STATUS_CLASS: Record<LeaveStatus, string> = {
 };
 
 const cancelIconBtnClass =
-  "inline-flex items-center justify-center text-[#FF014F] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center text-[#ff014f] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -68,9 +68,9 @@ function leavePeriod(start: string, end: string) {
   if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) {
     const month = s.toLocaleDateString("en-GB", { month: "short" });
     const year = s.getFullYear();
-    return `${String(s.getDate()).padStart(2, "0")}–${String(e.getDate()).padStart(2, "0")} ${month} ${year}`;
+    return `${String(s.getDate()).padStart(2, "0")}â€“${String(e.getDate()).padStart(2, "0")} ${month} ${year}`;
   }
-  return `${fmtDate(start)} – ${fmtDate(end)}`;
+  return `${fmtDate(start)} â€“ ${fmtDate(end)}`;
 }
 
 function durationLabel(req: LeaveRequest) {
@@ -274,7 +274,7 @@ export default function LeaveTable({
                         className={cancelIconBtnClass}
                         disabled={!onCancel || busyId === req.id}
                         onClick={() => onCancel?.(req.id)}
-                        title={busyId === req.id ? "Cancelling…" : "Cancel"}
+                        title={busyId === req.id ? "Cancellingâ€¦" : "Cancel"}
                         type="button"
                       >
                         <XCircle className={employeeIconMd} />
@@ -325,7 +325,7 @@ export default function LeaveTable({
                   className={cn(
                     "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
                   )}
                   onClick={() => setPage(p)}

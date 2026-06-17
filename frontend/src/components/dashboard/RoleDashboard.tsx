@@ -75,7 +75,7 @@ const topRowCardClass = cn(gradientCardClass, "min-h-[280px]");
 const dashboardGridClass =
   "grid w-full min-w-0 gap-4 grid-cols-1 md:grid-cols-3 items-stretch";
 const linkAccentClass =
-  "text-xs font-medium no-underline text-[#FF014F] hover:text-[#eb0249] transition-colors";
+  "text-xs font-medium no-underline text-[#ff014f] hover:text-[#eb0249] transition-colors";
 
 const CHART_COLORS = [
   { stroke: "#10b981", dot: "bg-emerald-500" },
@@ -105,13 +105,13 @@ const DONUT_WRAP_CLASS: Record<number, string> = {
   220: "w-[220px] h-[220px]",
 };
 
-// Role type lives in @/lib/roles — shared with AppShell.
+// Role type lives in @/lib/roles â€” shared with AppShell.
 // Each role contributes:
 //   - which identity / leave-balance / attendance endpoints to call,
 //   - what tiles show in Quick Links,
 //   - what the bottom table renders (own leaves, team approvals, etc.).
 
-// ─── primitives ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Avatar({
   initials,
@@ -130,7 +130,7 @@ function Avatar({
         "rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 border-2 border-pink-100 shadow-sm",
         showImg
           ? "bg-white"
-          : "bg-gradient-to-br from-[#FF014F] to-[#eb0249]",
+          : "bg-gradient-to-br from-[#ff014f] to-[#eb0249]",
         AVATAR_SIZE_CLASS[size] ?? "w-16 h-16 text-xl tracking-wide",
       )}
     >
@@ -191,7 +191,7 @@ function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          className="stroke-[#FF014F]"
+          className="stroke-[#ff014f]"
           strokeWidth={stroke}
           strokeDasharray={`${dash} ${c}`}
           strokeLinecap="round"
@@ -296,7 +296,7 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
   const onLeave = points.map((p) => p.leaveCount * 480);
 
   // yMax adapts to the window: a 7-day view rarely exceeds 1200, but a 30-day
-  // bucket can stack 6 × ~540 working minutes, so we round up to the nearest 600.
+  // bucket can stack 6 Ã— ~540 working minutes, so we round up to the nearest 600.
   const maxVal = Math.max(...present, ...absent, ...onLeave, 1200);
   const yMax = Math.ceil(maxVal / 600) * 600;
   const ySteps = 6;
@@ -373,7 +373,7 @@ function WeekChart({ points }: { points: WeekChartPoint[] }) {
   );
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function formatTimeLong(t: string | null | undefined): string {
   if (!t) return "--:--";
@@ -407,7 +407,7 @@ function formatWeekRange(start: string, end: string): string {
       month: "short",
       year: "numeric",
     });
-    return `${s.getUTCDate()} – ${e.getUTCDate()} ${monthYear}`;
+    return `${s.getUTCDate()} â€“ ${e.getUTCDate()} ${monthYear}`;
   }
   const fmt = (d: Date) =>
     d.toLocaleDateString("en-GB", {
@@ -415,7 +415,7 @@ function formatWeekRange(start: string, end: string): string {
       month: "short",
       year: "numeric",
     });
-  return `${fmt(s)} – ${fmt(e)}`;
+  return `${fmt(s)} â€“ ${fmt(e)}`;
 }
 
 function isCurrentWeek(weekStart: string, weekEnd: string): boolean {
@@ -452,7 +452,7 @@ function approvalsHref(): string {
   return "/manager/approvals";
 }
 
-// ─── role-specific data plumbing ────────────────────────────────────────────
+// â”€â”€â”€ role-specific data plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type RoleAdapters = {
   fetchIdentity: () => Promise<Employee>;
   fetchAttendanceToday: () => Promise<AttendanceRecord>;
@@ -478,7 +478,7 @@ function adaptersFor(role: Role, managerApisAvailable: boolean): RoleAdapters {
   return employeeAdapters;
 }
 
-// ─── Bottom table — switches by role ────────────────────────────────────────
+// â”€â”€â”€ Bottom table â€” switches by role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type OwnLeaveRows = { kind: "own"; rows: LeaveRequest[] | null };
 type TeamLeaveRows = { kind: "team"; rows: ApprovalLeaveRequest[] | null };
 type AdminLeaveRows = { kind: "admin"; rows: ApprovalLeaveRequest[] | null };
@@ -523,10 +523,10 @@ function RoleBottomTable({
           : leaveHref(role);
   const viewLabel =
     data.kind === "team"
-      ? "Review all →"
+      ? "Review all â†’"
       : data.kind === "hr"
-        ? "All employees →"
-        : "View all →";
+        ? "All employees â†’"
+        : "View all â†’";
 
   const pendingCount =
     data.kind === "team"
@@ -573,7 +573,7 @@ function RoleBottomTable({
                 colSpan={colSpan}
                 className="py-4 text-center text-[12px] text-gray-400"
               >
-                Loading…
+                Loadingâ€¦
               </td>
             </tr>
           )}
@@ -690,7 +690,7 @@ function RoleBottomTable({
                           year: "numeric",
                         },
                       )
-                    : "—"}
+                    : "â€”"}
                 </td>
                 <td className="py-2.5 text-[13px] text-gray-600">
                   {emp.onboardingStatus.replace(/_/g, " ")}
@@ -711,7 +711,7 @@ function RoleBottomTable({
   );
 }
 
-// ─── Page ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function RoleDashboard({ role }: { role: Role }) {
   const { hasPermission } = useAuth();
@@ -750,13 +750,24 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const [hrSectionLoading, setHrSectionLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [punchBusy, setPunchBusy] = useState(false);
+  // Resolved Comp-Off policy for the current user â€” read from
+  // /api/me/leave-policy. Drives the "Your Comp Off rules" mini-card below
+  // the Leave Balance rings.
+  const [compOffPolicy, setCompOffPolicy] = useState<{
+    name: string;
+    weekendUnits: number;
+    holidayUnits: number;
+    expiryMode: string;
+    expiryDays: number;
+    matchedReason: string;
+  } | null>(null);
 
-  // Attendance Overview window: "7d" (Mon–Sun) or "30d" (rolling 30 days
+  // Attendance Overview window: "7d" (Monâ€“Sun) or "30d" (rolling 30 days
   // grouped into 5 buckets). Drives both the chart and the totals row.
   const [attWindow, setAttWindow] = useState<AttendanceWindow>("7d");
   const [winMenuOpen, setWinMenuOpen] = useState(false);
   const winMenuRef = useRef<HTMLDivElement | null>(null);
-  // Skip the first run of the window-change effect — reload() already
+  // Skip the first run of the window-change effect â€” reload() already
   // fetched the default 7d view on mount.
   const skipFirstWindowFetch = useRef(true);
 
@@ -910,7 +921,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const balLeaves = totalLeaves - usedLeaves;
 
   // Leave Distribution shows every leave type the employee currently holds a
-  // balance for — their assigned-policy allocation plus any earned comp-off —
+  // balance for â€” their assigned-policy allocation plus any earned comp-off â€”
   // by available days. Any leave added to their policy shows up automatically.
   const grantedByType = (balances ?? [])
     .filter((b) => b.available > 0)
@@ -925,7 +936,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
     });
   const grantedTotal = grantedByType.reduce((s, x) => s + x.value, 0);
 
-  const initials = identity?.initials ?? "··";
+  const initials = identity?.initials ?? "Â·Â·";
 
   const totalMins = week?.totals.totalWorkingMinutes ?? 0;
   const presentMins =
@@ -941,7 +952,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
   const lateMins =
     week?.days.reduce((s, d) => s + (d.record?.lateByMinutes ?? 0), 0) ?? 0;
 
-  const weekStatPlaceholder = weekLoading ? "—" : null;
+  const weekStatPlaceholder = weekLoading ? "â€”" : null;
   const attendanceStatCards = [
     {
       label: "PRESENT",
@@ -1025,7 +1036,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       )}
 
-      {/* Row 1 — Profile | Leave Balance | Upcoming Holidays */}
+      {/* Row 1 â€” Profile | Leave Balance | Upcoming Holidays */}
       <div className={dashboardGridClass}>
         {/* My Profile */}
         <div className={cn(gradientCardClass, "min-h-0")}>
@@ -1054,7 +1065,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
             />
             <div className="min-w-0 flex-1">
               <p className="text-base font-bold text-gray-900 m-0 truncate">
-                {identity?.name ?? "Loading…"}
+                {identity?.name ?? "Loadingâ€¦"}
               </p>
               <p className="text-xs text-gray-500 m-0 mt-0.5 truncate">
                 {identity?.role ?? ""}
@@ -1125,7 +1136,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
               Leave Balance
             </h3>
             <a href={leaveHref(role)} className={linkAccentClass}>
-              View all →
+              View all â†’
             </a>
           </div>
           <div className="flex flex-1 items-center justify-center">
@@ -1161,6 +1172,27 @@ export default function RoleDashboard({ role }: { role: Role }) {
               ))}
             </div>
           </div>
+          {/* Resolved Comp-Off policy strip â€” only shown when a policy is
+              actually active. Driven by /api/me/leave-policy?leaveTypeCode=CO. */}
+          {compOffPolicy && (
+            <div className="mt-3 px-3 py-2 rounded-xl bg-[#fff1f2] border border-[#fecdd3] flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#ff014f] to-[#eb0249] text-white flex items-center justify-center text-[10px] font-bold tracking-wider shrink-0">
+                CO
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11.5px] font-semibold text-[#be185d] leading-tight truncate">
+                  {compOffPolicy.name}
+                </p>
+                <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
+                  Earn {compOffPolicy.weekendUnits} unit/weekend Â·{" "}
+                  {compOffPolicy.holidayUnits} unit/holiday Â·{" "}
+                  {compOffPolicy.expiryMode === "yearEnd"
+                    ? "expires year-end"
+                    : `expires in ${compOffPolicy.expiryDays} days`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Upcoming Holidays */}
@@ -1170,12 +1202,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
               Upcoming Holidays
             </h3>
             <a href="/holidays" className={linkAccentClass}>
-              All →
+              All â†’
             </a>
           </div>
           <div className="flex flex-col gap-2.5 flex-1">
             {holidays === null && (
-              <p className="text-[11px] text-gray-400">Loading…</p>
+              <p className="text-[11px] text-gray-400">Loadingâ€¦</p>
             )}
             {holidays !== null && holidays.length === 0 && (
               <p className="text-[11px] text-gray-400">
@@ -1196,7 +1228,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   className="flex items-center gap-3 p-2.5 rounded-lg bg-white/80 border border-gray-100"
                 >
                   <div className="flex flex-col items-center justify-center rounded-lg text-center shrink-0 w-11 h-11 bg-white border border-gray-200">
-                    <p className="text-[9px] font-bold text-[#FF014F]">
+                    <p className="text-[9px] font-bold text-[#ff014f]">
                       {month}
                     </p>
                     <p className="text-[15px] font-bold text-gray-900 leading-none">
@@ -1221,7 +1253,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* Row 2 — Attendance Overview | Leave Distribution | Quick Links */}
+      {/* Row 2 â€” Attendance Overview | Leave Distribution | Quick Links */}
       <div className={dashboardGridClass}>
         {/* Attendance Overview */}
         <div className={gradientCardClass}>
@@ -1235,7 +1267,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 onClick={() => setWinMenuOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={winMenuOpen}
-                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-pink-50 text-[#FF014F] border border-pink-200 cursor-pointer"
+                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-pink-50 text-[#ff014f] border border-pink-200 cursor-pointer"
               >
                 {attWindow === "7d" ? "Week" : "30 days"}
                 <ChevronDown
@@ -1268,7 +1300,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                         className={cn(
                           "w-full text-left px-3 py-1.5 text-[12px] cursor-pointer",
                           active
-                            ? "bg-pink-50 text-[#FF014F] font-semibold"
+                            ? "bg-pink-50 text-[#ff014f] font-semibold"
                             : "text-gray-700 hover:bg-gray-50",
                         )}
                       >
@@ -1366,7 +1398,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
             <WeekChart points={week.chartPoints} />
           ) : (
             <p className="text-center text-[11px] py-8 text-gray-400">
-              Loading attendance overview…
+              Loading attendance overviewâ€¦
             </p>
           )}
 
@@ -1447,7 +1479,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
           </div>
         </div>
 
-        {/* Quick Links — role-driven */}
+        {/* Quick Links â€” role-driven */}
         <div className={gradientCardClass}>
           <h3 className="text-sm font-semibold text-gray-900 mb-3 m-0">
             Quick Links
@@ -1463,7 +1495,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 className="flex flex-col items-center justify-center text-center no-underline text-gray-900 rounded-lg border border-gray-100 bg-white/70 px-2 py-3 hover:bg-white transition-colors min-h-[96px]"
               >
                 <span className="flex items-center justify-center rounded-lg w-12 h-12 bg-pink-50 border border-pink-200">
-                  <Icon size={20} className="text-[#FF014F]" />
+                  <Icon size={20} className="text-[#ff014f]" />
                 </span>
                 <p className="text-[11px] font-semibold mt-2 leading-tight text-gray-900 m-0">
                   {label}
@@ -1474,7 +1506,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* Row 3 — bottom table (own / team / admin) */}
+      {/* Row 3 â€” bottom table (own / team / admin) */}
       <RoleBottomTable data={bottomData} role={role} />
     </div>
   );

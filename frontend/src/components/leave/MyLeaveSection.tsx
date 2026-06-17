@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -79,7 +79,7 @@ export default function MyLeaveSection({ role }: { role: Role }) {
         </div>
       )}
       {loading || (role === "manager" && managerProbeLoading) ? (
-        <div className="p-6 text-gray-500">Loading leave…</div>
+        <div className="p-6 text-gray-500">Loading leaveâ€¦</div>
       ) : (
         <div
           className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col"
@@ -89,9 +89,9 @@ export default function MyLeaveSection({ role }: { role: Role }) {
             <h3 className="text-[15px] font-bold text-gray-900 m-0">My Leave</h3>
             <Link
               href="/attendance"
-              className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#FF014F]"
+              className="text-[12px] font-semibold text-[#be185d] no-underline hover:text-[#eb0249]"
             >
-              Apply Leave →
+              Apply Leave â†’
             </Link>
           </div>
           <LeaveTable

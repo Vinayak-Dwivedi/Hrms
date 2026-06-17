@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Eye, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -71,10 +71,10 @@ export default function LocationsTable({
                 >
                   <td className="px-6 py-4 font-medium">{location.name}</td>
                   <td className="px-6 py-4 max-w-xs truncate">
-                    {location.address ?? "—"}
+                    {location.address ?? "â€”"}
                   </td>
                   <td className="px-6 py-4">
-                    {location.headcount === 0 ? "—" : location.headcount}
+                    {location.headcount === 0 ? "â€”" : location.headcount}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -129,7 +129,7 @@ export default function LocationsTable({
                   className={[
                     "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#FF014F] border-[#FF014F] hover:bg-[#eb0249]"
+                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
                       : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
                   ].join(" ")}
                   onClick={() => setPage(p)}
