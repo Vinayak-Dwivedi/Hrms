@@ -38,6 +38,10 @@ export const genderEnum = pgEnum("gender_enum", ["Male", "Female", "Other"]);
 export const maritalStatusEnum = pgEnum("marital_status_enum", [
   "Single",
   "Married",
+  "Divorced",
+  "Widowed",
+  "Separated",
+  "Prefer Not to Say",
 ]);
 export const employeeStatusEnum = pgEnum("employee_status_enum", [
   "Active",

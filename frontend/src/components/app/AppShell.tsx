@@ -35,6 +35,13 @@ import { useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
 import { navSectionsForRole } from "@/lib/role-config";
 import {
+  enterpriseNavActiveCollapsedClass,
+  enterpriseSectionToggleActiveClass,
+  enterpriseSectionToggleClass,
+  enterpriseSidebarBorderClass,
+  enterpriseSidebarClass,
+} from "@/lib/branding";
+import {
   formatEntryId,
   isNavActive,
   isSettingsPath,
@@ -306,12 +313,6 @@ function rootLabelFor(role: Role, authRole?: string): string {
   return "Employee";
 }
 
-function portalSubtitleFor(role: Role): string {
-  if (role === "manager") return "";
-  if (role === "admin") return "";
-  return "";
-}
-
 // ─── collapse persistence ───────────────────────────────────────────────────
 const COLLAPSE_KEY = "hrms.sidebar.collapsed";
 const SECTION_OPEN_KEY = "hrms.sidebar.sections.open";
@@ -467,44 +468,33 @@ export default function AppShell({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f5f6fa]">
+    <div
+      className="flex min-h-screen bg-[#f4f6f9]"
+    >
       {/* Sidebar */}
       <aside
         className={[
-          "flex flex-col shrink-0 bg-white border-r border-gray-200 transition-[width] duration-200 ease-out",
-          collapsed ? "w-[72px]" : "w-[240px]",
+          "flex flex-col shrink-0 transition-[width] duration-200 ease-out",
+          enterpriseSidebarClass,
+          collapsed ? "w-[72px]" : "w-[248px]",
         ].join(" ")}
       >
-        {/* Logo + hamburger */}
+        {/* Logo */}
         <div
           className={[
-            "flex items-center h-[72px] border-b border-gray-100 gap-2",
-            collapsed ? "px-4 justify-center" : "pl-5 pr-4 justify-between",
+            "flex items-center h-14 border-b gap-2",
+            enterpriseSidebarBorderClass,
+            collapsed ? "px-4 justify-center" : "pl-5 pr-4",
           ].join(" ")}
         >
-          {!collapsed && (
-            <div>
-              <AppLogo />
-              <p className="text-[10px] tracking-[1.5px] mt-1 text-gray-400">
-                {portalSubtitleFor(role)}
-              </p>
-            </div>
-          )}
-          {/* <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#fff1f2] border border-[#fecdd3] text-[#be185d] cursor-pointer"
-          >
-            <Menu size={15} />
-          </button> */}
+          {!collapsed && <AppLogo />}
         </div>
 
         {/* Nav (sectioned) */}
         <nav
           className={[
-            "flex flex-col flex-1 gap-[18px]",
-            collapsed ? "p-[10px]" : "px-3 py-3",
+            "flex flex-col flex-1 gap-4 overflow-y-auto",
+            collapsed ? "p-2" : "py-3 pr-2 pl-0",
           ].join(" ")}
         >
           {sections.map((section) => {
@@ -524,10 +514,11 @@ export default function AppShell({
                     aria-expanded={isOpen}
                     onClick={() => toggleSection(section.sectionKey!)}
                     className={[
-                      "flex items-center w-full rounded-lg text-[10px] font-bold tracking-widest gap-2 px-2 py-1.5 mb-0.5 border-0 cursor-pointer transition-colors",
+                      "flex items-center w-full rounded-r-md rounded-l-none text-[10px] gap-2 pl-2.5 pr-2.5 py-1.5 mb-0.5 border-0 cursor-pointer transition-colors",
+                      enterpriseSectionToggleClass,
                       sectionActive
-                        ? "text-[#be185d] bg-[#fff1f2]"
-                        : "text-gray-400 bg-transparent hover:text-gray-600 hover:bg-gray-50",
+                        ? enterpriseSectionToggleActiveClass
+                        : "hover:bg-slate-100 hover:text-slate-600",
                     ].join(" ")}
                   >
                     <span className="flex-1 text-left">{section.title}</span>
@@ -546,21 +537,15 @@ export default function AppShell({
                     aria-expanded={isOpen}
                     onClick={() => toggleSection(section.sectionKey!)}
                     className={[
-                      "flex items-center justify-center rounded-xl py-2.5 w-full border-0 cursor-pointer transition-colors",
+                      "flex items-center justify-center rounded-md py-2.5 w-full border-0 cursor-pointer transition-colors",
                       sectionActive
-                        ? "text-white bg-gradient-to-br from-[#ec4899] to-[#be185d]"
-                        : "text-gray-600 bg-transparent hover:bg-gray-50",
+                        ? enterpriseNavActiveCollapsedClass
+                        : "text-slate-500 bg-transparent hover:bg-slate-100 hover:text-slate-900",
                     ].join(" ")}
                   >
                     <CollapsedIcon size={16} />
                   </button>
-                ) : (
-                  !collapsed && (
-                    <p className="text-[10px] font-bold tracking-widest text-gray-400 px-2 mb-1">
-                      {section.title}
-                    </p>
-                  )
-                )}
+                ) : null}
 
                 {(!isCollapsible || isOpen) &&
                   section.entries.map(({ icon: Icon, label, href, badgeKey }) => {
@@ -576,6 +561,7 @@ export default function AppShell({
                         className={navLinkClassName(active, {
                           collapsed,
                           nested: Boolean(isCollapsible),
+                          theme: "enterprise",
                         })}
                       >
                         <Icon size={16} />
@@ -587,8 +573,8 @@ export default function AppShell({
                                 className={[
                                   "inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[20px] h-5 px-1.5",
                                   active
-                                    ? "bg-white/25 text-white"
-                                    : "bg-[#fed7aa] text-[#9a3412]",
+                                    ? "bg-slate-200 text-slate-800"
+                                    : "bg-amber-100 text-amber-800",
                                 ].join(" ")}
                               >
                                 {badge}
@@ -606,8 +592,8 @@ export default function AppShell({
 
         {/* Footer — logout is now in the header user dropdown only. */}
         {!collapsed && (
-          <div className="border-t border-gray-100 p-3">
-            <p className="text-[10px] text-center text-gray-400">
+          <div className={["border-t p-3", enterpriseSidebarBorderClass].join(" ")}>
+            <p className="text-[10px] text-center text-slate-400 m-0">
               iLeads HRMS {APP_VERSION} · {APP_LOCATION}
             </p>
           </div>
@@ -615,9 +601,9 @@ export default function AppShell({
       </aside>
 
       {/* Main column */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
         <AppHeader role={role} identity={identity} sessionUser={user} />
-        <main className="px-6 pb-6">{children}</main>
+        <main className="flex-1 px-6 py-5">{children}</main>
       </div>
     </div>
   );

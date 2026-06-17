@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import AttendanceScopeToggle, {
+  type AttendanceScope,
+} from "@/components/attendance/AttendanceScopeToggle";
 import RoleAttendance from "@/components/attendance/RoleAttendance";
 import TeamAttendanceReport from "@/components/manager/TeamAttendanceReport";
 import { employeeErrorBannerClass } from "@/features/employees/employee-theme";
@@ -10,21 +13,12 @@ import {
   type TeamAttendanceResponse,
 } from "@/lib/hrms-client";
 import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-available";
-import { cn } from "@/lib/utils";
+import { enterpriseLoadingClass } from "@/lib/branding";
 
-export type AttendanceScope = "mine" | "team";
+export type { AttendanceScope } from "@/components/attendance/AttendanceScopeToggle";
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function scopeToggleClass(active: boolean) {
-  return cn(
-    "px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors border",
-    active
-      ? "bg-[#fff1f2] text-[#be185d] border-[#fecdd3]"
-      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50",
-  );
 }
 
 function TeamAttendanceReportSection() {
@@ -112,38 +106,31 @@ export default function ManagerAttendanceView({
   }
 
   if (probeLoading) {
-    return <div className="p-6 text-gray-500">Loading attendance…</div>;
+    return <div className={enterpriseLoadingClass}>Loading attendance…</div>;
   }
 
   if (!reportingManager) {
     return <RoleAttendance role="employee" />;
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => selectScope("mine")}
-          aria-pressed={scope === "mine" ? true : undefined}
-          className={scopeToggleClass(scope === "mine")}
-        >
-          My Attendance
-        </button>
-        <button
-          type="button"
-          onClick={() => selectScope("team")}
-          aria-pressed={scope === "team" ? true : undefined}
-          className={scopeToggleClass(scope === "team")}
-        >
-          Team Attendance
-        </button>
-      </div>
+  const scopeToggle = (
+    <AttendanceScopeToggle scope={scope} onSelect={selectScope} />
+  );
 
+  return (
+    <div
+      className="flex flex-col flex-1 min-h-0 gap-2"
+      style={{ height: "calc(100vh - 7rem)" }}
+    >
       {scope === "mine" ? (
-        <RoleAttendance role="manager" />
+        <RoleAttendance role="manager" leadingToolbar={scopeToggle} />
       ) : (
-        <TeamAttendanceReportSection />
+        <>
+          <div className="flex items-center shrink-0">{scopeToggle}</div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <TeamAttendanceReportSection />
+          </div>
+        </>
       )}
     </div>
   );

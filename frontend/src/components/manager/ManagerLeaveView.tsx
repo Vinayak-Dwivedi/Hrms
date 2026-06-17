@@ -2,21 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import LeaveScopeToggle, {
+  type LeaveScope,
+} from "@/components/leave/LeaveScopeToggle";
 import MyLeaveSection from "@/components/leave/MyLeaveSection";
 import TeamLeaveSection from "@/components/manager/TeamLeaveSection";
 import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-available";
-import { cn } from "@/lib/utils";
+import { enterpriseLoadingClass } from "@/lib/branding";
 
-export type LeaveScope = "mine" | "team";
-
-function scopeToggleClass(active: boolean) {
-  return cn(
-    "px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors border",
-    active
-      ? "bg-[#fff1f2] text-[#be185d] border-[#fecdd3]"
-      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50",
-  );
-}
+export type { LeaveScope } from "@/components/leave/LeaveScopeToggle";
 
 export default function ManagerLeaveView({
   initialScope,
@@ -56,38 +50,31 @@ export default function ManagerLeaveView({
   }
 
   if (probeLoading) {
-    return <div className="p-6 text-gray-500">Loading leave…</div>;
+    return <div className={enterpriseLoadingClass}>Loading leave…</div>;
   }
 
   if (!reportingManager) {
     return <MyLeaveSection role="employee" />;
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          type="button"
-          onClick={() => selectScope("mine")}
-          aria-pressed={scope === "mine" ? true : undefined}
-          className={scopeToggleClass(scope === "mine")}
-        >
-          My Leave
-        </button>
-        <button
-          type="button"
-          onClick={() => selectScope("team")}
-          aria-pressed={scope === "team" ? true : undefined}
-          className={scopeToggleClass(scope === "team")}
-        >
-          Team Leave
-        </button>
-      </div>
+  const scopeToggle = (
+    <LeaveScopeToggle scope={scope} onSelect={selectScope} />
+  );
 
+  return (
+    <div
+      className="flex flex-col flex-1 min-h-0 gap-2"
+      style={{ height: "calc(100vh - 7rem)" }}
+    >
       {scope === "mine" ? (
-        <MyLeaveSection role="manager" />
+        <MyLeaveSection role="manager" leadingToolbar={scopeToggle} />
       ) : (
-        <TeamLeaveSection />
+        <>
+          <div className="flex items-center shrink-0">{scopeToggle}</div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            <TeamLeaveSection />
+          </div>
+        </>
       )}
     </div>
   );

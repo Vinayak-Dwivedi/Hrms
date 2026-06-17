@@ -8,11 +8,9 @@ import {
   employeeBtnOutlineSmClass,
   employeeErrorBannerClass,
   employeeLoadingClass,
-  employeeModalTitleClass,
 } from "../employee-theme";
 import {
   fetchEmployeeById,
-  formatEmployeeDisplayName,
   type EmployeeDetail,
 } from "../api/employees.client";
 
@@ -48,20 +46,12 @@ export default function EditEmployeePageContent({ employeeId }: Props) {
     };
   }, [employeeId]);
 
-  const title =
-    employee != null
-      ? `Edit — ${formatEmployeeDisplayName(employee)}`
-      : "Edit Employee";
-
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-3">
         <Link className={employeeBtnOutlineSmClass} href="/employees">
           ← Back to employees
         </Link>
-        {!loading && !loadError && employee && (
-          <h1 className={`${employeeModalTitleClass} m-0`}>{title}</h1>
-        )}
       </div>
 
       {loading && <div className={employeeLoadingClass}>Loading employee…</div>}

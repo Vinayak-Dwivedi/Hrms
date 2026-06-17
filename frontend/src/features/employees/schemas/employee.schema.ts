@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  MARITAL_STATUS_OPTIONS,
+  type MaritalStatus,
+} from "@/features/onboarding/constants/personal";
 import type {
   CreateEmployeePayload,
   EmployeeDetail,
@@ -95,6 +99,17 @@ const requiredSelectId = (label: string) =>
       return Number.isInteger(id) && id > 0;
     }, `Select a valid ${label.toLowerCase()}.`);
 
+function optionalSelectFieldSchema(label: string) {
+  return z.string().refine(
+    (value) =>
+      value === "" ||
+      (Number.isFinite(Number(value)) &&
+        Number.isInteger(Number(value)) &&
+        Number(value) > 0),
+    `Select a valid ${label.toLowerCase()} or leave blank.`,
+  );
+}
+
 function roleIdField(validRoleIds: number[]) {
   return z.string().superRefine((value, ctx) => {
     if (!value || value.length === 0) {
@@ -153,15 +168,24 @@ export const lastNameFieldSchema = z
   .trim()
   .min(1, "Last name is required.")
   .max(100, "Last name must be at most 100 characters.");
+export const JOINING_DATE_MAX_FUTURE_DAYS = 60;
+export const JOINING_DATE_MAX_FUTURE_MESSAGE =
+  "Joining date cannot be more than 60 days from today.";
+
+function endOfJoiningDateWindow(): Date {
+  const max = new Date();
+  max.setDate(max.getDate() + JOINING_DATE_MAX_FUTURE_DAYS);
+  max.setHours(23, 59, 59, 999);
+  return max;
+}
+
 export const dobFieldSchema = requiredDateField("Date of birth");
 export const joiningDateFieldSchema = requiredDateField("Joining date").refine(
   (value) => {
     const joining = new Date(`${value}T00:00:00`);
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    return joining <= today;
+    return joining <= endOfJoiningDateWindow();
   },
-  "Joining date cannot be in the future.",
+  JOINING_DATE_MAX_FUTURE_MESSAGE,
 );
 export const genderFieldSchema = z.enum(["Male", "Female", "Other"], {
   message: "Gender is required.",
@@ -173,8 +197,9 @@ export const orgHierarchySubDepartmentFieldSchema =
 export const orgHierarchyDesignationFieldSchema =
   requiredSelectId("Designation");
 export const branchFieldSchema = requiredSelectId("Location");
-export const reportingManagerFieldSchema =
-  requiredSelectId("Reporting manager");
+export const optionalReportingManagerFieldSchema = optionalSelectFieldSchema(
+  "reporting manager",
+);
 
 /** Optional login password; when provided it must meet minimum length. */
 export const loginPasswordFieldSchema = z.string().superRefine((value, ctx) => {
@@ -216,7 +241,7 @@ export function createEmployeeFieldValidators(validRoleIds: number[]) {
       orgHierarchyDesignationFieldSchema,
     ),
     branchId: fieldValidators(branchFieldSchema),
-    reportingManagerId: fieldValidators(reportingManagerFieldSchema),
+    reportingManagerId: fieldValidators(optionalReportingManagerFieldSchema),
     password: fieldValidators(loginPasswordFieldSchema),
   };
 }
@@ -273,7 +298,7 @@ export function createEmployeeFormSchema(
       orgHierarchySubDepartmentId: orgHierarchySubDepartmentFieldSchema,
       orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
       branchId: branchFieldSchema,
-      reportingManagerId: reportingManagerFieldSchema,
+      reportingManagerId: optionalReportingManagerFieldSchema,
       password: z.string().optional(),
       confirmPassword: z.string().optional(),
     })
@@ -318,14 +343,21 @@ export const defaultCreateEmployeeValues: CreateEmployeeFormValues = {
   confirmPassword: "",
 };
 
+function idToNumberOrNull(value: string | undefined): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export function toCreatePayload(values: CreateEmployeeFormValues) {
   const rest = values;
+  const reportingManagerId = idToNumberOrNull(rest.reportingManagerId);
 
   return {
     ...rest,
     middleName: rest.middleName?.trim() || null,
     branchId: Number(rest.branchId),
-    reportingManagerId: Number(rest.reportingManagerId),
+    reportingManagerId,
   };
 }
 
@@ -351,7 +383,9 @@ export function toApiPayload(
     roleId: Number(base.roleId),
     orgHierarchyStructureId,
     branchId: base.branchId,
-    reportingManagerId: base.reportingManagerId,
+    ...(base.reportingManagerId != null
+      ? { reportingManagerId: base.reportingManagerId }
+      : {}),
     ...(values.password?.trim() ? { password: values.password.trim() } : {}),
   };
 }
@@ -365,6 +399,26 @@ export function maxDateToday(): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Latest allowed joining date (today + 60 days) for date input max attributes. */
+export function maxJoiningDate(): string {
+  const max = new Date();
+  max.setDate(max.getDate() + JOINING_DATE_MAX_FUTURE_DAYS);
+  const year = max.getFullYear().toString().padStart(4, "0");
+  const month = (max.getMonth() + 1).toString().padStart(2, "0");
+  const day = max.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Returns true when a calendar date is after the joining-date window. */
+export function isJoiningDateAfterMaxWindow(date: Date): boolean {
+  const max = endOfJoiningDateWindow();
+  const candidate = new Date(date);
+  candidate.setHours(0, 0, 0, 0);
+  const maxDay = new Date(max);
+  maxDay.setHours(0, 0, 0, 0);
+  return candidate > maxDay;
+}
+
 /** Latest date of birth for employees who must be at least 18 years old. */
 export function maxDateOfBirthForAdult(): string {
   const cutoff = new Date();
@@ -373,17 +427,6 @@ export function maxDateOfBirthForAdult(): string {
   const month = (cutoff.getMonth() + 1).toString().padStart(2, "0");
   const day = cutoff.getDate().toString().padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function optionalSelectFieldSchema(label: string) {
-  return z.string().refine(
-    (value) =>
-      value === "" ||
-      (Number.isFinite(Number(value)) &&
-        Number.isInteger(Number(value)) &&
-        Number(value) > 0),
-    `Select a valid ${label.toLowerCase()} or leave blank.`,
-  );
 }
 
 export const employeeStatusFieldSchema = z.enum(
@@ -396,9 +439,6 @@ export const optionalDesignationFieldSchema =
   optionalSelectFieldSchema("designation");
 export const optionalGradeFieldSchema = optionalSelectFieldSchema("grade");
 export const optionalBranchFieldSchema = optionalSelectFieldSchema("branch");
-export const optionalReportingManagerFieldSchema = optionalSelectFieldSchema(
-  "reporting manager",
-);
 
 export function createUpdateEmployeeFieldValidators(validRoleIds: number[] = []) {
   return {
@@ -446,7 +486,9 @@ export function createUpdateEmployeeFormSchema(validRoleIds: number[] = []) {
       orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
       branchId: optionalBranchFieldSchema,
       reportingManagerId: optionalReportingManagerFieldSchema,
-      maritalStatus: z.enum(["Single", "Married", ""]).optional(),
+      maritalStatus: z
+        .enum([...MARITAL_STATUS_OPTIONS, ""] as const)
+        .optional(),
       spouseName: z.string().trim().max(200).optional(),
       password: z.string().optional(),
       confirmPassword: z.string().optional(),
@@ -482,20 +524,13 @@ export const updateEmployeeFormSchema = createUpdateEmployeeFormSchema();
 // which doesn't match what tanstack-form actually has in state.
 export type UpdateEmployeeFormValues = z.input<typeof updateEmployeeFormSchema>;
 
-// Convert a form-state ID string ("" / "42" / undefined) into the API's
-// nullable-number shape. Mirrors `optionalIdOrNull`'s transform body.
-function idToNumberOrNull(value: string | undefined): number | null {
-  if (!value) return null;
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
-
 export function toUpdateApiPayload(
   values: UpdateEmployeeFormValues,
   orgHierarchyStructureId: number,
 ): UpdateEmployeePayload {
-  const maritalStatus: "Single" | "Married" | null =
-    values.maritalStatus === "Single" || values.maritalStatus === "Married"
+  const maritalStatus: MaritalStatus | null =
+    values.maritalStatus &&
+    (MARITAL_STATUS_OPTIONS as readonly string[]).includes(values.maritalStatus)
       ? values.maritalStatus
       : null;
 

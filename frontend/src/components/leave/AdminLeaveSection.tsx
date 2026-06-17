@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import LeaveApprovalsTable from "@/components/manager/LeaveApprovalsTable";
-import { employeeErrorBannerClass, employeeSelectClass } from "@/features/employees/employee-theme";
+import {
+  enterpriseCardClass,
+  enterpriseCardTitleClass,
+  enterpriseLoadingClass,
+  enterpriseSelectClass,
+} from "@/lib/branding";
 import {
   fetchOrgLeaveRequests,
   type ApprovalLeaveRequest,
@@ -42,26 +47,29 @@ export default function AdminLeaveSection() {
   return (
     <>
       {loadError && (
-        <div className={employeeErrorBannerClass}>
+        <div className="mb-3 bg-red-50 border border-red-200 text-red-800 text-[13px] rounded-md px-3.5 py-2.5">
           Failed to load leave: {loadError}
         </div>
       )}
       <div
-        className="rounded-2xl bg-white border border-gray-200 p-4 overflow-hidden flex flex-col"
-        style={{ height: "calc(100vh - 6rem)" }}
+        className={cn(
+          enterpriseCardClass,
+          "p-3 overflow-hidden flex flex-col",
+        )}
+        style={{ height: "calc(100vh - 7rem)" }}
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-bold text-gray-900 m-0">All Leave</h3>
+            <h3 className={enterpriseCardTitleClass}>All Leave</h3>
             {pendingCount > 0 && (
-              <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
+              <span className="text-[10px] font-semibold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
                 {pendingCount} pending
               </span>
             )}
           </div>
           <select
             aria-label="Filter by status"
-            className={cn(employeeSelectClass, "w-auto min-w-[140px]")}
+            className={cn(enterpriseSelectClass, "w-auto min-w-[130px]")}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
             value={statusFilter}
           >
@@ -75,7 +83,7 @@ export default function AdminLeaveSection() {
         </div>
 
         {loading ? (
-          <div className="p-6 text-gray-500">Loading leave…</div>
+          <div className={enterpriseLoadingClass}>Loading leave…</div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             <LeaveApprovalsTable embedded readOnly requests={requests} />

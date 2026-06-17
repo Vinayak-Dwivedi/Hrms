@@ -2,9 +2,14 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { OnboardingRequestError } from "@/features/onboarding/api/onboarding.client";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
 import { sanitizePhoneInput } from "@/features/employees/schemas/employee.schema";
+import {
+  sanitizeAlphaOnlyInput,
+  sanitizeGradeInput,
+} from "@/lib/academic-field-validation";
 import {
   ADDABLE_ACADEMIC_OPTIONS,
   academicQualificationFromApi,
@@ -18,7 +23,14 @@ import {
   QUAL_OTHER,
   QUAL_POST_GRADUATION,
 } from "../constants/academic";
-import { onboardingBtnPrimaryClass } from "../constants/onboarding-theme";
+import {
+  MARITAL_STATUS_OPTIONS,
+  type MaritalStatus,
+} from "../constants/personal";
+import {
+  onboardingBtnAccentOutlineClass,
+  onboardingBtnPrimaryClass,
+} from "../constants/onboarding-theme";
 import {
   collectOnboardingProfileErrors,
   onboardingProfileSchema,
@@ -101,6 +113,104 @@ function canAppendAcademicRow(existing: AcademicDetailValues[]) {
   );
 }
 
+function addressesMatch(current: string, permanent: string): boolean {
+  const c = current.trim();
+  const p = permanent.trim();
+  return c.length > 0 && p.length > 0 && c === p;
+}
+
+type ApiValidationIssue = {
+  path?: unknown;
+  message?: unknown;
+};
+
+function toIssuePath(path: unknown): (string | number)[] {
+  if (!Array.isArray(path)) return [];
+  return path.filter(
+    (item): item is string | number =>
+      typeof item === "string" || typeof item === "number",
+  );
+}
+
+function toFormFieldKey(path: (string | number)[]): string | null {
+  if (path.length === 0) return null;
+
+  if (path[0] === "personal" && typeof path[1] === "string") {
+    const personalFieldMap: Record<string, string> = {
+      currentAddress: "currentAddress",
+      permanentAddress: "permanentAddress",
+      emergencyContactName: "emergencyContactName",
+      emergencyContactPhone: "emergencyContactPhone",
+      maritalStatus: "maritalStatus",
+      spouseName: "spouseName",
+      fatherName: "fatherName",
+      motherName: "motherName",
+      bloodGroup: "bloodGroup",
+      nationality: "nationality",
+    };
+    return personalFieldMap[path[1]] ?? null;
+  }
+
+  if (path[0] === "identity" && typeof path[1] === "string") {
+    const identityFieldMap: Record<string, string> = {
+      panNumber: "panNo",
+      aadhaarNumber: "aadhaarNo",
+      uanNumber: "uanNo",
+      esicNumber: "esicNo",
+    };
+    return identityFieldMap[path[1]] ?? null;
+  }
+
+  if (
+    path[0] === "academic" &&
+    typeof path[1] === "number" &&
+    typeof path[2] === "string"
+  ) {
+    return `academic.${path[1]}.${path[2]}`;
+  }
+
+  if (
+    typeof path[0] === "string" &&
+    [
+      "currentAddress",
+      "permanentAddress",
+      "emergencyContactName",
+      "emergencyContactPhone",
+      "maritalStatus",
+      "spouseName",
+      "fatherName",
+      "motherName",
+      "bloodGroup",
+      "nationality",
+      "panNo",
+      "aadhaarNo",
+      "uanNo",
+      "esicNo",
+    ].includes(path[0])
+  ) {
+    return path[0];
+  }
+
+  return null;
+}
+
+function getServerFieldErrors(err: unknown): Record<string, string> {
+  const details =
+    err instanceof OnboardingRequestError
+      ? err.details
+      : (err as { details?: unknown } | null)?.details;
+  if (!Array.isArray(details)) return {};
+
+  const next: Record<string, string> = {};
+  for (const issue of details as ApiValidationIssue[]) {
+    if (typeof issue?.message !== "string") continue;
+    const key = toFormFieldKey(toIssuePath(issue.path));
+    if (!key) continue;
+    if (!next[key]) next[key] = issue.message;
+  }
+  return next;
+}
+
 export default function OnboardingProfileForm({
   initialValues,
   onSubmit,
@@ -114,8 +224,43 @@ export default function OnboardingProfileForm({
       : DEFAULT_VALUES.academic,
     professional: initialValues?.professional ?? [],
   });
+  const [permanentSameAsCurrent, setPermanentSameAsCurrent] = useState(() =>
+    addressesMatch(
+      initialValues?.currentAddress ?? DEFAULT_VALUES.currentAddress,
+      initialValues?.permanentAddress ?? DEFAULT_VALUES.permanentAddress,
+    ),
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+
+  function setCurrentAddress(value: string) {
+    setValues((prev) => ({
+      ...prev,
+      currentAddress: value,
+      ...(permanentSameAsCurrent ? { permanentAddress: value } : {}),
+    }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.currentAddress;
+      if (permanentSameAsCurrent) delete next.permanentAddress;
+      return next;
+    });
+  }
+
+  function handlePermanentSameAsCurrentChange(checked: boolean) {
+    setPermanentSameAsCurrent(checked);
+    if (checked) {
+      setValues((prev) => ({
+        ...prev,
+        permanentAddress: prev.currentAddress,
+      }));
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.permanentAddress;
+        return next;
+      });
+    }
+  }
 
   function setField<K extends keyof OnboardingProfileValues>(
     key: K,
@@ -137,6 +282,21 @@ export default function OnboardingProfileForm({
       else delete next[fieldKey];
       return next;
     });
+  }
+
+  function blurAcademicField(
+    index: number,
+    field:
+      | "qualification"
+      | "qualificationOther"
+      | "institution"
+      | "boardUniversity"
+      | "fieldOfStudy"
+      | "yearTo"
+      | "gradeOrPercentage",
+    nextValues: OnboardingProfileValues,
+  ) {
+    blurField(`academic.${index}.${field}`, nextValues);
   }
 
   function updateAcademic(index: number, patch: Partial<AcademicDetailValues>) {
@@ -191,6 +351,12 @@ export default function OnboardingProfileForm({
     try {
       await onSubmit(parsed.data);
     } catch (err) {
+      const serverFieldErrors = getServerFieldErrors(err);
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...serverFieldErrors }));
+        setFormError(null);
+        return;
+      }
       setFormError((err as Error).message ?? "Failed to save profile.");
     }
   }
@@ -200,25 +366,46 @@ export default function OnboardingProfileForm({
   return (
     <form onSubmit={handleSubmit} noValidate>
       <EmployeeFormSection title="Address">
-        <EmployeeFormField>
-          <FieldLabel required>Current Address</FieldLabel>
-          <textarea
-            className="w-full min-h-[80px] rounded-md border border-gray-200 px-3 py-2 text-sm"
-            value={values.currentAddress}
-            onBlur={() => blurField("currentAddress", values)}
-            onChange={(e) => setField("currentAddress", e.target.value)}
-          />
-          <FieldError message={errors.currentAddress} />
-        </EmployeeFormField>
-        <EmployeeFormField>
-          <FieldLabel required>Permanent Address</FieldLabel>
-          <textarea
-            className="w-full min-h-[80px] rounded-md border border-gray-200 px-3 py-2 text-sm"
-            value={values.permanentAddress}
-            onBlur={() => blurField("permanentAddress", values)}
-            onChange={(e) => setField("permanentAddress", e.target.value)}
-          />
-          <FieldError message={errors.permanentAddress} />
+        <EmployeeFormField span={2}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div className="flex min-h-0 flex-col">
+              <div className="mb-1.5 flex min-h-10 items-center [&_label]:mb-0">
+                <FieldLabel required>Current Address</FieldLabel>
+              </div>
+              <textarea
+                className="h-28 w-full resize-y rounded-md border border-gray-200 px-3 py-2 text-sm"
+                value={values.currentAddress}
+                onBlur={() => blurField("currentAddress", values)}
+                onChange={(e) => setCurrentAddress(e.target.value)}
+              />
+              <FieldError message={errors.currentAddress} />
+            </div>
+            <div className="flex min-h-0 flex-col">
+              <div className="mb-1.5 flex min-h-10 items-center justify-between gap-3 [&_label]:mb-0">
+                <FieldLabel required>Permanent Address</FieldLabel>
+                <label className="inline-flex shrink-0 cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-600">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={permanentSameAsCurrent}
+                    onChange={(e) =>
+                      handlePermanentSameAsCurrentChange(e.target.checked)
+                    }
+                  />
+                  Same as Current Address
+                </label>
+              </div>
+              <textarea
+                className="h-28 w-full resize-y rounded-md border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+                value={values.permanentAddress}
+                onBlur={() => blurField("permanentAddress", values)}
+                onChange={(e) => setField("permanentAddress", e.target.value)}
+                disabled={permanentSameAsCurrent}
+                readOnly={permanentSameAsCurrent}
+              />
+              <FieldError message={errors.permanentAddress} />
+            </div>
+          </div>
         </EmployeeFormField>
       </EmployeeFormSection>
 
@@ -263,15 +450,18 @@ export default function OnboardingProfileForm({
             className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
             value={values.maritalStatus}
             onChange={(e) => {
-              const status = e.target.value as "Single" | "Married";
+              const status = e.target.value as MaritalStatus;
               setField("maritalStatus", status);
               if (status !== "Married") {
                 setField("spouseName", "");
               }
             }}
           >
-            <option value="Single">Single</option>
-            <option value="Married">Married</option>
+            {MARITAL_STATUS_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
           <FieldError message={errors.maritalStatus} />
         </EmployeeFormField>
@@ -410,6 +600,9 @@ export default function OnboardingProfileForm({
                     <select
                       className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                       value={row.qualification}
+                      onBlur={() =>
+                        blurAcademicField(index, "qualification", values)
+                      }
                       onChange={(e) => {
                         const next = e.target.value;
                         updateAcademic(index, {
@@ -450,6 +643,9 @@ export default function OnboardingProfileForm({
                     <input
                       className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                       value={row.qualificationOther ?? ""}
+                      onBlur={() =>
+                        blurAcademicField(index, "qualificationOther", values)
+                      }
                       onChange={(e) =>
                         updateAcademic(index, {
                           qualificationOther: e.target.value,
@@ -470,8 +666,13 @@ export default function OnboardingProfileForm({
                   <input
                     className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                     value={row.institution}
+                    onBlur={() =>
+                      blurAcademicField(index, "institution", values)
+                    }
                     onChange={(e) =>
-                      updateAcademic(index, { institution: e.target.value })
+                      updateAcademic(index, {
+                        institution: sanitizeAlphaOnlyInput(e.target.value),
+                      })
                     }
                   />
                   <FieldError message={errors[`academic.${index}.institution`]} />
@@ -479,13 +680,16 @@ export default function OnboardingProfileForm({
 
                 {isSchool && (
                   <EmployeeFormField>
-                    <FieldLabel>Board / University</FieldLabel>
+                    <FieldLabel required>Board / University</FieldLabel>
                     <input
                       className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                       value={row.boardUniversity ?? ""}
+                      onBlur={() =>
+                        blurAcademicField(index, "boardUniversity", values)
+                      }
                       onChange={(e) =>
                         updateAcademic(index, {
-                          boardUniversity: e.target.value,
+                          boardUniversity: sanitizeAlphaOnlyInput(e.target.value),
                         })
                       }
                       placeholder="e.g. CBSE, ICSE, State Board"
@@ -502,6 +706,9 @@ export default function OnboardingProfileForm({
                     <input
                       className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                       value={row.fieldOfStudy ?? ""}
+                      onBlur={() =>
+                        blurAcademicField(index, "fieldOfStudy", values)
+                      }
                       onChange={(e) =>
                         updateAcademic(index, { fieldOfStudy: e.target.value })
                       }
@@ -514,10 +721,11 @@ export default function OnboardingProfileForm({
                 )}
 
                 <EmployeeFormField>
-                  <FieldLabel>Passing year</FieldLabel>
+                  <FieldLabel required>Passing year</FieldLabel>
                   <input
                     className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                     value={row.yearTo != null ? String(row.yearTo) : ""}
+                    onBlur={() => blurAcademicField(index, "yearTo", values)}
                     onChange={(e) => {
                       const digits = digitsOnly(e.target.value, 4);
                       updateAcademic(index, {
@@ -532,13 +740,16 @@ export default function OnboardingProfileForm({
                 </EmployeeFormField>
 
                 <EmployeeFormField>
-                  <FieldLabel>Grade / %</FieldLabel>
+                  <FieldLabel required>Grade / %</FieldLabel>
                   <input
                     className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
                     value={row.gradeOrPercentage ?? ""}
+                    onBlur={() =>
+                      blurAcademicField(index, "gradeOrPercentage", values)
+                    }
                     onChange={(e) =>
                       updateAcademic(index, {
-                        gradeOrPercentage: e.target.value,
+                        gradeOrPercentage: sanitizeGradeInput(e.target.value),
                       })
                     }
                     placeholder="e.g. 85% or First Division"
@@ -557,7 +768,7 @@ export default function OnboardingProfileForm({
             type="button"
             onClick={addAcademic}
             disabled={!canAddMore}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={onboardingBtnAccentOutlineClass}
           >
             <Plus size={16} />
             Add qualification

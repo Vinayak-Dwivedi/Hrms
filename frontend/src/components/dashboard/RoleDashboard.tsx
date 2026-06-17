@@ -33,8 +33,18 @@ import {
 } from "@/features/employees/api/hr-onboarding.client";
 import { EmployeeEmailSummary } from "@/features/employees/components/EmployeeEmailStatus";
 import {
-  employeeBtnSmClass,
-  employeeCardClass,
+  enterpriseAccentTextClass,
+  enterpriseAvatarClass,
+  enterpriseBtnGhostClass,
+  enterpriseCardClass,
+  enterpriseCardTitleClass,
+  enterpriseChipActiveClass,
+  enterpriseChipClass,
+  enterpriseIconTileClass,
+  enterpriseLinkClass,
+  enterpriseMutedPanelClass,
+} from "@/lib/branding";
+import {
   employeeErrorBannerClass,
 } from "@/features/employees/employee-theme";
 import {
@@ -66,16 +76,16 @@ import { formatDayCount } from "@/lib/format-day-count";
 
 const SHIFT_MINUTES = 540;
 
-const dashboardCardClass = `${employeeCardClass} p-5`;
+const dashboardCardClass = cn(enterpriseCardClass, "p-5");
 const gradientCardClass = cn(
-  employeeCardClass,
-  "p-5 flex flex-col h-full w-full min-w-0 bg-gradient-to-br from-white via-slate-50/90 to-pink-50/50",
+  enterpriseCardClass,
+  "p-5 flex flex-col h-full w-full min-w-0",
 );
-const topRowCardClass = cn(gradientCardClass, "min-h-[280px]");
+const topRowCardClass = gradientCardClass;
 const dashboardGridClass =
   "grid w-full min-w-0 gap-4 grid-cols-1 md:grid-cols-3 items-stretch";
-const linkAccentClass =
-  "text-xs font-medium no-underline text-[#ff014f] hover:text-[#eb0249] transition-colors";
+const linkAccentClass = enterpriseLinkClass;
+const cardTitleClass = enterpriseCardTitleClass;
 
 const CHART_COLORS = [
   { stroke: "#10b981", dot: "bg-emerald-500" },
@@ -127,10 +137,10 @@ function Avatar({
   return (
     <div
       className={cn(
-        "rounded-full overflow-hidden flex items-center justify-center font-bold text-white shrink-0 border-2 border-pink-100 shadow-sm",
+        "rounded-full overflow-hidden flex items-center justify-center font-semibold text-white shrink-0 shadow-sm",
         showImg
-          ? "bg-white"
-          : "bg-gradient-to-br from-[#ff014f] to-[#eb0249]",
+          ? "bg-white border-2 border-slate-100"
+          : enterpriseAvatarClass,
         AVATAR_SIZE_CLASS[size] ?? "w-16 h-16 text-xl tracking-wide",
       )}
     >
@@ -191,7 +201,7 @@ function Ring({
           cy={size / 2}
           r={r}
           fill="none"
-          className="stroke-[#ff014f]"
+          className="stroke-[lab(52%_28_-70)]"
           strokeWidth={stroke}
           strokeDasharray={`${dash} ${c}`}
           strokeLinecap="round"
@@ -541,15 +551,19 @@ function RoleBottomTable({
     <div className={cn(dashboardCardClass, "w-full min-w-0")}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-900 m-0">{title}</h3>
+          <h3 className={cardTitleClass}>{title}</h3>
           {pendingCount > 0 && (
             <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
               {pendingCount} pending
             </span>
           )}
         </div>
-        <a href={viewHref} className={linkAccentClass}>
+        <a
+          href={viewHref}
+          className={cn(linkAccentClass, "inline-flex items-center gap-0.5")}
+        >
           {viewLabel}
+          <ChevronRight size={12} className="shrink-0" aria-hidden />
         </a>
       </div>
 
@@ -698,7 +712,7 @@ function RoleBottomTable({
                 <td className="py-2.5 text-right">
                   <Link
                     href={`/employees/${emp.id}/onboarding`}
-                    className="text-[11px] font-semibold text-[#be185d] no-underline hover:underline"
+                    className={enterpriseLinkClass + " text-[11px] hover:underline"}
                   >
                     Review
                   </Link>
@@ -1041,19 +1055,16 @@ export default function RoleDashboard({ role }: { role: Role }) {
         {/* My Profile */}
         <div className={cn(gradientCardClass, "min-h-0")}>
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 m-0">
+            <h3 className={cardTitleClass}>
               My Profile
             </h3>
             <Link
               aria-label="My Profile"
-              className={cn(
-                employeeBtnSmClass,
-                "inline-flex items-center justify-center px-2.5 py-2",
-              )}
+              className={cn(enterpriseBtnGhostClass, "w-8 h-8")}
               href="/profile"
               title="My Profile"
             >
-              <UserRound size={16} />
+              <UserRound size={15} />
             </Link>
           </div>
 
@@ -1091,9 +1102,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-100">
+          <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
             <div
-              className="flex items-center gap-2 rounded-md bg-white/80 border border-gray-100 px-2.5 py-1.5 min-w-0"
+              className="flex items-center gap-2 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1.5 min-w-0"
               title={attendance?.punchIn ? "Punched in today" : "Not punched in"}
             >
               <Clock
@@ -1107,13 +1118,13 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 <p className="text-[9px] font-semibold tracking-wider text-gray-400 m-0 leading-none">
                   PUNCH IN
                 </p>
-                <p className="text-xs font-bold text-gray-900 m-0 mt-0.5 leading-none whitespace-nowrap">
+                <p className="text-xs font-semibold text-slate-900 m-0 mt-0.5 leading-none whitespace-nowrap">
                   {formatTimeLong(attendance?.punchIn)}
                 </p>
               </div>
             </div>
             <div
-              className="flex items-center gap-2 rounded-md bg-white/80 border border-gray-100 px-2.5 py-1.5 min-w-0"
+              className="flex items-center gap-2 rounded-md bg-slate-50 border border-slate-100 px-2.5 py-1.5 min-w-0"
               title={attendance?.punchOut ? "Punched out today" : "Not punched out"}
             >
               <Clock size={12} className="text-gray-400 shrink-0" />
@@ -1121,7 +1132,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 <p className="text-[9px] font-semibold tracking-wider text-gray-400 m-0 leading-none">
                   PUNCH OUT
                 </p>
-                <p className="text-xs font-bold text-gray-900 m-0 mt-0.5 leading-none whitespace-nowrap">
+                <p className="text-xs font-semibold text-slate-900 m-0 mt-0.5 leading-none whitespace-nowrap">
                   {attendance?.punchOut ?? "--:--"}
                 </p>
               </div>
@@ -1132,7 +1143,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         {/* Leave Balance */}
         <div className={topRowCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 m-0">
+            <h3 className={cardTitleClass}>
               Leave Balance
             </h3>
             <a href={leaveHref(role)} className={linkAccentClass}>
@@ -1175,12 +1186,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
           {/* Resolved Comp-Off policy strip — only shown when a policy is
               actually active. Driven by /api/me/leave-policy?leaveTypeCode=CO. */}
           {compOffPolicy && (
-            <div className="mt-3 px-3 py-2 rounded-xl bg-[#fff1f2] border border-[#fecdd3] flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#ff014f] to-[#eb0249] text-white flex items-center justify-center text-[10px] font-bold tracking-wider shrink-0">
+            <div className={cn("mt-3 px-3 py-2.5 flex items-center gap-2.5", enterpriseMutedPanelClass)}>
+              <div className={cn("w-7 h-7 rounded-md text-white flex items-center justify-center text-[10px] font-semibold tracking-wider shrink-0", enterpriseAvatarClass)}>
                 CO
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11.5px] font-semibold text-[#be185d] leading-tight truncate">
+                <p className={cn("text-[11.5px] font-semibold text-slate-800 leading-tight truncate")}>
                   {compOffPolicy.name}
                 </p>
                 <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
@@ -1198,7 +1209,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         {/* Upcoming Holidays */}
         <div className={topRowCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 m-0">
+            <h3 className={cardTitleClass}>
               Upcoming Holidays
             </h3>
             <a href="/holidays" className={linkAccentClass}>
@@ -1225,10 +1236,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
               return (
                 <div
                   key={h.id}
-                  className="flex items-center gap-3 p-2.5 rounded-lg bg-white/80 border border-gray-100"
+                  className="flex items-center gap-3 p-2.5 rounded-md bg-slate-50/80 border border-slate-100"
                 >
-                  <div className="flex flex-col items-center justify-center rounded-lg text-center shrink-0 w-11 h-11 bg-white border border-gray-200">
-                    <p className="text-[9px] font-bold text-[#ff014f]">
+                  <div className="flex flex-col items-center justify-center rounded-md text-center shrink-0 w-11 h-11 bg-white border border-slate-200">
+                    <p className="text-[9px] font-semibold text-slate-500 uppercase">
                       {month}
                     </p>
                     <p className="text-[15px] font-bold text-gray-900 leading-none">
@@ -1258,7 +1269,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         {/* Attendance Overview */}
         <div className={gradientCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 m-0">
+            <h3 className={cardTitleClass}>
               Attendance Overview
             </h3>
             <div className="relative" ref={winMenuRef}>
@@ -1267,7 +1278,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 onClick={() => setWinMenuOpen((o) => !o)}
                 aria-haspopup="menu"
                 aria-expanded={winMenuOpen}
-                className="text-[11px] font-semibold rounded px-2 py-1 flex items-center gap-1 bg-pink-50 text-[#ff014f] border border-pink-200 cursor-pointer"
+                className={enterpriseChipClass}
               >
                 {attWindow === "7d" ? "Week" : "30 days"}
                 <ChevronDown
@@ -1300,8 +1311,8 @@ export default function RoleDashboard({ role }: { role: Role }) {
                         className={cn(
                           "w-full text-left px-3 py-1.5 text-[12px] cursor-pointer",
                           active
-                            ? "bg-pink-50 text-[#ff014f] font-semibold"
-                            : "text-gray-700 hover:bg-gray-50",
+                            ? enterpriseChipActiveClass
+                            : "text-slate-600 hover:bg-slate-50",
                         )}
                       >
                         {opt.label}
@@ -1366,7 +1377,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 mb-3 w-full">
-            <div className="col-span-2 sm:col-span-3 xl:col-span-1 rounded-lg p-2.5 bg-white/80 border border-gray-100 min-w-0">
+            <div className="col-span-2 sm:col-span-3 xl:col-span-1 rounded-md p-2.5 bg-slate-50 border border-slate-100 min-w-0">
               <p className="text-[9px] font-bold tracking-wider text-gray-400 m-0">
                 TOTAL
               </p>
@@ -1377,7 +1388,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
             {attendanceStatCards.map((it) => (
               <div
                 key={it.label}
-                className="rounded-lg p-2.5 bg-white/80 border border-gray-100 min-w-0"
+                className="rounded-md p-2.5 bg-slate-50 border border-slate-100 min-w-0"
               >
                 <p className="text-[9px] font-bold tracking-wider text-gray-400 m-0 truncate">
                   {it.label}
@@ -1422,7 +1433,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
         {/* Leave Distribution */}
         <div className={gradientCardClass}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-900 m-0">
+            <h3 className={cardTitleClass}>
               Leave Distribution
             </h3>
             <button
@@ -1481,10 +1492,10 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
         {/* Quick Links — role-driven */}
         <div className={gradientCardClass}>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 m-0">
+          <h3 className={cn(cardTitleClass, "mb-3")}>
             Quick Links
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 flex-1 w-full content-stretch">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 flex-1 w-full content-stretch">
             {quickLinks.map(({ icon: Icon, label, href, external }) => (
               <a
                 key={label}
@@ -1492,12 +1503,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
                 {...(external
                   ? { target: "_blank", rel: "noopener noreferrer" }
                   : {})}
-                className="flex flex-col items-center justify-center text-center no-underline text-gray-900 rounded-lg border border-gray-100 bg-white/70 px-2 py-3 hover:bg-white transition-colors min-h-[96px]"
+                className="flex flex-col items-center justify-center text-center no-underline text-slate-800 rounded-md border border-slate-100 bg-slate-50/40 px-2 py-3 hover:bg-white hover:border-slate-200 transition-colors min-h-[88px]"
               >
-                <span className="flex items-center justify-center rounded-lg w-12 h-12 bg-pink-50 border border-pink-200">
-                  <Icon size={20} className="text-[#ff014f]" />
+                <span className={enterpriseIconTileClass}>
+                  <Icon size={18} className={enterpriseAccentTextClass} />
                 </span>
-                <p className="text-[11px] font-semibold mt-2 leading-tight text-gray-900 m-0">
+                <p className="text-[11px] font-medium mt-2 leading-tight text-slate-700 m-0">
                   {label}
                 </p>
               </a>

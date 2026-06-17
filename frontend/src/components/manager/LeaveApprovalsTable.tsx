@@ -3,9 +3,12 @@
 import { ArrowUpRight, Check, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  employeeCardClass,
-  employeeIconMd,
-} from "@/features/employees/employee-theme";
+  enterpriseCardClass,
+  enterpriseLeaveTypeBadgeClass,
+  enterprisePaginationActiveClass,
+  enterprisePaginationBtnClass,
+  enterprisePaginationInactiveClass,
+} from "@/lib/branding";
 import type { ApprovalLeaveRequest } from "@/lib/hrms-client";
 import { cn } from "@/lib/utils";
 import {
@@ -83,11 +86,11 @@ export default function LeaveApprovalsTable({
 
   return (
     <div
-      className={embedded ? "flex flex-col h-full overflow-hidden" : `${employeeCardClass} overflow-hidden`}
+      className={embedded ? "flex flex-col h-full overflow-hidden" : cn(enterpriseCardClass, "overflow-hidden")}
     >
       <div className={embedded ? "flex-1 min-h-0 overflow-auto" : "overflow-x-auto"}>
         <table className="w-full min-w-[1100px]">
-          <thead className="bg-gray-50 border-b border-gray-100">
+          <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-nowrap">
               {headers.map((h) => (
                 <th key={h} className={tableHeadCellClass}>
@@ -96,7 +99,7 @@ export default function LeaveApprovalsTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {pageRows.length === 0 ? (
               <tr>
                 <td
@@ -131,10 +134,7 @@ export default function LeaveApprovalsTable({
                   </td>
                   <td className={tableBodyCellClass}>{req.empId}</td>
                   <td className={tableBodyCellClass}>
-                    <span
-                      className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-pink-100 text-[#ff014f]"
-                      title={req.leaveTypeName}
-                    >
+                    <span className={enterpriseLeaveTypeBadgeClass} title={req.leaveTypeName}>
                       {req.leaveTypeCode}
                     </span>
                   </td>
@@ -176,7 +176,7 @@ export default function LeaveApprovalsTable({
                             title="Approve"
                             type="button"
                           >
-                            <Check className={employeeIconMd} />
+                            <Check className="w-5 h-5" />
                           </button>
                           <button
                             aria-label={`Reject leave for ${req.firstName} ${req.lastName}`}
@@ -186,7 +186,7 @@ export default function LeaveApprovalsTable({
                             title="Reject"
                             type="button"
                           >
-                            <XCircle className={employeeIconMd} />
+                            <XCircle className="w-5 h-5" />
                           </button>
                           <button
                             aria-label={`Forward leave for ${req.firstName} ${req.lastName}`}
@@ -196,7 +196,7 @@ export default function LeaveApprovalsTable({
                             title="Forward to HR"
                             type="button"
                           >
-                            <ArrowUpRight className={employeeIconMd} />
+                            <ArrowUpRight className="w-5 h-5" />
                           </button>
                         </div>
                       ) : (
@@ -212,7 +212,11 @@ export default function LeaveApprovalsTable({
       </div>
 
       {requests.length > 0 && (
+<<<<<<< HEAD
         <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
+=======
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-slate-200">
+>>>>>>> 320ce206918df62429b36265c0a0fa14823f536c
           <p className="text-sm text-gray-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
@@ -220,7 +224,7 @@ export default function LeaveApprovalsTable({
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={enterprisePaginationBtnClass}
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -233,10 +237,9 @@ export default function LeaveApprovalsTable({
                 <button
                   key={p}
                   className={cn(
-                    "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
-                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
+                      ? enterprisePaginationActiveClass
+                      : enterprisePaginationInactiveClass,
                   )}
                   onClick={() => setPage(p)}
                   type="button"
@@ -245,7 +248,7 @@ export default function LeaveApprovalsTable({
                 </button>
               ))}
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={enterprisePaginationBtnClass}
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

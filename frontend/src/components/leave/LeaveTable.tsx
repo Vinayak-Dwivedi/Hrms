@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { AlertCircle, XCircle } from "lucide-react";
 import {
-  employeeBtnOutlineSmClass,
-  employeeFilterLabelClass,
-  employeeIconMd,
-  employeeInputClass,
-  employeeSelectClass,
-} from "@/features/employees/employee-theme";
+  enterpriseBtnOutlineSmClass,
+  enterpriseFilterLabelClass,
+  enterpriseInputClass,
+  enterprisePaginationActiveClass,
+  enterprisePaginationBtnClass,
+  enterprisePaginationInactiveClass,
+  enterpriseSelectClass,
+} from "@/lib/branding";
 import type { LeaveRequest, LeaveStatus } from "@/lib/dashboard";
 import { formatDayCount } from "@/lib/format-day-count";
 import { cn } from "@/lib/utils";
@@ -33,7 +35,7 @@ const STATUS_CLASS: Record<LeaveStatus, string> = {
 };
 
 const cancelIconBtnClass =
-  "inline-flex items-center justify-center text-[#ff014f] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center text-[lab(52%_28_-70)] hover:text-[lab(36.9089%_35.0961_-85.6872)] bg-transparent border-0 cursor-pointer p-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -104,7 +106,7 @@ function ContestModal({ req, onClose }: ContestModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-md p-7"
+        className="bg-white rounded-md shadow-2xl w-full max-w-md p-6 border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-gray-800 m-0 mb-1.5">
@@ -117,9 +119,9 @@ function ContestModal({ req, onClose }: ContestModalProps) {
         </p>
 
         <label className="block mb-5">
-          <span className={employeeFilterLabelClass}>Reason for contesting</span>
+          <span className={enterpriseFilterLabelClass}>Reason for contesting</span>
           <textarea
-            className={`${employeeInputClass} resize-y`}
+            className={cn(enterpriseInputClass, "h-auto min-h-[80px] py-2 resize-y")}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Explain why this should be converted to Earned Leave..."
             rows={3}
@@ -129,7 +131,7 @@ function ContestModal({ req, onClose }: ContestModalProps) {
 
         <div className="flex justify-end gap-2">
           <button
-            className={employeeBtnOutlineSmClass}
+            className={enterpriseBtnOutlineSmClass}
             onClick={onClose}
             type="button"
           >
@@ -180,7 +182,7 @@ export default function LeaveTable({
         >
           <select
             aria-label="Filter by status"
-            className={cn(employeeSelectClass, "w-auto min-w-[130px]")}
+            className={cn(enterpriseSelectClass, "w-auto min-w-[130px]")}
             id="leave-status"
             onChange={(e) => {
               setStatusFilter(e.target.value as LeaveStatus | "All");
@@ -198,7 +200,7 @@ export default function LeaveTable({
           </select>
           <select
             aria-label="Page size"
-            className={cn(employeeSelectClass, "w-auto min-w-[100px]")}
+            className={cn(enterpriseSelectClass, "w-auto min-w-[100px]")}
             id="leave-page-size"
             onChange={(e) => {
               setPageSize(Number(e.target.value));
@@ -215,10 +217,10 @@ export default function LeaveTable({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto border border-gray-100 rounded-xl">
+      <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-md">
         <table className="w-full min-w-[900px] border-collapse">
-          <thead className="sticky top-0 bg-gray-50">
-            <tr className="border-b border-gray-200">
+          <thead className="sticky top-0 bg-slate-50">
+            <tr className="border-b border-slate-200">
               {[
                 "Applied On",
                 "Leave Type",
@@ -235,7 +237,7 @@ export default function LeaveTable({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-100">
             {pageRows.length === 0 ? (
               <tr>
                 <td
@@ -277,7 +279,7 @@ export default function LeaveTable({
                         title={busyId === req.id ? "Cancelling…" : "Cancel request"}
                         type="button"
                       >
-                        <XCircle className={employeeIconMd} />
+                        <XCircle className="w-5 h-5" />
                       </button>
                     )}
                     {req.status === "Approved" && (
@@ -326,7 +328,7 @@ export default function LeaveTable({
           </p>
           <div className="flex items-center gap-2">
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={enterprisePaginationBtnClass}
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               type="button"
@@ -339,10 +341,9 @@ export default function LeaveTable({
                 <button
                   key={p}
                   className={cn(
-                    "px-4 py-2 text-sm rounded-lg transition-colors border",
                     p === safePage
-                      ? "text-white bg-[#ff014f] border-[#ff014f] hover:bg-[#eb0249]"
-                      : "text-gray-600 bg-white border-gray-300 hover:bg-gray-50",
+                      ? enterprisePaginationActiveClass
+                      : enterprisePaginationInactiveClass,
                   )}
                   onClick={() => setPage(p)}
                   type="button"
@@ -351,7 +352,7 @@ export default function LeaveTable({
                 </button>
               ))}
             <button
-              className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={enterprisePaginationBtnClass}
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               type="button"

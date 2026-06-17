@@ -46,6 +46,8 @@ const STATUS_CLASS: Record<DocStatus, string> = {
 
 const FILE_ACCEPT =
   ".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
+const MAX_UPLOAD_MB = 3;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
 export default function OnboardingDocumentUpload({
   documents,
@@ -68,6 +70,12 @@ export default function OnboardingDocumentUpload({
   ) {
     if (!file) return;
     setError(null);
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(`File size must be ${MAX_UPLOAD_MB} MB or less.`);
+      const input = inputRefs.current[documentType];
+      if (input) input.value = "";
+      return;
+    }
     setUploading(documentType);
     try {
       if (onUpload) {
@@ -109,7 +117,7 @@ export default function OnboardingDocumentUpload({
   return (
     <div className="space-y-8">
       <p className="text-sm text-gray-600 m-0">
-        Upload PDF or image files (max 10 MB each). Images are compressed
+        Upload PDF or image files (max 3 MB each). Images are compressed
         automatically before upload.
       </p>
 
@@ -129,7 +137,7 @@ export default function OnboardingDocumentUpload({
             ) : null}
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {section.types.map((docType) => {
               const row = findDocument(docType);
               const status: DocStatus = row?.status ?? "Pending";

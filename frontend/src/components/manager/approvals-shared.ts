@@ -2,7 +2,7 @@
   "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-0 cursor-pointer";
 
 export const rejectBtnClass =
-  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[#ff014f] text-[#ff014f] bg-white hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
+  "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer";
 
 export const APPROVAL_STATUS_CLASS: Record<string, string> = {
   Pending: "bg-yellow-100 text-yellow-700",
@@ -73,7 +73,7 @@ export const approveIconBtnClass =
   "text-green-700 hover:text-green-800 bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 export const rejectIconBtnClass =
-  "text-[#ff014f] hover:text-[#eb0249] bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "text-[lab(52%_28_-70)] hover:text-[lab(36.9089%_35.0961_-85.6872)] bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 export const forwardIconBtnClass =
   "text-gray-600 hover:text-gray-800 bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";

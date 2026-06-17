@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  enterpriseBtnOutlineSmClass,
+  enterpriseFilterLabelClass,
+  enterpriseInputClass,
+} from "@/lib/branding";
+import { cn } from "@/lib/utils";
 
 export default function RejectApprovalModal({
   title,
@@ -23,17 +29,17 @@ export default function RejectApprovalModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-md p-7 shadow-2xl"
+        className="bg-white rounded-md w-full max-w-md p-6 shadow-2xl border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-bold text-gray-900 m-0 mb-1.5">{title}</h2>
         <p className="text-sm text-gray-500 mb-5 m-0">{subtitle}</p>
         <label className="block mb-5">
-          <span className="text-[13px] font-semibold text-gray-700 block mb-1.5">
+          <span className={enterpriseFilterLabelClass}>
             Reason for rejection
           </span>
           <textarea
-            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 resize-y outline-none focus:border-[#ff014f] focus:ring-1 focus:ring-[#ff014f]"
+            className={cn(enterpriseInputClass, "h-auto min-h-[80px] py-2 resize-y")}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Share context with the employee..."
             rows={3}
@@ -42,7 +48,7 @@ export default function RejectApprovalModal({
         </label>
         <div className="flex justify-end gap-2.5">
           <button
-            className="px-5 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
+            className={enterpriseBtnOutlineSmClass}
             onClick={onClose}
             type="button"
           >

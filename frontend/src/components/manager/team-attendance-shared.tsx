@@ -1,4 +1,4 @@
-import { employeeFilterLabelClass } from "@/features/employees/employee-theme";
+import { enterpriseFilterLabelClass } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 export type AttCellStatus = "P" | "A" | "L" | "HD" | "W" | "H" | "—";
@@ -8,7 +8,7 @@ export const AVATAR_CLASSES = [
   "bg-teal-700",
   "bg-indigo-700",
   "bg-sky-700",
-  "bg-pink-700",
+  "bg-slate-700",
   "bg-green-700",
   "bg-red-700",
   "bg-amber-700",
@@ -21,31 +21,31 @@ export const AVATAR_CLASSES = [
 export const ATTENDANCE_STATUS_CLASS: Record<AttCellStatus, string> = {
   P: "bg-green-100 text-green-700",
   A: "bg-red-100 text-red-700",
-  L: "bg-pink-100 text-[#ff014f]",
+  L: "bg-blue-100 text-[lab(52%_28_-70)]",
   HD: "bg-orange-100 text-orange-700",
-  W: "bg-gray-100 text-gray-500",
+  W: "bg-slate-100 text-slate-500",
   H: "bg-blue-100 text-blue-700",
-  "—": "bg-gray-50 text-gray-400",
+  "—": "bg-slate-50 text-slate-400",
 };
 
 export const DETAIL_STATUS_CLASS: Record<string, string> = {
   Present: "text-green-700",
   Holiday: "text-blue-700",
-  Weekend: "text-gray-500",
+  Weekend: "text-slate-500",
   Absent: "text-red-700",
-  Leave: "text-[#ff014f]",
+  Leave: "text-[lab(52%_28_-70)]",
   "Half Day": "text-orange-700",
-  "—": "text-gray-400",
+  "—": "text-slate-400",
 };
 
 export const tableHeadCellClass =
-  "px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider";
+  "px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider";
 
 export const tableHeadCellCenterClass =
-  "px-3 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider";
+  "px-3 py-4 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider";
 
 export const tableBodyRowClass =
-  "hover:bg-gray-50 transition-colors text-sm text-gray-700";
+  "hover:bg-slate-50 transition-colors text-sm text-slate-700";
 
 export const tableBodyCellClass = "px-6 py-4";
 
@@ -134,10 +134,10 @@ export interface TeamAttendanceGridMember {
 }
 
 const gridHeadBaseClass =
-  "flex items-center justify-center border-b border-r border-gray-100 bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider";
+  "flex items-center justify-center border-b border-r border-slate-100 bg-slate-50 text-xs font-semibold text-slate-600 uppercase tracking-wider";
 
 const gridCellBaseClass =
-  "flex items-center border-b border-r border-gray-100 min-h-[56px]";
+  "flex items-center border-b border-r border-slate-100 min-h-[56px]";
 
 const STATUS_LEGEND: Array<{ code: AttCellStatus; label: string }> = [
   { code: "P", label: "Present" },
@@ -185,11 +185,11 @@ export function TeamAttendanceGrid({
               className={cn(
                 gridHeadBaseClass,
                 "flex-col gap-0.5 py-2 px-1",
-                d === todayYmd && "text-[#ff014f]",
+                d === todayYmd && "text-[lab(52%_28_-70)] font-semibold",
               )}
             >
               <span>{dayOfMonth(d)}</span>
-              <span className="text-[10px] font-normal normal-case tracking-normal text-gray-400">
+              <span className="text-[10px] font-normal normal-case tracking-normal text-slate-400">
                 {weekdayShort(d)}
               </span>
             </div>
@@ -197,7 +197,7 @@ export function TeamAttendanceGrid({
 
           {team.length === 0 ? (
             <div
-              className="col-span-full px-6 py-10 text-center text-sm text-gray-400 border-b border-gray-100"
+              className="col-span-full px-6 py-10 text-center text-sm text-slate-400 border-b border-slate-100"
               style={{ gridColumn: "1 / -1" }}
             >
               No team members found.
@@ -208,7 +208,7 @@ export function TeamAttendanceGrid({
                 <div
                   className={cn(
                     gridCellBaseClass,
-                    "sticky left-0 z-10 bg-white px-6 py-3 group-hover:bg-gray-50 transition-colors",
+                    "sticky left-0 z-10 bg-white px-6 py-3 group-hover:bg-slate-50 transition-colors",
                   )}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -221,10 +221,10 @@ export function TeamAttendanceGrid({
                       {initials(m.firstName, m.lastName)}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 m-0 truncate">
+                      <p className="text-sm font-medium text-slate-900 m-0 truncate">
                         {m.firstName} {m.lastName}
                       </p>
-                      <p className="text-xs text-gray-400 m-0 truncate">
+                      <p className="text-xs text-slate-400 m-0 truncate">
                         {m.designation ?? "—"}
                       </p>
                     </div>
@@ -235,7 +235,7 @@ export function TeamAttendanceGrid({
                     key={d}
                     className={cn(
                       gridCellBaseClass,
-                      "justify-center px-1 py-3 group-hover:bg-gray-50 transition-colors",
+                      "justify-center px-1 py-3 group-hover:bg-slate-50 transition-colors",
                     )}
                   >
                     <AttendanceStatusBadge status={statusFor(m.id, d)} />
@@ -247,13 +247,13 @@ export function TeamAttendanceGrid({
         </div>
       </div>
 
-      <div className="px-6 py-4 border-t border-gray-100">
-        <p className={cn(employeeFilterLabelClass, "mb-3")}>Status legend</p>
+      <div className="px-6 py-4 border-t border-slate-100">
+        <p className={cn(enterpriseFilterLabelClass, "mb-3")}>Status legend</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {STATUS_LEGEND.map(({ code, label }) => (
             <div key={code} className="flex items-center gap-2">
               <AttendanceStatusBadge status={code} />
-              <span className="text-xs text-gray-500">{label}</span>
+              <span className="text-xs text-slate-500">{label}</span>
             </div>
           ))}
         </div>
