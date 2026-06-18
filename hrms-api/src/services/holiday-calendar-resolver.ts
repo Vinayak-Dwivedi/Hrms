@@ -3,8 +3,8 @@
 // match wins; ties broken by the user-supplied priority (higher first).
 //
 // Specificity order (highest first):
-//   Employee > Designation > Grade > Department > Branch > Location
-//   > EmploymentType > Company
+//   Employee > Designation > Grade > SubDepartment > Department > Branch
+//   > Location > EmploymentType > Company
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/runtime";
@@ -14,12 +14,14 @@ import {
   holidayCalendarScope,
   holidayTeamLinks,
   holidays,
+  orgHierarchyStructure,
 } from "@/db/schema/hrms";
 
 const SPECIFICITY_ORDER: Record<string, number> = {
-  Employee: 8,
-  Designation: 7,
-  Grade: 6,
+  Employee: 9,
+  Designation: 8,
+  Grade: 7,
+  SubDepartment: 6,
   Department: 5,
   Branch: 4,
   Location: 3,
@@ -31,9 +33,12 @@ export interface EmployeeDimensions {
   id: number;
   branchId: number | null;
   departmentId: number | null;
+  subDepartmentId: number | null;
   designationId: number | null;
   gradeId: number | null;
   employmentTypeId: number | null;
+  orgHierarchyDepartmentId: number | null;
+  orgHierarchySubDepartmentId: number | null;
   // Location is not directly attached to employees in the current schema.
   // Location-scoped rules will need a branches→locations join when we wire
   // the org-location relationship; for now they never match.
@@ -47,11 +52,18 @@ export async function loadEmployeeDimensions(
       id: employees.id,
       branchId: employees.branchId,
       departmentId: employees.departmentId,
+      subDepartmentId: employees.subDepartmentId,
       designationId: employees.designationId,
       gradeId: employees.gradeId,
       employmentTypeId: employees.employmentTypeId,
+      orgHierarchyDepartmentId: orgHierarchyStructure.departmentId,
+      orgHierarchySubDepartmentId: orgHierarchyStructure.subDepartmentId,
     })
     .from(employees)
+    .leftJoin(
+      orgHierarchyStructure,
+      eq(employees.orgHierarchyStructureId, orgHierarchyStructure.id),
+    )
     .where(eq(employees.id, employeeId))
     .limit(1);
   return row ?? null;
@@ -67,7 +79,9 @@ function dimensionFieldFor(
     case "Branch":
       return emp.branchId;
     case "Department":
-      return emp.departmentId;
+      return emp.orgHierarchyDepartmentId ?? emp.departmentId;
+    case "SubDepartment":
+      return emp.orgHierarchySubDepartmentId ?? emp.subDepartmentId;
     case "Designation":
       return emp.designationId;
     case "Grade":

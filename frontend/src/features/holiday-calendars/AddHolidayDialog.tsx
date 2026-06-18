@@ -12,6 +12,16 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { createGlobalHoliday } from "./api/holiday-calendars.client";
+import {
+  employeeBtnClass,
+  employeeErrorBannerClass,
+  employeeInputClass,
+  employeeModalTitleClass,
+  holidayDayBadgeClass,
+  holidayDayBadgeEmptyClass,
+  holidayLinkAccentClass,
+  holidayModalCancelClass,
+} from "./holiday-calendars-theme";
 
 interface Row {
   date: string;
@@ -123,7 +133,7 @@ export default function AddHolidayDialog({
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
           <div>
-            <h2 className="text-[18px] font-bold text-gray-900 leading-tight">
+            <h2 className={employeeModalTitleClass}>
               Add Holiday
             </h2>
             <p className="text-[12.5px] text-gray-500 mt-0.5">
@@ -154,14 +164,14 @@ export default function AddHolidayDialog({
                 type="date"
                 value={row.date}
                 onChange={(e) => updateRow(idx, { date: e.target.value })}
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className={employeeInputClass}
               />
               <span
                 className={[
                   "text-[12px] font-semibold text-center px-2 py-1.5 rounded",
                   row.date
-                    ? "bg-pink-50 text-[#be185d]"
-                    : "bg-gray-100 text-gray-400 italic",
+                    ? holidayDayBadgeClass
+                    : holidayDayBadgeEmptyClass,
                 ].join(" ")}
               >
                 {row.date ? dayOfWeek(row.date) : "Day"}
@@ -170,7 +180,7 @@ export default function AddHolidayDialog({
                 value={row.name}
                 onChange={(e) => updateRow(idx, { name: e.target.value })}
                 placeholder="Holiday name (e.g. Republic Day)"
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className={employeeInputClass}
               />
               <button
                 type="button"
@@ -190,13 +200,13 @@ export default function AddHolidayDialog({
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-center inline-flex items-center gap-1.5 mt-1 text-[13px] font-bold text-[#ff014f] hover:text-[#eb0249] disabled:opacity-50"
+            className={`self-center inline-flex items-center gap-1.5 mt-1 text-[13px] disabled:opacity-50 ${holidayLinkAccentClass}`}
           >
             <Plus size={14} /> Add Holiday
           </button>
 
           {error && (
-            <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            <div className={employeeErrorBannerClass}>
               {error}
             </div>
           )}
@@ -214,16 +224,15 @@ export default function AddHolidayDialog({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+              className={holidayModalCancelClass}
             >
               Cancel
             </button>
-            {/* Save button — bottom right */}
             <button
               type="button"
               onClick={save}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`${employeeBtnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save

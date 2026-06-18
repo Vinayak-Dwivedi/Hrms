@@ -11,12 +11,26 @@ import {
   Copy,
   Loader2,
   Pencil,
-  Plus,
+  PlusCircle,
   RotateCcw,
   Save,
   Trash2,
   X,
 } from "lucide-react";
+import {
+  employeeBtnClass,
+  employeeBtnOutlineSmClass,
+  employeeBtnSmClass,
+  employeeCardClass,
+  employeeEditIconBtnClass,
+  employeeErrorBannerClass,
+  employeeFilterLabelClass,
+  employeeIconPen,
+  employeeIconXs,
+  employeeInputClass,
+  employeeListResetBtnClass,
+  employeeSelectClass,
+} from "@/features/employees/employee-theme";
 import {
   archiveLeavePlan,
   createLeavePlan,
@@ -28,7 +42,6 @@ import {
   type LeavePlanStatus,
   type LeavePlanSummary,
   type PlanScopeRow,
-  type PlanScopeType,
 } from "./api/leave-plans.client";
 import { listLeaveTypes, type LeaveType } from "./api/leave-types.client";
 import {
@@ -39,22 +52,15 @@ import {
   listWeeklyOff,
   type WeeklyOffSummary,
 } from "@/features/weekly-off/api/weekly-off.client";
-import ScopeRowsEditor, {
-  type ScopeRowValue,
-} from "@/components/scope/ScopeRowsEditor";
-import type { ScopeType } from "@/components/scope/scope-lookups";
+import LeavePlanHierarchyScopeEditor from "./LeavePlanHierarchyScopeEditor";
+import {
+  hydrateCascadeFromRows,
+  isCascadeScopeValid,
+} from "./lib/leave-plan-scope";
 
 const STATUSES: LeavePlanStatus[] = ["Draft", "Active", "Archived"];
-const SCOPE_TYPES: ScopeType[] = [
-  "Company",
-  "Branch",
-  "Location",
-  "Department",
-  "SubDepartment",
-  "Designation",
-  "Grade",
-  "EmploymentType",
-  "Employee",
+const DEFAULT_SCOPE: PlanScopeRow[] = [
+  { scopeType: "Company", scopeId: null, priority: 100 },
 ];
 
 type Target = LeavePlanSummary | "new" | null;
@@ -108,7 +114,7 @@ export default function LeavePoliciesSection() {
         compOffEnabled: full.compOffEnabled,
         accrualMethod: full.accrualMethod,
         carryForwardCap: full.carryForwardCap,
-        proRataJoiners: full.proRataJoiners,
+        proRataJoiners: false,
         approvalWorkflowId: full.approvalWorkflowId,
         allocations: full.allocations.map((a) => ({
           leaveTypeId: a.leaveTypeId,
@@ -129,7 +135,7 @@ export default function LeavePoliciesSection() {
   return (
     <div className="flex flex-col gap-5 pb-10">
       {/* Header card */}
-      <section className="bg-white border border-gray-200 rounded-2xl px-6 py-5 flex items-center justify-between gap-4">
+      <section className={`${employeeCardClass} px-6 py-5 flex items-center justify-between gap-4`}>
         <div>
           <h3 className="text-[15px] font-bold text-gray-900 leading-tight">
             Leave Policies
@@ -144,7 +150,7 @@ export default function LeavePoliciesSection() {
             type="button"
             onClick={refresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={employeeListResetBtnClass}
           >
             <RotateCcw size={12} className={loading ? "animate-spin" : ""} />
             Refresh
@@ -152,21 +158,21 @@ export default function LeavePoliciesSection() {
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
+            className={employeeBtnSmClass}
           >
-            <Plus size={13} /> Create Policy
+            <PlusCircle className={employeeIconXs} /> Create Policy
           </button>
         </div>
       </section>
 
       {error && (
-        <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        <div className={employeeErrorBannerClass}>
           {error}
         </div>
       )}
 
       {/* Table */}
-      <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <section className={`${employeeCardClass} overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead className="bg-gray-50 text-gray-500">
@@ -203,14 +209,7 @@ export default function LeavePoliciesSection() {
                 return (
                   <tr key={p.id} className="border-t border-gray-100 hover:bg-gray-50/50">
                     <Td>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">{p.name}</span>
-                        {p.isDefault && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
-                            Default
-                          </span>
-                        )}
-                      </div>
+                      <span className="font-semibold text-gray-900">{p.name}</span>
                     </Td>
                     <Td className="text-gray-700">
                       {quotaSummary || (
@@ -248,9 +247,9 @@ export default function LeavePoliciesSection() {
                           type="button"
                           onClick={() => setEditing(p)}
                           title="Configure"
-                          className="text-[#ff014f] hover:text-[#eb0249]"
+                          className={employeeEditIconBtnClass}
                         >
-                          <Pencil size={14} />
+                          <Pencil className={employeeIconPen} />
                         </button>
                       </div>
                     </Td>
@@ -303,20 +302,24 @@ function PlanEditor({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<LeavePlanStatus>("Draft");
-  const [isDefault, setIsDefault] = useState(false);
   const [weeklyOffConfigId, setWeeklyOffConfigId] = useState<number | null>(null);
   const [compOffEnabled, setCompOffEnabled] = useState(false);
   const [accrualMethod, setAccrualMethod] = useState<AccrualMethod>("Annual");
   const [carryForwardCap, setCarryForwardCap] = useState<number | null>(null);
-  const [proRataJoiners, setProRataJoiners] = useState(false);
   const [approvalWorkflowId, setApprovalWorkflowId] = useState<number | null>(null);
   const [quotas, setQuotas] = useState<Record<number, number>>({});
-  const [scope, setScope] = useState<PlanScopeRow[]>([]);
+  const [scope, setScope] = useState<PlanScopeRow[]>(DEFAULT_SCOPE);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [seededMsg, setSeededMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (target === "new") {
+      setScope(DEFAULT_SCOPE);
+    }
+  }, [target]);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,12 +332,10 @@ function PlanEditor({
         setName(full.name);
         setDescription(full.description ?? "");
         setStatus(full.status);
-        setIsDefault(full.isDefault);
         setWeeklyOffConfigId(full.weeklyOffConfigId);
         setCompOffEnabled(full.compOffEnabled);
         setAccrualMethod(full.accrualMethod);
         setCarryForwardCap(full.carryForwardCap);
-        setProRataJoiners(full.proRataJoiners);
         setApprovalWorkflowId(full.approvalWorkflowId);
         setQuotas(
           Object.fromEntries(
@@ -361,7 +362,15 @@ function PlanEditor({
   // callbacks below don't trip over `target`'s union type.
   const editId = target !== "new" ? target.id : null;
 
+  const scopeValid = isCascadeScopeValid(hydrateCascadeFromRows(scope));
+
   async function save() {
+    if (!scopeValid) {
+      setError(
+        "Applies to: select a location or choose Entire organization.",
+      );
+      return;
+    }
     setSaving(true);
     setError(null);
     setSeededMsg(null);
@@ -370,12 +379,12 @@ function PlanEditor({
         name,
         description: description.trim() ? description.trim() : null,
         status,
-        isDefault,
+        isDefault: false,
         weeklyOffConfigId,
         compOffEnabled,
         accrualMethod,
         carryForwardCap,
-        proRataJoiners,
+        proRataJoiners: false,
         approvalWorkflowId,
         allocations: leaveTypes.map((t) => ({
           leaveTypeId: t.id,
@@ -459,7 +468,7 @@ function PlanEditor({
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as LeavePlanStatus)}
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeSelectClass}
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -476,44 +485,47 @@ function PlanEditor({
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Short description…"
             rows={2}
-            className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
+            className={`${employeeInputClass} resize-none`}
           />
         </Field>
 
         {/* Annual quota per leave type */}
         <Field label="Annual Quota (days per leave type)">
-          <div className="flex flex-col gap-1.5 rounded-xl border border-gray-100 bg-gray-50/60 p-2">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
             {leaveTypes.length === 0 && (
               <p className="text-[12px] text-gray-400 px-1 py-2">
                 No active leave types. Add some in “Leave Types” first.
               </p>
             )}
-            {leaveTypes.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center gap-3 bg-white border border-gray-100 rounded-lg px-3 py-1.5"
-              >
-                <span className="shrink-0 w-8 h-6 rounded flex items-center justify-center bg-[#be185d] text-white font-bold text-[10px]">
-                  {t.code.slice(0, 2)}
-                </span>
-                <span className="flex-1 text-[12.5px] text-gray-800">
-                  {t.name}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={quotas[t.id] ?? 0}
-                  onChange={(e) =>
-                    setQuotas((q) => ({
-                      ...q,
-                      [t.id]: Math.max(0, Number(e.target.value) || 0),
-                    }))
-                  }
-                  className="w-20 px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-[13px] text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-                />
-                <span className="text-[11px] text-gray-400 w-7">days</span>
-              </div>
-            ))}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {leaveTypes.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex flex-col gap-1.5 bg-white border border-gray-100 rounded-lg px-3 py-2.5"
+                >
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                    {t.code}
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={(quotas[t.id] ?? 0).toLocaleString("en-US")}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/,/g, "").trim();
+                        const parsed = raw === "" ? 0 : Number(raw);
+                        setQuotas((q) => ({
+                          ...q,
+                          [t.id]: Math.max(0, Number.isFinite(parsed) ? parsed : 0),
+                        }));
+                      }}
+                      className={`${employeeInputClass} w-full text-right tabular-nums`}
+                    />
+                    <span className="text-[11px] text-gray-400 shrink-0">days</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </Field>
 
@@ -527,7 +539,7 @@ function PlanEditor({
                   e.target.value === "" ? null : Number(e.target.value),
                 )
               }
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeSelectClass}
             >
               <option value="">None</option>
               {weeklyOffs.map((w) => (
@@ -543,7 +555,7 @@ function PlanEditor({
                 type="checkbox"
                 checked={compOffEnabled}
                 onChange={(e) => setCompOffEnabled(e.target.checked)}
-                className="h-4 w-4 accent-[#ff014f]"
+                className="h-4 w-4 accent-[lab(36.9089%_35.0961_-85.6872)]"
               />
               Enabled
             </label>
@@ -559,7 +571,7 @@ function PlanEditor({
                 e.target.value === "" ? null : Number(e.target.value),
               )
             }
-            className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeInputClass}
           >
             <option value="">Default (Manager only)</option>
             {workflows.map((w) => (
@@ -576,7 +588,7 @@ function PlanEditor({
             <select
               value={accrualMethod}
               onChange={(e) => setAccrualMethod(e.target.value as AccrualMethod)}
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeSelectClass}
             >
               <option value="Annual">Annual (full up front)</option>
               <option value="Monthly">Monthly (accrue to date)</option>
@@ -593,52 +605,18 @@ function PlanEditor({
                   e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0),
                 )
               }
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeSelectClass}
             />
           </Field>
         </div>
 
-        <label className="inline-flex items-center gap-2 text-[12.5px] text-gray-700">
-          <input
-            type="checkbox"
-            checked={proRataJoiners}
-            onChange={(e) => setProRataJoiners(e.target.checked)}
-            className="h-4 w-4 accent-[#ff014f]"
-          />
-          Pro-rata first-year quota for mid-year joiners
-        </label>
-
-        <label className="inline-flex items-center gap-2 text-[12.5px] text-gray-700">
-          <input
-            type="checkbox"
-            checked={isDefault}
-            onChange={(e) => setIsDefault(e.target.checked)}
-            className="h-4 w-4 accent-[#ff014f]"
-          />
-          Default policy (applies when no scope matches)
-        </label>
-
         {/* Scope */}
         <div className="border-t border-gray-100 pt-3">
-          <ScopeRowsEditor
-            rows={scope as ScopeRowValue[]}
-            availableTypes={SCOPE_TYPES}
-            onChange={(rows) =>
-              setScope(
-                rows.map((r) => ({
-                  scopeType: r.scopeType as PlanScopeType,
-                  scopeId: r.scopeId,
-                  priority: r.priority,
-                })),
-              )
-            }
-            title={`Applies to (${scope.length})`}
-            emptyHint="No scope — Active plans only seed balances for matched employees."
-          />
+          <LeavePlanHierarchyScopeEditor scope={scope} onChange={setScope} />
         </div>
 
         {error && (
-          <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          <div className={employeeErrorBannerClass}>
             {error}
           </div>
         )}
@@ -667,15 +645,15 @@ function PlanEditor({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2.5 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={employeeBtnOutlineSmClass}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={save}
-            disabled={saving || loading || !name.trim()}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={saving || loading || !name.trim() || !scopeValid}
+            className={employeeBtnClass}
           >
             {saving ? (
               <Loader2 size={14} className="animate-spin" />
@@ -724,7 +702,7 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[12px] font-semibold text-gray-700">{label}</label>
+      <label className={employeeFilterLabelClass}>{label}</label>
       {children}
     </div>
   );
@@ -734,11 +712,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={[
-        "px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800",
-        "focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] transition-shadow",
-        props.className ?? "",
-      ].join(" ")}
+      className={[employeeInputClass, props.className ?? ""].join(" ")}
     />
   );
 }

@@ -9,12 +9,26 @@ import { createPortal } from "react-dom";
 import {
   Loader2,
   Pencil,
-  Plus,
+  PlusCircle,
   RotateCcw,
   Save,
   Trash2,
   X,
 } from "lucide-react";
+import {
+  employeeBtnClass,
+  employeeBtnOutlineSmClass,
+  employeeBtnSmClass,
+  employeeCardClass,
+  employeeEditIconBtnClass,
+  employeeErrorBannerClass,
+  employeeFilterLabelClass,
+  employeeIconPen,
+  employeeIconXs,
+  employeeInputClass,
+  employeeListResetBtnClass,
+  employeeSelectClass,
+} from "@/features/employees/employee-theme";
 import {
   createLeaveType,
   deactivateLeaveType,
@@ -80,7 +94,7 @@ export default function MasterLeaveTypesSection() {
   return (
     <div className="flex flex-col gap-5 pb-10">
       {/* Header card */}
-      <section className="bg-white border border-gray-200 rounded-2xl px-6 py-5 flex items-center justify-between gap-4">
+      <section className={`${employeeCardClass} px-6 py-5 flex items-center justify-between gap-4`}>
         <div>
           <h3 className="text-[15px] font-bold text-gray-900 leading-tight">
             Master Leave Catalog
@@ -94,7 +108,7 @@ export default function MasterLeaveTypesSection() {
             type="button"
             onClick={refresh}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={employeeListResetBtnClass}
           >
             <RotateCcw size={12} className={loading ? "animate-spin" : ""} />
             Refresh
@@ -102,21 +116,21 @@ export default function MasterLeaveTypesSection() {
           <button
             type="button"
             onClick={() => setDialog("new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
+            className={employeeBtnSmClass}
           >
-            <Plus size={13} /> Create Leave Type
+            <PlusCircle className={employeeIconXs} /> Create Leave Type
           </button>
         </div>
       </section>
 
       {error && (
-        <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        <div className={employeeErrorBannerClass}>
           {error}
         </div>
       )}
 
       {/* Table */}
-      <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <section className={`${employeeCardClass} overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead className="bg-gray-50 text-gray-500">
@@ -148,7 +162,7 @@ export default function MasterLeaveTypesSection() {
               {items.map((it) => (
                 <tr key={it.id} className="border-t border-gray-100 hover:bg-gray-50/50">
                   <Td>
-                    <span className="inline-flex items-center justify-center w-9 h-7 rounded-md bg-[#be185d] text-white font-bold text-[11px] tracking-wide">
+                    <span className="inline-flex items-center justify-center w-9 h-7 rounded-md bg-[lab(36.9089%_35.0961_-85.6872)] text-white font-bold text-[11px] tracking-wide">
                       {it.code.slice(0, 2).toUpperCase()}
                     </span>
                   </Td>
@@ -171,7 +185,6 @@ export default function MasterLeaveTypesSection() {
                       {it.allowHalfDay && <Badge tone="info">Half-day</Badge>}
                       {it.carryForwardAllowed && <Badge tone="info">Carry-fwd</Badge>}
                       {it.encashmentAllowed && <Badge tone="info">Encash</Badge>}
-                      {it.attachmentRequired && <Badge tone="warn">Proof req</Badge>}
                       {!it.allowedInProbation && <Badge tone="warn">No probation</Badge>}
                     </div>
                   </Td>
@@ -189,9 +202,9 @@ export default function MasterLeaveTypesSection() {
                         type="button"
                         onClick={() => setDialog(it)}
                         title="Configure"
-                        className="text-[#ff014f] hover:text-[#eb0249]"
+                        className={employeeEditIconBtnClass}
                       >
-                        <Pencil size={14} />
+                        <Pencil className={employeeIconPen} />
                       </button>
                       {it.isActive && (
                         <button
@@ -254,12 +267,9 @@ function LeaveTypeDialog({
           allowNegativeBalance: target.allowNegativeBalance,
           genderRestriction: target.genderRestriction,
           minNoticeDays: target.minNoticeDays,
-          requiresProofAfterDays: target.requiresProofAfterDays,
-          maxContinuousDays: target.maxContinuousDays,
           hourlyLeaveAllowed: target.hourlyLeaveAllowed,
           carryForwardAllowed: target.carryForwardAllowed,
           encashmentAllowed: target.encashmentAllowed,
-          attachmentRequired: target.attachmentRequired,
           allowedInProbation: target.allowedInProbation,
         }
       : BLANK_FORM,
@@ -272,11 +282,12 @@ function LeaveTypeDialog({
   async function save() {
     setSaving(true);
     setError(null);
+    const payload: LeaveTypeUpsert = { ...form, attachmentRequired: false };
     try {
       if (editing) {
-        await updateLeaveType(target.id, form);
+        await updateLeaveType(target.id, payload);
       } else {
-        await createLeaveType(form);
+        await createLeaveType(payload);
       }
       onSaved();
     } catch (e) {
@@ -337,7 +348,7 @@ function LeaveTypeDialog({
               onChange={(e) => setForm({ ...form, description: e.target.value || null })}
               placeholder="Short description explaining eligibility and conditions…"
               rows={2}
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
+              className="px-3 py-2 rounded-sm border border-slate-200 bg-white text-[12.5px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:border-transparent resize-none"
             />
           </Field>
 
@@ -349,7 +360,6 @@ function LeaveTypeDialog({
             <FlagToggle label="Hourly Leave" sub="Apply in hour increments" checked={form.hourlyLeaveAllowed} onChange={(v) => setForm({ ...form, hourlyLeaveAllowed: v })} />
             <FlagToggle label="Carry Forward" sub="Roll over unused balance" checked={form.carryForwardAllowed} onChange={(v) => setForm({ ...form, carryForwardAllowed: v })} />
             <FlagToggle label="Encashment" sub="Convert balance to salary" checked={form.encashmentAllowed} onChange={(v) => setForm({ ...form, encashmentAllowed: v })} />
-            <FlagToggle label="Attachment Required" sub="Mandate proof on apply" checked={form.attachmentRequired} onChange={(v) => setForm({ ...form, attachmentRequired: v })} />
             <FlagToggle label="Allowed in Probation" sub="Available before confirmation" checked={form.allowedInProbation} onChange={(v) => setForm({ ...form, allowedInProbation: v })} />
           </div>
 
@@ -367,7 +377,7 @@ function LeaveTypeDialog({
                       genderRestriction: (e.target.value as "Male" | "Female" | "") || null,
                     })
                   }
-                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                  className={employeeSelectClass}
                 >
                   <option value="">None (All Employees)</option>
                   <option value="Male">Male only</option>
@@ -382,39 +392,11 @@ function LeaveTypeDialog({
                   onChange={(e) => setForm({ ...form, minNoticeDays: Number(e.target.value) || 0 })}
                 />
               </Field>
-              <Field label="Proof Needed If > (Days)">
-                <Input
-                  type="number"
-                  value={form.requiresProofAfterDays ?? ""}
-                  min={0}
-                  placeholder="Never"
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      requiresProofAfterDays: e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                />
-              </Field>
-              <Field label="Max Continuous Days">
-                <Input
-                  type="number"
-                  value={form.maxContinuousDays ?? ""}
-                  min={1}
-                  placeholder="Unlimited"
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      maxContinuousDays: e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                />
-              </Field>
             </div>
           </div>
 
           {error && (
-            <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            <div className={employeeErrorBannerClass}>
               {error}
             </div>
           )}
@@ -426,7 +408,7 @@ function LeaveTypeDialog({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={employeeBtnOutlineSmClass}
           >
             Cancel
           </button>
@@ -434,7 +416,7 @@ function LeaveTypeDialog({
             type="button"
             onClick={save}
             disabled={saving || !form.name.trim() || !form.code.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className={employeeBtnClass}
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {editing ? "Save Changes" : "Create Leave Type"}
@@ -466,7 +448,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={[
         "relative shrink-0 rounded-full transition-colors duration-200 w-9 h-5",
-        checked ? "bg-[#ff014f]" : "bg-gray-300",
+        checked ? "bg-[lab(36.9089%_35.0961_-85.6872)]" : "bg-gray-300",
       ].join(" ")}
       aria-pressed={checked}
     >
@@ -509,7 +491,7 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[12px] font-semibold text-gray-700">{label}</label>
+      <label className={employeeFilterLabelClass}>{label}</label>
       {children}
     </div>
   );
@@ -519,11 +501,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={[
-        "px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800",
-        "focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] transition-shadow",
-        props.className ?? "",
-      ].join(" ")}
+      className={[employeeInputClass, props.className ?? ""].join(" ")}
     />
   );
 }

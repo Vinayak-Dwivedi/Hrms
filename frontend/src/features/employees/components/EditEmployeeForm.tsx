@@ -360,6 +360,26 @@ function EditEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
 
+          <EmployeeFormField>
+            <form.Field name="locationId" validators={fieldValidators.locationId}>
+              {(field) => (
+                <SelectField
+                  {...employeeFieldControl}
+                  emptyOptionLabel="None"
+                  field={field}
+                  label="Location"
+                  options={toSelectOptions(branches)}
+                  placeholder="Select location"
+                  onValueChange={() => {
+                    form.setFieldValue("orgHierarchyDepartmentId", "");
+                    form.setFieldValue("orgHierarchySubDepartmentId", "");
+                    form.setFieldValue("orgHierarchyDesignationId", "");
+                  }}
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
           <OrgHierarchyRoleFields
             controlClassName={employeeFormNativeSelectClass}
             departments={departments}
@@ -369,6 +389,7 @@ function EditEmployeeFormContent({
             levels={levels}
             structures={structures}
             subDepartments={subDepartments}
+            requireLocation
           />
 
           <EmployeeFormField>
@@ -384,21 +405,6 @@ function EditEmployeeFormContent({
                   label="Reporting manager"
                   options={toManagerSelectOptions(managers)}
                   placeholder="Select manager"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="branchId" validators={fieldValidators.branchId}>
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Branch"
-                  options={toSelectOptions(branches)}
-                  placeholder="Select branch"
                 />
               )}
             </form.Field>

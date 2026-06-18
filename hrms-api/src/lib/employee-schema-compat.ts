@@ -521,6 +521,8 @@ export function employeeListSelect(support: ColumnSupport) {
 
     branchId: employees.branchId,
 
+    locationId: employees.locationId,
+
     reportingManagerId: employees.reportingManagerId,
 
     orgHierarchyStructureId: employees.orgHierarchyStructureId,

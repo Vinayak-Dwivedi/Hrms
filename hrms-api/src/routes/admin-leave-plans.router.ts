@@ -13,7 +13,6 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import {
-  employees,
   leaveBalances,
   leavePlanAllocations,
   leavePlans,
@@ -22,19 +21,18 @@ import {
   weeklyOffConfigs,
 } from "@/db/schema/hrms";
 import { ApiError } from "@/middleware/error";
+import {
+  employeeMatchesHierarchyScope,
+  loadAllEmployeeScopeDimensions,
+} from "@/services/employee-scope-dimensions";
 
 export const adminLeavePlansRouter: Router = Router();
 
-const SCOPE_TYPES = [
+const HIERARCHY_SCOPE_TYPES = [
   "Company",
   "Branch",
-  "Location",
   "Department",
   "SubDepartment",
-  "Designation",
-  "Grade",
-  "EmploymentType",
-  "Employee",
 ] as const;
 
 const allocationSchema = z.object({
@@ -43,7 +41,7 @@ const allocationSchema = z.object({
 });
 
 const scopeRowSchema = z.object({
-  scopeType: z.enum(SCOPE_TYPES),
+  scopeType: z.enum(HIERARCHY_SCOPE_TYPES),
   scopeId: z.number().int().positive().nullable().optional(),
   priority: z.number().int().min(0).default(100),
 });
@@ -145,64 +143,20 @@ interface MatchedEmployee {
 }
 
 // Match the plan's scope rows against every employee. Company scope is a
-// wildcard (everyone). Returns id + joiningDate (needed for pro-rata).
+// wildcard (everyone). Branch / Department / SubDepartment use AND semantics
+// across dimension groups (see employeeMatchesHierarchyScope).
 async function matchedEmployees(
   scope: { scopeType: string; scopeId: number | null }[],
 ): Promise<MatchedEmployee[]> {
   if (scope.length === 0) return [];
-  const emps = await db
-    .select({
-      id: employees.id,
-      joiningDate: employees.joiningDate,
-      branchId: employees.branchId,
-      departmentId: employees.departmentId,
-      subDepartmentId: employees.subDepartmentId,
-      designationId: employees.designationId,
-      gradeId: employees.gradeId,
-      employmentTypeId: employees.employmentTypeId,
-    })
-    .from(employees);
-
-  const facetOf = (
-    scopeType: string,
-    e: (typeof emps)[number],
-  ): number | null => {
-    switch (scopeType) {
-      case "Branch":
-        return e.branchId;
-      case "Department":
-        return e.departmentId;
-      case "SubDepartment":
-        return e.subDepartmentId;
-      case "Designation":
-        return e.designationId;
-      case "Grade":
-        return e.gradeId;
-      case "EmploymentType":
-        return e.employmentTypeId;
-      case "Employee":
-        return e.id;
-      default:
-        return null; // Company / Location handled separately
-    }
-  };
-
-  const hasCompany = scope.some((s) => s.scopeType === "Company");
-  const out = new Map<number, MatchedEmployee>();
+  const emps = await loadAllEmployeeScopeDimensions();
+  const out: MatchedEmployee[] = [];
   for (const e of emps) {
-    if (hasCompany) {
-      out.set(e.id, { id: e.id, joiningDate: e.joiningDate });
-      continue;
-    }
-    for (const s of scope) {
-      const facet = facetOf(s.scopeType, e);
-      if (facet !== null && facet === s.scopeId) {
-        out.set(e.id, { id: e.id, joiningDate: e.joiningDate });
-        break;
-      }
+    if (employeeMatchesHierarchyScope(e, scope)) {
+      out.push({ id: e.id, joiningDate: e.joiningDate });
     }
   }
-  return [...out.values()];
+  return out;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

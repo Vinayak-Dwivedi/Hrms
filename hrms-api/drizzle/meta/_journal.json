@@ -309,6 +309,34 @@
       "when": 1781751600000,
       "tag": "20260617130000_resignation_buyout",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1781755200000,
+      "tag": "20260618120000_org_hierarchy_sub_dept_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1781758800000,
+      "tag": "20260618130000_org_hierarchy_department_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1781762400000,
+      "tag": "20260618140000_org_hierarchy_designation_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781766000000,
+      "tag": "20260618150000_approval_workflow_scope",
+      "breakpoints": true
     }
   ]
 }

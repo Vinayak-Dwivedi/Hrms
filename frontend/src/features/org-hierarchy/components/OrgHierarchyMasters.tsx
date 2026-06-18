@@ -3,7 +3,9 @@
 import { Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import BranchMultiSelect from "@/components/branch-multi-select/BranchMultiSelect";
 import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
+import { fetchBranches } from "@/features/employees/api/employees.client";
 import { MasterTabBar, type MasterTabId } from "@/features/org-hierarchy/components/HierarchyTabBar";
 import {
   createOrgDepartment,
@@ -42,6 +44,11 @@ import {
   type SubDepartmentFormValues,
 } from "@/features/org-hierarchy/schemas/org-hierarchy.schema";
 import {
+  filterDepartmentsByLocation,
+  filterDepartmentsByLocations,
+  orgRecordMatchesLocation,
+} from "@/features/org-hierarchy/lib/org-hierarchy-location";
+import {
   employeeBtnClass,
   employeeBtnOutlineSmClass,
   employeeBtnSmClass,
@@ -75,6 +82,13 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   const [subDepartments, setSubDepartments] = useState<OrgSubDepartment[]>([]);
   const [levels, setLevels] = useState<OrgLevel[]>([]);
   const [designations, setDesignations] = useState<OrgDesignation[]>([]);
+  const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
+
+  const branchNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const b of branches) map.set(b.id, b.name);
+    return map;
+  }, [branches]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -85,19 +99,59 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   const [subForm, setSubForm] = useState<SubDepartmentFormValues>(emptySubDepartmentForm);
   const [levelForm, setLevelForm] = useState<LevelFormValues>(emptyLevelForm);
   const [desigForm, setDesigForm] = useState<DesignationFormValues>(emptyDesignationForm);
+  const [subDeptFilterLocationId, setSubDeptFilterLocationId] = useState("");
+  const [subDeptFilterDepartmentId, setSubDeptFilterDepartmentId] = useState("");
+
+  const parsedSubDeptFilterLocationId = useMemo(() => {
+    if (!subDeptFilterLocationId.trim()) return null;
+    const id = Number(subDeptFilterLocationId);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }, [subDeptFilterLocationId]);
+
+  const departmentsForSubDeptForm = useMemo(
+    () => filterDepartmentsByLocations(departments, subForm.branchIds),
+    [departments, subForm.branchIds],
+  );
+
+  const filteredSubDepartments = useMemo(() => {
+    let rows = subDepartments;
+    if (parsedSubDeptFilterLocationId != null) {
+      rows = rows.filter((row) =>
+        orgRecordMatchesLocation(row.branchIds, parsedSubDeptFilterLocationId),
+      );
+    }
+    if (subDeptFilterDepartmentId) {
+      rows = rows.filter(
+        (row) => row.departmentId === Number(subDeptFilterDepartmentId),
+      );
+    }
+    return rows;
+  }, [
+    subDepartments,
+    parsedSubDeptFilterLocationId,
+    subDeptFilterDepartmentId,
+  ]);
+
+  const departmentsForSubDeptListFilter = useMemo(
+    () =>
+      filterDepartmentsByLocation(departments, parsedSubDeptFilterLocationId),
+    [departments, parsedSubDeptFilterLocationId],
+  );
 
   const reload = useCallback(async () => {
     try {
-      const [d, sub, lvl, des] = await Promise.all([
+      const [d, sub, lvl, des, brs] = await Promise.all([
         fetchOrgDepartments(),
         fetchOrgSubDepartments(),
         fetchOrgLevels(),
         fetchOrgDesignations(),
+        fetchBranches(),
       ]);
       setDepartments(d);
       setSubDepartments(sub);
       setLevels(lvl);
       setDesignations(des);
+      setBranches(brs);
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -145,18 +199,41 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
       if (tab === "departments") {
         const parsed = departmentFormSchema.safeParse(deptForm);
         if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(" "));
+        const allBranchIds = branches.map((b) => b.id);
+        const selectedIds = parsed.data.branchIds;
+        const branchIds =
+          allBranchIds.length > 0 &&
+          selectedIds.length === allBranchIds.length &&
+          allBranchIds.every((id) => selectedIds.includes(id))
+            ? []
+            : selectedIds;
+        const payload = {
+          name: parsed.data.name,
+          code: parsed.data.code,
+          status: parsed.data.status,
+          branchIds,
+        };
         if (editId != null) {
-          await updateOrgDepartment(editId, parsed.data);
+          await updateOrgDepartment(editId, payload);
         } else {
-          await createOrgDepartment(parsed.data);
+          await createOrgDepartment(payload);
         }
       } else if (tab === "sub-departments") {
         const parsed = subDepartmentFormSchema.safeParse(subForm);
         if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(" "));
+        const allBranchIds = branches.map((b) => b.id);
+        const selectedIds = parsed.data.branchIds;
+        const branchIds =
+          allBranchIds.length > 0 &&
+          selectedIds.length === allBranchIds.length &&
+          allBranchIds.every((id) => selectedIds.includes(id))
+            ? []
+            : selectedIds;
         const payload = {
           departmentId: Number(parsed.data.departmentId),
           name: parsed.data.name,
           status: parsed.data.status,
+          branchIds,
         };
         if (editId != null) await updateOrgSubDepartment(editId, payload);
         else await createOrgSubDepartment(payload);
@@ -175,11 +252,20 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
       } else if (tab === "designations") {
         const parsed = designationFormSchema.safeParse(desigForm);
         if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(" "));
+        const allBranchIds = branches.map((b) => b.id);
+        const selectedIds = parsed.data.branchIds;
+        const branchIds =
+          allBranchIds.length > 0 &&
+          selectedIds.length === allBranchIds.length &&
+          allBranchIds.every((id) => selectedIds.includes(id))
+            ? []
+            : selectedIds;
         const payload = {
           name: parsed.data.name,
           code: parsed.data.code.trim() || undefined,
           levelId: Number(parsed.data.levelId),
           status: parsed.data.status,
+          branchIds,
         };
         if (editId != null) await updateOrgDesignation(editId, payload);
         else await createOrgDesignation(payload);
@@ -236,32 +322,93 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
       {tab === "departments" && (
         <MasterTable
           emptyMessage="No departments found."
-          headers={["Department Name", "Department Code", "Status", "Action"]}
+          headers={[
+            "Department Name",
+            "Department Code",
+            "Location",
+            "Status",
+            "Action",
+          ]}
           rows={departments.map((d) => ({
             id: d.id,
-            cells: [d.name, d.code, d.status],
+            cells: [
+              d.name,
+              d.code,
+              formatBranchLocations(d.branchIds ?? [], branchNameById),
+              d.status,
+            ],
           }))}
           onDelete={(id) => void handleDelete("departments", id)}
           onEdit={(id) => {
             const row = departments.find((d) => d.id === id);
             if (!row) return;
             setEditId(id);
-            setDeptForm({ name: row.name, code: row.code, status: row.status });
+            const storedIds = row.branchIds ?? [];
+            setDeptForm({
+              name: row.name,
+              code: row.code,
+              status: row.status,
+              allLocations: false,
+              branchIds:
+                storedIds.length === 0
+                  ? branches.map((b) => b.id)
+                  : storedIds,
+            });
             setModalOpen(true);
           }}
         />
       )}
 
       {tab === "sub-departments" && (
-        <MasterTable
-          emptyMessage="No sub-departments found."
-          headers={["Department", "Sub Department Name", "Status", "Action"]}
-          rows={subDepartments.map((s) => ({
+        <>
+          <div className={`${employeeCardClass} p-4 mb-4`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SelectField
+                label="Location"
+                value={subDeptFilterLocationId}
+                options={branches.map((b) => ({
+                  value: String(b.id),
+                  label: b.name,
+                }))}
+                placeholder="Select location"
+                onChange={(v) => {
+                  setSubDeptFilterLocationId(v);
+                  setSubDeptFilterDepartmentId("");
+                }}
+              />
+              <SelectField
+                label="Department"
+                value={subDeptFilterDepartmentId}
+                options={departmentsForSubDeptListFilter.map((d) => ({
+                  value: String(d.id),
+                  label: d.name,
+                }))}
+                placeholder={
+                  subDeptFilterLocationId
+                    ? "Select department"
+                    : "Select location first"
+                }
+                disabled={!subDeptFilterLocationId}
+                onChange={setSubDeptFilterDepartmentId}
+              />
+            </div>
+          </div>
+          <MasterTable
+            emptyMessage="No sub-departments found."
+            headers={[
+              "Department",
+              "Sub Department Name",
+              "Location",
+              "Status",
+              "Action",
+            ]}
+            rows={filteredSubDepartments.map((s) => ({
             id: s.id,
             cells: [
               departments.find((d) => d.id === s.departmentId)?.name ??
                 String(s.departmentId),
               s.name,
+              formatBranchLocations(s.branchIds ?? [], branchNameById),
               s.status,
             ],
           }))}
@@ -270,26 +417,34 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
             const row = subDepartments.find((s) => s.id === id);
             if (!row) return;
             setEditId(id);
+            const storedIds = row.branchIds ?? [];
             setSubForm({
               departmentId: String(row.departmentId),
               name: row.name,
               status: row.status,
+              allLocations: false,
+              branchIds:
+                storedIds.length === 0
+                  ? branches.map((b) => b.id)
+                  : storedIds,
             });
             setModalOpen(true);
           }}
         />
+        </>
       )}
 
       {tab === "designations" && (
         <MasterTable
           emptyMessage="No designations found."
-          headers={["Designation Name", "Designation Code", "Level / Grade", "Status", "Action"]}
+          headers={["Designation Name", "Designation Code", "Level / Grade", "Location", "Status", "Action"]}
           rows={designations.map((d) => ({
             id: d.id,
             cells: [
               d.name,
               d.code ?? "—",
               levels.find((l) => l.id === d.levelId)?.code ?? String(d.levelId),
+              formatBranchLocations(d.branchIds ?? [], branchNameById),
               d.status,
             ],
           }))}
@@ -303,6 +458,11 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
               code: row.code ?? "",
               levelId: String(row.levelId),
               status: row.status,
+              allLocations: false,
+              branchIds:
+                (row.branchIds ?? []).length === 0
+                  ? branches.map((b) => b.id)
+                  : (row.branchIds ?? []),
             });
             setModalOpen(true);
           }}
@@ -339,6 +499,24 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {tab === "departments" && (
               <>
+                <div className="md:col-span-2">
+                  <BranchMultiSelect
+                    label="Location"
+                    variant="inline"
+                    items={branches}
+                    allSelected={false}
+                    selectedIds={new Set(deptForm.branchIds)}
+                    onAllChange={() => {}}
+                    onSelectedChange={(ids) =>
+                      setDeptForm((f) => ({
+                        ...f,
+                        allLocations: false,
+                        branchIds: Array.from(ids),
+                      }))
+                    }
+                    placeholder="Pick locations…"
+                  />
+                </div>
                 <Field label="Department Name" value={deptForm.name} onChange={(v) => setDeptForm((f) => ({ ...f, name: v }))} />
                 <Field label="Department Code" value={deptForm.code} onChange={(v) => setDeptForm((f) => ({ ...f, code: v }))} />
                 <SelectField
@@ -355,12 +533,51 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
 
             {tab === "sub-departments" && (
               <>
+                <div className="md:col-span-2">
+                  <BranchMultiSelect
+                    label="Location"
+                    variant="inline"
+                    items={branches}
+                    allSelected={false}
+                    selectedIds={new Set(subForm.branchIds)}
+                    onAllChange={() => {}}
+                    onSelectedChange={(ids) => {
+                      const nextBranchIds = Array.from(ids);
+                      setSubForm((f) => {
+                        const nextDepartments = filterDepartmentsByLocations(
+                          departments,
+                          nextBranchIds,
+                        );
+                        const departmentStillValid = nextDepartments.some(
+                          (row) => String(row.id) === f.departmentId,
+                        );
+                        return {
+                          ...f,
+                          allLocations: false,
+                          branchIds: nextBranchIds,
+                          departmentId: departmentStillValid
+                            ? f.departmentId
+                            : "",
+                        };
+                      });
+                    }}
+                    placeholder="Pick locations…"
+                  />
+                </div>
                 <SelectField
                   label="Department"
                   value={subForm.departmentId}
-                  options={departments.map((d) => ({ value: String(d.id), label: d.name }))}
+                  options={departmentsForSubDeptForm.map((d) => ({
+                    value: String(d.id),
+                    label: d.name,
+                  }))}
+                  placeholder={
+                    subForm.branchIds.length > 0
+                      ? "Select department"
+                      : "Select location first"
+                  }
+                  disabled={subForm.branchIds.length === 0}
                   onChange={(v) => setSubForm((f) => ({ ...f, departmentId: v }))}
-                  placeholder="Select department"
                 />
                 <Field label="Sub Department Name" value={subForm.name} onChange={(v) => setSubForm((f) => ({ ...f, name: v }))} />
                 <SelectField
@@ -385,15 +602,35 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
 
             {tab === "designations" && (
               <>
+                <div className="md:col-span-2">
+                  <BranchMultiSelect
+                    label="Location"
+                    variant="inline"
+                    items={branches}
+                    allSelected={false}
+                    selectedIds={new Set(desigForm.branchIds)}
+                    onAllChange={() => {}}
+                    onSelectedChange={(ids) =>
+                      setDesigForm((f) => ({
+                        ...f,
+                        allLocations: false,
+                        branchIds: Array.from(ids),
+                      }))
+                    }
+                    placeholder="Pick locations…"
+                  />
+                </div>
                 <Field label="Designation Name" value={desigForm.name} onChange={(v) => setDesigForm((f) => ({ ...f, name: v }))} />
                 <Field label="Designation Code" value={desigForm.code} onChange={(v) => setDesigForm((f) => ({ ...f, code: v }))} />
-                <SelectField
-                  label="Level / Grade"
-                  value={desigForm.levelId}
-                  options={levels.map((l) => ({ value: String(l.id), label: `${l.code} — ${l.name}` }))}
-                  onChange={(v) => setDesigForm((f) => ({ ...f, levelId: v }))}
-                  placeholder="Select level"
-                />
+                <div className="md:col-span-2">
+                  <SelectField
+                    label="Level / Grade"
+                    value={desigForm.levelId}
+                    options={levels.map((l) => ({ value: String(l.id), label: `${l.code} — ${l.name}` }))}
+                    onChange={(v) => setDesigForm((f) => ({ ...f, levelId: v }))}
+                    placeholder="Select level"
+                  />
+                </div>
                 <SelectField
                   label="Status"
                   value={desigForm.status}
@@ -419,6 +656,16 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
       </EmployeeModalShell>
     </>
   );
+}
+
+function formatBranchLocations(
+  branchIds: number[],
+  branchNameById: Map<number, string>,
+): string {
+  if (branchIds.length === 0) return "All Locations";
+  return branchIds
+    .map((id) => branchNameById.get(id) ?? `#${id}`)
+    .join(", ");
 }
 
 function MasterTable({
@@ -594,12 +841,16 @@ function SelectField({
   options,
   onChange,
   placeholder,
+  allowEmpty = true,
+  disabled = false,
 }: {
   label: string;
   value: string;
   options: { value: string; label: string }[];
   onChange: (v: string) => void;
   placeholder?: string;
+  allowEmpty?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -607,9 +858,10 @@ function SelectField({
       <select
         className={employeeSelectClass}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{placeholder ?? "Select"}</option>
+        {allowEmpty && <option value="">{placeholder ?? "Select"}</option>}
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

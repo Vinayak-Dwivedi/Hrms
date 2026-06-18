@@ -38,10 +38,24 @@ const STAGE_LABEL: Record<Stage, string> = {
 
 export const adminApprovalWorkflowsRouter: Router = Router();
 
+const HIERARCHY_SCOPE_TYPES = [
+  "Company",
+  "Branch",
+  "Department",
+  "SubDepartment",
+] as const;
+
+const scopeRowSchema = z.object({
+  scopeType: z.enum(HIERARCHY_SCOPE_TYPES),
+  scopeId: z.number().int().positive().nullable().optional(),
+  priority: z.number().int().min(0).default(100),
+});
+
 const upsertSchema = z.object({
   name: z.string().trim().min(1).max(150),
   description: z.string().trim().max(500).optional().nullable(),
   stages: z.array(z.enum(STAGES)).min(1).max(6),
+  scope: z.array(scopeRowSchema).default([]),
   isActive: z.boolean().default(true),
 });
 
@@ -57,6 +71,7 @@ adminApprovalWorkflowsRouter.get("/", async (_req, res, next) => {
         name: w.name,
         description: w.description,
         stages: w.stages as Stage[],
+        scope: (w.scope as { scopeType: string; scopeId: number | null; priority: number }[]) ?? [],
         isActive: w.isActive,
       })),
     });
@@ -74,6 +89,7 @@ adminApprovalWorkflowsRouter.post("/", async (req, res, next) => {
         name: body.name,
         description: body.description ?? null,
         stages: body.stages,
+        scope: body.scope,
         isActive: body.isActive,
       })
       .returning();
@@ -97,6 +113,7 @@ adminApprovalWorkflowsRouter.patch("/:id", async (req, res, next) => {
     if (body.name !== undefined) updates.name = body.name;
     if (body.description !== undefined) updates.description = body.description ?? null;
     if (body.stages !== undefined) updates.stages = body.stages;
+    if (body.scope !== undefined) updates.scope = body.scope;
     if (body.isActive !== undefined) updates.isActive = body.isActive;
     const [row] = await db
       .update(approvalWorkflows)

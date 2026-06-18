@@ -2,30 +2,141 @@
 
 // Add / Edit Team dialog. Captures:
 //   - Team name
-//   - Department (one)
-//   - Sub-Department / Designation (one, optional, filtered to chosen dept)
+//   - Location(s) from branches
+//   - Department(s) filtered by selected location(s)
+//   - Sub-Department(s) filtered by selected department(s)
 //   - Holidays multi-select checklist (existing holidays to link)
 //
-// Saving creates / updates a holiday_calendar with scope rows {Department, [Designation]}
-// and links the selected holidays via holiday_team_links.
+// Saving creates / updates a holiday_calendar with scope rows and links
+// the selected holidays via holiday_team_links.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Save, Search, X } from "lucide-react";
 import {
   createHolidayCalendar,
   updateHolidayCalendar,
+  type CalendarScopeRow,
   type GlobalHoliday,
   type HolidayCalendarDetail,
-  type HolidayCalendarStatus,
 } from "./api/holiday-calendars.client";
+import { fetchDepartmentsList } from "@/features/departments/api/departments.client";
+import { fetchBranches } from "@/features/employees/api/employees.client";
+import { API_BASE } from "@/lib/hrms-client";
+import BranchMultiSelect from "@/components/branch-multi-select/BranchMultiSelect";
+import {
+  employeeBtnClass,
+  employeeErrorBannerClass,
+  employeeFilterLabelClass,
+  employeeInputClass,
+  employeeModalTitleClass,
+  holidayCheckboxClass,
+  holidayChecklistSelectedClass,
+  holidayChipClass,
+  holidayModalCancelClass,
+} from "./holiday-calendars-theme";
 
-interface LookupRow {
+type LookupItem = { id: number; name: string };
+
+type SubDepartmentItem = {
   id: number;
   name: string;
-  departmentId?: number | null;
+  departmentId: number | null;
+};
+
+type DepartmentItem = {
+  id: number;
+  name: string;
+  locationArea: string | null;
+};
+
+async function fetchSubDepartmentsWithDept(): Promise<SubDepartmentItem[]> {
+  const res = await fetch(`${API_BASE}/api/hrms/sub-departments?limit=500`, {
+    credentials: "include",
+  });
+  if (!res.ok) return [];
+  const body = (await res.json()) as {
+    data: Array<{ id: number; name: string; departmentId: number | null }>;
+  };
+  return (body.data ?? []).map((x) => ({
+    id: x.id,
+    name: x.name,
+    departmentId: x.departmentId ?? null,
+  }));
 }
 
-const STATUSES: HolidayCalendarStatus[] = ["Draft", "Published", "Archived"];
+function hydrateScopeFromInitial(scope: CalendarScopeRow[]) {
+  const hasCompany = scope.some((s) => s.scopeType === "Company");
+  if (hasCompany) {
+    return {
+      allLocations: true,
+      locationIds: new Set<number>(),
+      allDepartments: true,
+      departmentIds: new Set<number>(),
+      allSubDepartments: true,
+      subDepartmentIds: new Set<number>(),
+    };
+  }
+
+  const branchIds = scope
+    .filter((s) => s.scopeType === "Branch" && s.scopeId != null)
+    .map((s) => s.scopeId!);
+  const deptIds = scope
+    .filter((s) => s.scopeType === "Department" && s.scopeId != null)
+    .map((s) => s.scopeId!);
+  const subIds = scope
+    .filter((s) => s.scopeType === "SubDepartment" && s.scopeId != null)
+    .map((s) => s.scopeId!);
+
+  const allLocations = branchIds.length === 0;
+  const allDepartments = deptIds.length === 0;
+  const allSubDepartments = !allDepartments && subIds.length === 0;
+
+  return {
+    allLocations,
+    locationIds: new Set(branchIds),
+    allDepartments,
+    departmentIds: new Set(deptIds),
+    allSubDepartments,
+    subDepartmentIds: new Set(subIds),
+  };
+}
+
+function buildScopePayload(
+  allLocations: boolean,
+  locationIds: Set<number>,
+  allDepartments: boolean,
+  departmentIds: Set<number>,
+  allSubDepartments: boolean,
+  subDepartmentIds: Set<number>,
+): CalendarScopeRow[] {
+  if (allLocations && allDepartments) {
+    return [{ scopeType: "Company", scopeId: null, priority: 100 }];
+  }
+
+  return [
+    ...(!allLocations
+      ? [...locationIds].map((id) => ({
+          scopeType: "Branch" as const,
+          scopeId: id,
+          priority: 110,
+        }))
+      : []),
+    ...(!allDepartments
+      ? [...departmentIds].map((id) => ({
+          scopeType: "Department" as const,
+          scopeId: id,
+          priority: 100,
+        }))
+      : []),
+    ...(!allDepartments && !allSubDepartments
+      ? [...subDepartmentIds].map((id) => ({
+          scopeType: "SubDepartment" as const,
+          scopeId: id,
+          priority: 90,
+        }))
+      : []),
+  ];
+}
 
 export default function AddTeamDialog({
   open,
@@ -35,59 +146,54 @@ export default function AddTeamDialog({
   onSaved,
 }: {
   open: boolean;
-  /** Existing team being edited, or null for create. */
   initial: HolidayCalendarDetail | null;
-  /** Holidays available to attach (typically all from the global list). */
   availableHolidays: GlobalHoliday[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState("");
-  const [departmentId, setDepartmentId] = useState<number | null>(null);
-  const [subDepartmentId, setSubDepartmentId] = useState<number | null>(null);
-  const [status, setStatus] = useState<HolidayCalendarStatus>("Published");
+  const [allLocations, setAllLocations] = useState(true);
+  const [locationIds, setLocationIds] = useState<Set<number>>(new Set());
+  const [allDepartments, setAllDepartments] = useState(false);
+  const [departmentIds, setDepartmentIds] = useState<Set<number>>(new Set());
+  const [allSubDepartments, setAllSubDepartments] = useState(true);
+  const [subDepartmentIds, setSubDepartmentIds] = useState<Set<number>>(
+    new Set(),
+  );
   const [selectedHolidayIds, setSelectedHolidayIds] = useState<Set<number>>(
     new Set(),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [departments, setDepartments] = useState<LookupRow[] | null>(null);
-  const [subDepartments, setSubDepartments] = useState<LookupRow[] | null>(null);
+  const [branches, setBranches] = useState<LookupItem[]>([]);
+  const [departments, setDepartments] = useState<DepartmentItem[]>([]);
+  const [subDepartments, setSubDepartments] = useState<SubDepartmentItem[]>(
+    [],
+  );
 
-  // Load org lookups once when dialog opens.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     (async () => {
       try {
-        const [deptRes, subRes] = await Promise.all([
-          fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
-          fetch("/api/hrms/sub-departments?limit=500", {
-            credentials: "include",
-          }),
+        const [brs, depts, subs] = await Promise.all([
+          fetchBranches(),
+          fetchDepartmentsList(),
+          fetchSubDepartmentsWithDept(),
         ]);
-        if (deptRes.ok) {
-          const body = (await deptRes.json()) as {
-            data: Array<{ id: number; name: string }>;
-          };
-          if (!cancelled) setDepartments(body.data);
-        }
-        if (subRes.ok) {
-          const body = (await subRes.json()) as {
-            data: Array<{ id: number; name: string; departmentId: number | null }>;
-          };
-          if (!cancelled)
-            setSubDepartments(
-              body.data.map((d) => ({
-                id: d.id,
-                name: d.name,
-                departmentId: d.departmentId ?? null,
-              })),
-            );
-        }
+        if (cancelled) return;
+        setBranches(brs);
+        setDepartments(
+          depts.map((d) => ({
+            id: d.id,
+            name: d.name,
+            locationArea: d.locationArea,
+          })),
+        );
+        setSubDepartments(subs);
       } catch {
-        // Best-effort; the dropdowns just show empty lists on error.
+        // Best-effort; dropdowns show empty on error.
       }
     })();
     return () => {
@@ -95,51 +201,92 @@ export default function AddTeamDialog({
     };
   }, [open]);
 
-  // Reset / hydrate form when opening.
   useEffect(() => {
     if (!open) return;
     if (initial) {
       setName(initial.name);
-      setStatus(initial.status);
-      let deptId: number | null = null;
-      let subId: number | null = null;
-      for (const s of initial.scope) {
-        if (s.scopeType === "Department" && deptId == null) deptId = s.scopeId;
-        if (s.scopeType === "SubDepartment" && subId == null) subId = s.scopeId;
-      }
-      setDepartmentId(deptId);
-      setSubDepartmentId(subId);
+      const hydrated = hydrateScopeFromInitial(initial.scope);
+      setAllLocations(hydrated.allLocations);
+      setLocationIds(hydrated.locationIds);
+      setAllDepartments(hydrated.allDepartments);
+      setDepartmentIds(hydrated.departmentIds);
+      setAllSubDepartments(hydrated.allSubDepartments);
+      setSubDepartmentIds(hydrated.subDepartmentIds);
       setSelectedHolidayIds(new Set(initial.holidayIds));
     } else {
       setName("");
-      setDepartmentId(null);
-      setSubDepartmentId(null);
-      setStatus("Published");
+      setAllLocations(true);
+      setLocationIds(new Set());
+      setAllDepartments(false);
+      setDepartmentIds(new Set());
+      setAllSubDepartments(true);
+      setSubDepartmentIds(new Set());
       setSelectedHolidayIds(new Set());
     }
     setError(null);
   }, [open, initial]);
 
-  // Sub-departments filtered to selected department.
-  const filteredSubDepartments = useMemo(() => {
-    if (!subDepartments) return [];
-    if (departmentId == null) return subDepartments;
-    return subDepartments.filter(
-      (d) => d.departmentId == null || d.departmentId === departmentId,
-    );
-  }, [subDepartments, departmentId]);
+  const selectedBranchNames = useMemo(() => {
+    if (allLocations) return null;
+    const names = new Set<string>();
+    for (const id of locationIds) {
+      const branch = branches.find((b) => b.id === id);
+      if (branch) names.add(branch.name);
+    }
+    return names;
+  }, [allLocations, locationIds, branches]);
 
-  // If department changes and the picked sub-dept doesn't belong, clear it.
+  const visibleDepartments = useMemo(() => {
+    if (allLocations) return departments;
+    if (!selectedBranchNames || selectedBranchNames.size === 0) return [];
+    return departments.filter(
+      (d) =>
+        d.locationArea != null && selectedBranchNames.has(d.locationArea),
+    );
+  }, [allLocations, departments, selectedBranchNames]);
+
+  const visibleSubDepartments = useMemo(() => {
+    if (allDepartments) return [];
+    if (departmentIds.size === 0) return [];
+    return subDepartments.filter(
+      (s) => s.departmentId != null && departmentIds.has(s.departmentId),
+    );
+  }, [allDepartments, departmentIds, subDepartments]);
+
+  // Prune department selections when location filter changes.
   useEffect(() => {
-    if (subDepartmentId == null) return;
-    const match = filteredSubDepartments.find((d) => d.id === subDepartmentId);
-    if (!match) setSubDepartmentId(null);
-  }, [filteredSubDepartments, subDepartmentId]);
+    if (allLocations || allDepartments) return;
+    const visibleIds = new Set(visibleDepartments.map((d) => d.id));
+    setDepartmentIds((prev) => {
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleDepartments, allLocations, allDepartments]);
+
+  // Prune sub-department selections when department filter changes.
+  useEffect(() => {
+    if (allDepartments || allSubDepartments) return;
+    const visibleIds = new Set(visibleSubDepartments.map((s) => s.id));
+    setSubDepartmentIds((prev) => {
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleSubDepartments, allDepartments, allSubDepartments]);
+
+  // Clear sub-dept state when all departments selected.
+  useEffect(() => {
+    if (!allDepartments) return;
+    setAllSubDepartments(true);
+    setSubDepartmentIds(new Set());
+  }, [allDepartments]);
 
   if (!open) return null;
 
   const editing = initial !== null;
-  const canSave = name.trim().length > 0 && departmentId != null;
+  const canSave =
+    name.trim().length > 0 &&
+    (allLocations || locationIds.size > 0) &&
+    (allDepartments || departmentIds.size > 0);
 
   function toggleHoliday(id: number) {
     setSelectedHolidayIds((prev) => {
@@ -150,30 +297,30 @@ export default function AddTeamDialog({
     });
   }
 
+  function selectAllHolidays() {
+    setSelectedHolidayIds(new Set(availableHolidays.map((h) => h.id)));
+  }
+
+  function clearAllHolidays() {
+    setSelectedHolidayIds(new Set());
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      const scope = [
-        {
-          scopeType: "Department" as const,
-          scopeId: departmentId!,
-          priority: 100,
-        },
-        ...(subDepartmentId != null
-          ? [
-              {
-                scopeType: "SubDepartment" as const,
-                scopeId: subDepartmentId,
-                priority: 90,
-              },
-            ]
-          : []),
-      ];
+      const scope = buildScopePayload(
+        allLocations,
+        locationIds,
+        allDepartments,
+        departmentIds,
+        allSubDepartments,
+        subDepartmentIds,
+      );
       if (editing && initial) {
         await updateHolidayCalendar(initial.id, {
           name: name.trim(),
-          status,
+          status: "Published",
           scope,
           holidayIds: Array.from(selectedHolidayIds),
         });
@@ -181,7 +328,7 @@ export default function AddTeamDialog({
         await createHolidayCalendar({
           name: name.trim(),
           description: null,
-          status,
+          status: "Published",
           holidays: [],
           scope,
           holidayIds: Array.from(selectedHolidayIds),
@@ -204,15 +351,14 @@ export default function AddTeamDialog({
         className="bg-white rounded-2xl w-full max-w-[620px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
           <div>
-            <h2 className="text-[18px] font-bold text-gray-900 leading-tight">
+            <h2 className={employeeModalTitleClass}>
               {editing ? "Edit Team" : "Add Team"}
             </h2>
             <p className="text-[12.5px] text-gray-500 mt-0.5">
-              A team is a department/sub-department group that receives the
-              picked holidays.
+              Define location, department, and sub-department scope, then pick
+              holidays for this team.
             </p>
           </div>
           <button
@@ -224,7 +370,6 @@ export default function AddTeamDialog({
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
           <Field label="Name">
             <input
@@ -232,99 +377,89 @@ export default function AddTeamDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Engineering Delhi"
               autoFocus
-              className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={employeeInputClass}
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Department">
-              <select
-                value={departmentId ?? ""}
-                onChange={(e) =>
-                  setDepartmentId(
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-              >
-                <option value="">Pick department…</option>
-                {departments?.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Sub-Department">
-              <select
-                value={subDepartmentId ?? ""}
-                onChange={(e) =>
-                  setSubDepartmentId(
-                    e.target.value === "" ? null : Number(e.target.value),
-                  )
-                }
-                className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] disabled:bg-gray-50"
-                disabled={departmentId == null}
-              >
-                <option value="">
-                  {departmentId == null
-                    ? "Pick department first"
-                    : "Any sub-department"}
-                </option>
-                {filteredSubDepartments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
+          <BranchMultiSelect
+            label="Location"
+            selectAllLabel="Select All Locations"
+            items={branches}
+            allSelected={allLocations}
+            selectedIds={locationIds}
+            onAllChange={(v) => {
+              setAllLocations(v);
+              if (v) setLocationIds(new Set());
+            }}
+            onSelectedChange={(ids) => {
+              setAllLocations(false);
+              setLocationIds(ids);
+            }}
+            placeholder="Pick locations…"
+          />
 
-          <Field label="Status">
-            <div className="flex gap-2">
-              {STATUSES.map((s) => {
-                const active = status === s;
-                return (
-                  <button
-                    type="button"
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    className={[
-                      "px-3 py-1.5 rounded-lg border text-[12.5px] font-semibold transition-all",
-                      active
-                        ? "border-[#ff014f] bg-pink-50 text-[#ff014f]"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-[#ff014f]/40",
-                    ].join(" ")}
-                  >
-                    {s}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
+          <BranchMultiSelect
+            label="Department"
+            selectAllLabel="Select All Departments"
+            items={visibleDepartments.map((d) => ({ id: d.id, name: d.name }))}
+            allSelected={allDepartments}
+            selectedIds={departmentIds}
+            onAllChange={(v) => {
+              setAllDepartments(v);
+              if (v) {
+                setDepartmentIds(new Set());
+                setAllSubDepartments(true);
+                setSubDepartmentIds(new Set());
+              }
+            }}
+            onSelectedChange={(ids) => {
+              setAllDepartments(false);
+              setDepartmentIds(ids);
+            }}
+            placeholder="Pick departments…"
+          />
+
+          {!allDepartments && (
+            <BranchMultiSelect
+              label="Sub-Department"
+              selectAllLabel="Select All Sub-Departments"
+              items={visibleSubDepartments.map((s) => ({
+                id: s.id,
+                name: s.name,
+              }))}
+              allSelected={allSubDepartments}
+              selectedIds={subDepartmentIds}
+              onAllChange={(v) => {
+                setAllSubDepartments(v);
+                if (v) setSubDepartmentIds(new Set());
+              }}
+              onSelectedChange={(ids) => {
+                setAllSubDepartments(false);
+                setSubDepartmentIds(ids);
+              }}
+              placeholder="Pick sub-departments…"
+            />
+          )}
 
           <div className="border-t border-gray-100 pt-4">
             <HolidayChecklist
               holidays={availableHolidays}
               selected={selectedHolidayIds}
               onToggle={toggleHoliday}
+              onSelectAll={selectAllHolidays}
+              onClearAll={clearAllHolidays}
             />
           </div>
 
-          {error && (
-            <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-              {error}
-            </div>
-          )}
+          {error && <div className={employeeErrorBannerClass}>{error}</div>}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-3 border-t border-gray-200 flex items-center gap-2 justify-end">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={holidayModalCancelClass}
           >
             Cancel
           </button>
@@ -332,9 +467,13 @@ export default function AddTeamDialog({
             type="button"
             onClick={save}
             disabled={!canSave || saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${employeeBtnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
             {editing ? "Save Changes" : "Create Team"}
           </button>
         </div>
@@ -349,20 +488,29 @@ function HolidayChecklist({
   holidays,
   selected,
   onToggle,
+  onSelectAll,
+  onClearAll,
 }: {
   holidays: GlobalHoliday[];
   selected: Set<number>;
   onToggle: (id: number) => void;
+  onSelectAll: () => void;
+  onClearAll: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click.
+  const allSelected =
+    holidays.length > 0 && selected.size === holidays.length;
+
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -374,12 +522,16 @@ function HolidayChecklist({
     const q = query.trim().toLowerCase();
     if (!q) return holidays;
     return holidays.filter(
-      (h) =>
-        h.name.toLowerCase().includes(q) || h.date.includes(q),
+      (h) => h.name.toLowerCase().includes(q) || h.date.includes(q),
     );
   }, [holidays, query]);
 
   const selectedHolidays = holidays.filter((h) => selected.has(h.id));
+
+  function toggleSelectAll() {
+    if (allSelected) onClearAll();
+    else onSelectAll();
+  }
 
   return (
     <div className="relative" ref={containerRef}>
@@ -388,23 +540,23 @@ function HolidayChecklist({
           Holidays
         </p>
         <p className="text-[11px] text-gray-400">
-          {selected.size === 0 ? "None selected" : `${selected.size} selected`}
+          {allSelected
+            ? "All selected"
+            : selected.size === 0
+              ? "None selected"
+              : `${selected.size} selected`}
         </p>
       </div>
 
-      {/* Selected chips */}
       {selectedHolidays.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {selectedHolidays.map((h) => (
-            <span
-              key={h.id}
-              className="inline-flex items-center gap-1.5 bg-pink-50 border border-pink-200 text-[#be185d] px-2.5 py-1 rounded-full text-[11.5px] font-semibold"
-            >
+            <span key={h.id} className={holidayChipClass}>
               {h.name} · {h.date}
               <button
                 type="button"
                 onClick={() => onToggle(h.id)}
-                className="text-pink-400 hover:text-pink-700"
+                className="text-slate-400 hover:text-slate-700"
                 aria-label={`Remove ${h.name}`}
               >
                 <X size={11} />
@@ -414,7 +566,6 @@ function HolidayChecklist({
         </div>
       )}
 
-      {/* Dropdown trigger */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -446,6 +597,25 @@ function HolidayChecklist({
             />
           </div>
           <div className="overflow-y-auto">
+            {holidays.length > 0 && (
+              <label
+                className={[
+                  "flex items-center gap-2 px-3 py-2 text-[12.5px] cursor-pointer select-none border-b border-gray-100 font-medium",
+                  allSelected
+                    ? holidayChecklistSelectedClass
+                    : "hover:bg-gray-50 text-gray-800",
+                ].join(" ")}
+              >
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className={holidayCheckboxClass}
+                />
+                <span>Select all holidays</span>
+              </label>
+            )}
+
             {filtered.length === 0 && (
               <p className="px-3 py-3 text-[12px] text-gray-500 italic">
                 {holidays.length === 0
@@ -461,7 +631,7 @@ function HolidayChecklist({
                   className={[
                     "flex items-center gap-2 px-3 py-1.5 text-[12.5px] cursor-pointer select-none",
                     checked
-                      ? "bg-pink-50 text-[#be185d]"
+                      ? holidayChecklistSelectedClass
                       : "hover:bg-gray-50 text-gray-700",
                   ].join(" ")}
                 >
@@ -469,7 +639,7 @@ function HolidayChecklist({
                     type="checkbox"
                     checked={checked}
                     onChange={() => onToggle(h.id)}
-                    className="rounded text-[#ff014f] focus:ring-[#fda4af]"
+                    className={holidayCheckboxClass}
                   />
                   <span className="flex-1 truncate">{h.name}</span>
                   <span className="text-gray-400 text-[11px]">{h.date}</span>
@@ -492,7 +662,7 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[12px] font-semibold text-gray-700">{label}</label>
+      <label className={employeeFilterLabelClass}>{label}</label>
       {children}
     </div>
   );

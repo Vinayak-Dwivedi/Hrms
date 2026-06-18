@@ -484,6 +484,25 @@ export const orgHierarchyDepartments = pgTable(
   ],
 );
 
+export const orgHierarchyDepartmentBranches = pgTable(
+  "org_hierarchy_department_branches",
+  {
+    departmentId: integer("department_id")
+      .notNull()
+      .references(() => orgHierarchyDepartments.id, { onDelete: "cascade" }),
+    branchId: integer("branch_id")
+      .notNull()
+      .references(() => branches.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.departmentId, table.branchId],
+      name: "org_hierarchy_department_branches_pkey",
+    }),
+    index("idx_org_hierarchy_dept_branches_branch").on(table.branchId),
+  ],
+);
+
 export const orgHierarchyLevels = pgTable(
   "org_hierarchy_levels",
   {
@@ -525,6 +544,25 @@ export const orgHierarchySubDepartments = pgTable(
   ],
 );
 
+export const orgHierarchySubDepartmentBranches = pgTable(
+  "org_hierarchy_sub_department_branches",
+  {
+    subDepartmentId: integer("sub_department_id")
+      .notNull()
+      .references(() => orgHierarchySubDepartments.id, { onDelete: "cascade" }),
+    branchId: integer("branch_id")
+      .notNull()
+      .references(() => branches.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.subDepartmentId, table.branchId],
+      name: "org_hierarchy_sub_department_branches_pkey",
+    }),
+    index("idx_org_hierarchy_sub_dept_branches_branch").on(table.branchId),
+  ],
+);
+
 export const orgHierarchyDesignations = pgTable(
   "org_hierarchy_designations",
   {
@@ -547,6 +585,25 @@ export const orgHierarchyDesignations = pgTable(
     uniqueIndex("org_hierarchy_designations_name_uq").on(table.name),
     uniqueIndex("org_hierarchy_designations_code_uq").on(table.code),
     index("idx_org_hierarchy_designations_level").on(table.levelId),
+  ],
+);
+
+export const orgHierarchyDesignationBranches = pgTable(
+  "org_hierarchy_designation_branches",
+  {
+    designationId: integer("designation_id")
+      .notNull()
+      .references(() => orgHierarchyDesignations.id, { onDelete: "cascade" }),
+    branchId: integer("branch_id")
+      .notNull()
+      .references(() => branches.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.designationId, table.branchId],
+      name: "org_hierarchy_designation_branches_pkey",
+    }),
+    index("idx_org_hierarchy_designation_branches_branch").on(table.branchId),
   ],
 );
 
@@ -661,6 +718,10 @@ export const employees = pgTable(
     branchId: integer("branch_id").references(() => branches.id, {
       onDelete: "set null",
     }),
+    // Selected work location (branch id from the Location dropdown).
+    locationId: integer("location_id").references(() => branches.id, {
+      onDelete: "set null",
+    }),
     employmentTypeId: integer("employment_type_id").references(
       () => employmentTypes.id,
       { onDelete: "set null" },
@@ -728,6 +789,7 @@ export const employees = pgTable(
     index("idx_emp_desig").on(table.designationId),
     index("idx_emp_grade").on(table.gradeId),
     index("idx_emp_branch").on(table.branchId),
+    index("idx_emp_location").on(table.locationId),
     index("idx_emp_emp_type").on(table.employmentTypeId),
     index("idx_emp_manager").on(table.reportingManagerId),
     index("idx_emp_org_hierarchy_structure").on(table.orgHierarchyStructureId),
@@ -1705,6 +1767,8 @@ export const approvalWorkflows = pgTable("approval_workflows", {
   name: varchar("name", { length: 150 }).notNull().unique(),
   description: text("description"),
   stages: jsonb("stages").notNull().default([]),
+  // Org-hierarchy scope: Location (Branch) → Department → Sub-department.
+  scope: jsonb("scope").notNull().default([]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

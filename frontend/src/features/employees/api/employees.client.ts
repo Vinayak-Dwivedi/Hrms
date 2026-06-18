@@ -41,6 +41,7 @@ export type EmployeeDetail = EmployeeListItem & {
   spouseName: string | null;
   gradeId: number | null;
   branchId: number | null;
+  locationId?: number | null;
   reportingManagerId: number | null;
   orgHierarchyStructureId?: number | null;
   roleId: number | null;
@@ -112,10 +113,7 @@ export type CreateEmployeePayload = {
   password?: string;
   roleId: number;
   orgHierarchyStructureId?: number;
-  departmentId?: number;
-  subDepartmentId?: number | null;
-  designationId?: number;
-  gradeId?: number;
+  locationId?: number;
   branchId?: number;
   reportingManagerId?: number;
   maritalStatus?: MaritalStatus | null;
@@ -135,6 +133,7 @@ export type UpdateEmployeePayload = {
   joiningDate: string;
   employeeStatus: EmployeeStatus;
   orgHierarchyStructureId?: number | null;
+  locationId?: number | null;
   branchId?: number | null;
   reportingManagerId?: number | null;
   reportingChain?: number[];
@@ -224,6 +223,7 @@ type RawEmployeeRow = {
   designationId: number | null;
   gradeId: number | null;
   branchId: number | null;
+  locationId?: number | null;
   reportingManagerId: number | null;
   orgHierarchyStructureId?: number | null;
   employeeStatus: EmployeeStatus;
@@ -258,6 +258,7 @@ function toDetail(row: RawEmployeeRow): EmployeeDetail {
     designationId: row.designationId,
     gradeId: row.gradeId,
     branchId: row.branchId,
+    locationId: row.locationId ?? row.branchId,
     reportingManagerId: row.reportingManagerId,
     orgHierarchyStructureId: row.orgHierarchyStructureId ?? null,
     employeeStatus: row.employeeStatus,

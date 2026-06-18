@@ -407,7 +407,6 @@ export default function EmployeeHierarchyView({ tree, levels = [] }: Props) {
     <div className="space-y-4">
       <div className={`${employeeCardClass} p-4 md:p-5 space-y-4`}>
         <HierarchyGuide levels={levels} />
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[13px] font-semibold text-gray-900">

@@ -3,6 +3,9 @@
  * Apply leave-policy schema migrations when missing:
  *   - drizzle/20260609100000_leave_types_extend/migration.sql
  *   - drizzle/20260610100000_leave_policies/migration.sql
+ *   - drizzle/20260611100000_leave_types_extend_phase1/migration.sql
+ *   - drizzle/20260617100000_leave_plans_catchup/migration.sql
+ *   - drizzle/20260618150000_approval_workflow_scope/migration.sql
  *
  * Safe to re-run — SQL uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
  */
@@ -42,6 +45,53 @@ const MIGRATIONS = [
           FROM information_schema.tables
           WHERE table_schema = 'public'
             AND table_name = 'leave_policies'
+        ) AS ready
+      `;
+      return row?.ready === true;
+    },
+  },
+  {
+    tag: "20260611100000_leave_types_extend_phase1",
+    createdAt: 1781359200000,
+    isApplied: async (db) => {
+      const [row] = await db`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'leave_types'
+            AND column_name = 'hourly_leave_allowed'
+        ) AS ready
+      `;
+      return row?.ready === true;
+    },
+  },
+  {
+    tag: "20260617100000_leave_plans_catchup",
+    createdAt: 1781730000000,
+    isApplied: async (db) => {
+      const [row] = await db`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = 'leave_plans'
+        ) AS ready
+      `;
+      return row?.ready === true;
+    },
+  },
+  {
+    tag: "20260618150000_approval_workflow_scope",
+    createdAt: 1781766000000,
+    isApplied: async (db) => {
+      const [row] = await db`
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'approval_workflows'
+            AND column_name = 'scope'
         ) AS ready
       `;
       return row?.ready === true;

@@ -11,6 +11,15 @@ import {
   type GlobalHoliday,
   type HolidayType,
 } from "./api/holiday-calendars.client";
+import {
+  employeeBtnClass,
+  employeeErrorBannerClass,
+  employeeFilterLabelClass,
+  employeeInputClass,
+  employeeModalTitleClass,
+  holidayCheckboxClass,
+  holidayModalCancelClass,
+} from "./holiday-calendars-theme";
 
 const HOLIDAY_TYPES: HolidayType[] = [
   "National",
@@ -84,7 +93,7 @@ export default function EditHolidayDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-[17px] font-bold text-gray-900 leading-tight">
+          <h2 className={employeeModalTitleClass}>
             Edit Holiday
           </h2>
         </div>
@@ -95,7 +104,7 @@ export default function EditHolidayDialog({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={`w-full ${employeeInputClass}`}
             />
           </Field>
           <Field label="Name">
@@ -103,7 +112,7 @@ export default function EditHolidayDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Holiday name"
-              className="w-full px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+              className={`w-full ${employeeInputClass}`}
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
@@ -111,7 +120,7 @@ export default function EditHolidayDialog({
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as HolidayType)}
-                className="w-full px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className={`w-full ${employeeInputClass}`}
               >
                 {HOLIDAY_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -126,7 +135,7 @@ export default function EditHolidayDialog({
                   type="checkbox"
                   checked={isHalfDay}
                   onChange={(e) => setIsHalfDay(e.target.checked)}
-                  className="h-4 w-4 accent-[#ff014f]"
+                  className={`h-4 w-4 ${holidayCheckboxClass}`}
                 />
                 Half-day holiday
               </label>
@@ -138,12 +147,12 @@ export default function EditHolidayDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="Optional note"
-              className="w-full px-2.5 py-2 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af] resize-none"
+              className={`w-full ${employeeInputClass} resize-none`}
             />
           </Field>
 
           {error && (
-            <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            <div className={employeeErrorBannerClass}>
               {error}
             </div>
           )}
@@ -154,7 +163,7 @@ export default function EditHolidayDialog({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
+            className={holidayModalCancelClass}
           >
             Cancel
           </button>
@@ -162,7 +171,7 @@ export default function EditHolidayDialog({
             type="button"
             onClick={save}
             disabled={saving || !valid}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className={`${employeeBtnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             Save
@@ -182,9 +191,7 @@ function Field({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-[10.5px] font-bold tracking-widest text-gray-400 uppercase">
-        {label}
-      </label>
+      <label className={employeeFilterLabelClass}>{label}</label>
       {children}
     </div>
   );

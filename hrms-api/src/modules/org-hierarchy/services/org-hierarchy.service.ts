@@ -1,5 +1,8 @@
 import { mapDbErrorToApiError, extractPostgresError } from "@/lib/db-error";
 import { ApiError } from "@/middleware/error";
+import { inArray } from "drizzle-orm";
+import { db } from "@/db/runtime";
+import { branches } from "@/db/schema/hrms";
 import * as repo from "@/modules/org-hierarchy/repositories/org-hierarchy.repository";
 import type {
   CreateDepartmentInput,
@@ -63,6 +66,22 @@ function wrapDbError(e: unknown): never {
   throw mapDbErrorToApiError(e);
 }
 
+async function assertBranchesExist(branchIds: number[]) {
+  if (branchIds.length === 0) return;
+  const unique = [...new Set(branchIds)];
+  const rows = await db
+    .select({ id: branches.id })
+    .from(branches)
+    .where(inArray(branches.id, unique));
+  if (rows.length !== unique.length) {
+    throw new ApiError(
+      400,
+      "INVALID_LOCATION",
+      "One or more selected locations were not found.",
+    );
+  }
+}
+
 async function assertDepartmentExists(id: number) {
   const row = await repo.getDepartmentById(id);
   if (!row) {
@@ -108,6 +127,7 @@ export async function getDepartment(id: number) {
 }
 
 export async function createDepartment(input: CreateDepartmentInput) {
+  await assertBranchesExist(input.branchIds ?? []);
   try {
     return await repo.createDepartment(input);
   } catch (e) {
@@ -117,6 +137,9 @@ export async function createDepartment(input: CreateDepartmentInput) {
 
 export async function updateDepartment(id: number, input: UpdateDepartmentInput) {
   await getDepartment(id);
+  if (input.branchIds !== undefined) {
+    await assertBranchesExist(input.branchIds);
+  }
   try {
     const row = await repo.updateDepartment(id, input);
     if (!row) throw new ApiError(404, "NOT_FOUND", "Department not found.");
@@ -165,6 +188,7 @@ export async function getSubDepartment(id: number) {
 
 export async function createSubDepartment(input: CreateSubDepartmentInput) {
   await assertDepartmentExists(input.departmentId);
+  await assertBranchesExist(input.branchIds ?? []);
   try {
     return await repo.createSubDepartment(input);
   } catch (e) {
@@ -179,6 +203,9 @@ export async function updateSubDepartment(
   await getSubDepartment(id);
   if (input.departmentId !== undefined) {
     await assertDepartmentExists(input.departmentId);
+  }
+  if (input.branchIds !== undefined) {
+    await assertBranchesExist(input.branchIds);
   }
   try {
     const row = await repo.updateSubDepartment(id, input);
@@ -270,6 +297,7 @@ export async function getDesignation(id: number) {
 
 export async function createDesignation(input: CreateDesignationInput) {
   await getLevel(input.levelId);
+  await assertBranchesExist(input.branchIds ?? []);
   try {
     return await repo.createDesignation(input);
   } catch (e) {
@@ -283,6 +311,9 @@ export async function updateDesignation(
 ) {
   await getDesignation(id);
   if (input.levelId !== undefined) await getLevel(input.levelId);
+  if (input.branchIds !== undefined) {
+    await assertBranchesExist(input.branchIds);
+  }
   try {
     const row = await repo.updateDesignation(id, input);
     if (!row) throw new ApiError(404, "NOT_FOUND", "Designation not found.");

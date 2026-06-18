@@ -1,6 +1,9 @@
 ﻿"use client";
 
 import { useState } from "react";
+import {
+  employeeCardClass,
+} from "@/features/employees/employee-theme";
 import CompOffSection from "./CompOffSection";
 import ApprovalSection from "./ApprovalSection";
 import MasterLeaveTypesSection from "./MasterLeaveTypesSection";
@@ -12,8 +15,8 @@ import LeavePoliciesSection from "./LeavePoliciesSection";
 // Config flow order: define the catalog (Leave Types) → bundle quotas into
 // Leave Policies → tune Comp-Off → set Approval routing.
 //
-// Theme: matches the existing employee-portal cards — white card with subtle
-// gray border, brand pink (#ff014f / #be185d) for accents and active states.
+// Theme: matches the employee-portal pages — white card with slate border,
+// brand lab accent for active states.
 
 type Tab = "master" | "policies" | "comp-off" | "approval";
 const TAB_ORDER: Tab[] = ["master", "policies", "comp-off", "approval"];
@@ -111,11 +114,10 @@ function TabHeader({
   const TAB_WIDTH = 190;
   const activeIdx = TAB_ORDER.indexOf(active);
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl px-2 py-2 inline-flex relative self-start">
-      {/* Sliding pink pill behind the active tab */}
+    <div className={`${employeeCardClass} px-2 py-2 inline-flex relative self-start`}>
       <div
         aria-hidden
-        className="absolute top-2 bottom-2 rounded-xl bg-gradient-to-r from-[#ff014f] to-[#eb0249] transition-transform duration-300 ease-out"
+        className="absolute top-2 bottom-2 rounded-md bg-[lab(36.9089%_35.0961_-85.6872)] transition-transform duration-300 ease-out"
         style={{
           width: TAB_WIDTH,
           left: 8,
@@ -134,8 +136,8 @@ function TabHeader({
               marginLeft: i === 0 ? 0 : 4,
             }}
             className={[
-              "relative z-10 py-2 rounded-xl text-[13px] font-semibold transition-colors",
-              isActive ? "text-white" : "text-gray-600 hover:text-gray-900",
+              "relative z-10 py-2 rounded-md text-[13px] font-medium transition-colors border-0 cursor-pointer bg-transparent",
+              isActive ? "text-white" : "text-slate-600 hover:text-slate-900",
             ].join(" ")}
           >
             {TAB_LABEL[t]}

@@ -2,7 +2,7 @@
 
 import { useStore } from "@tanstack/react-form";
 import type { AnyFormApi } from "@tanstack/react-form";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { NativeSelectField } from "@/components/form/form-field";
 import { Field, FieldLabel } from "@/components/ui/field";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
@@ -22,6 +22,10 @@ import {
   type OrgStructure,
   type OrgSubDepartment,
 } from "@/features/org-hierarchy/api/org-hierarchy.client";
+import {
+  filterStructuresByLocation,
+  orgRecordMatchesLocation,
+} from "@/features/org-hierarchy/lib/org-hierarchy-location";
 
 export function resolveOrgStructureId(
   structures: OrgStructure[],
@@ -85,6 +89,8 @@ type Props = {
   structures: OrgStructure[];
   fieldValidators: OrgHierarchyFieldValidators;
   controlClassName?: string;
+  /** When true, hierarchy options stay empty until a location is chosen. */
+  requireLocation?: boolean;
 };
 
 export default function OrgHierarchyRoleFields({
@@ -96,7 +102,12 @@ export default function OrgHierarchyRoleFields({
   structures,
   fieldValidators,
   controlClassName = employeeFormNativeSelectClass,
+  requireLocation = false,
 }: Props) {
+  const locationId = useStore(
+    form.store,
+    (state) => (state.values as { locationId?: string }).locationId ?? "",
+  );
   const departmentId = useStore(
     form.store,
     (state) =>
@@ -113,35 +124,83 @@ export default function OrgHierarchyRoleFields({
       (state.values as OrgHierarchyFormFieldValues).orgHierarchyDesignationId,
   );
 
+  const parsedLocationId = useMemo(() => {
+    if (!locationId.trim()) return null;
+    const id = Number(locationId);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }, [locationId]);
+
+  const locationScopedStructures = useMemo(
+    () =>
+      filterStructuresByLocation(
+        structures,
+        parsedLocationId,
+        departments,
+        subDepartments,
+        designations,
+      ),
+    [
+      structures,
+      parsedLocationId,
+      departments,
+      subDepartments,
+      designations,
+    ],
+  );
+
+  const hierarchyBlocked = requireLocation && parsedLocationId == null;
+
   const departmentOptions = useMemo(() => {
-    const departmentIds = new Set(structures.map((row) => row.departmentId));
+    if (hierarchyBlocked) return [];
+    const departmentIds = new Set(
+      locationScopedStructures.map((row) => row.departmentId),
+    );
     return departments
-      .filter((row) => departmentIds.has(row.id))
+      .filter(
+        (row) =>
+          departmentIds.has(row.id) &&
+          orgRecordMatchesLocation(row.branchIds, parsedLocationId),
+      )
       .map((row) => ({
         value: String(row.id),
         label: row.name,
       }));
-  }, [structures, departments]);
+  }, [
+    hierarchyBlocked,
+    locationScopedStructures,
+    departments,
+    parsedLocationId,
+  ]);
 
   const subDepartmentOptions = useMemo(() => {
-    if (!departmentId) return [];
+    if (hierarchyBlocked || !departmentId) return [];
     const subDepartmentIds = new Set(
-      structures
+      locationScopedStructures
         .filter((row) => row.departmentId === Number(departmentId))
         .map((row) => row.subDepartmentId),
     );
     return subDepartments
-      .filter((row) => subDepartmentIds.has(row.id))
+      .filter(
+        (row) =>
+          subDepartmentIds.has(row.id) &&
+          orgRecordMatchesLocation(row.branchIds, parsedLocationId),
+      )
       .map((row) => ({
         value: String(row.id),
         label: row.name,
       }));
-  }, [structures, subDepartments, departmentId]);
+  }, [
+    hierarchyBlocked,
+    locationScopedStructures,
+    subDepartments,
+    departmentId,
+    parsedLocationId,
+  ]);
 
   const designationOptions = useMemo(() => {
-    if (!departmentId || !subDepartmentId) return [];
+    if (hierarchyBlocked || !departmentId || !subDepartmentId) return [];
     const designationIds = new Set(
-      structures
+      locationScopedStructures
         .filter(
           (row) =>
             row.departmentId === Number(departmentId) &&
@@ -150,12 +209,57 @@ export default function OrgHierarchyRoleFields({
         .map((row) => row.designationId),
     );
     return designations
-      .filter((row) => designationIds.has(row.id))
+      .filter(
+        (row) =>
+          designationIds.has(row.id) &&
+          orgRecordMatchesLocation(row.branchIds, parsedLocationId),
+      )
       .map((row) => ({
         value: String(row.id),
         label: row.name,
       }));
-  }, [structures, designations, departmentId, subDepartmentId]);
+  }, [
+    hierarchyBlocked,
+    locationScopedStructures,
+    designations,
+    departmentId,
+    subDepartmentId,
+    parsedLocationId,
+  ]);
+
+  useEffect(() => {
+    if (
+      departmentId &&
+      !departmentOptions.some((option) => option.value === departmentId)
+    ) {
+      form.setFieldValue("orgHierarchyDepartmentId", "");
+      form.setFieldValue("orgHierarchySubDepartmentId", "");
+      form.setFieldValue("orgHierarchyDesignationId", "");
+      return;
+    }
+    if (
+      subDepartmentId &&
+      !subDepartmentOptions.some((option) => option.value === subDepartmentId)
+    ) {
+      form.setFieldValue("orgHierarchySubDepartmentId", "");
+      form.setFieldValue("orgHierarchyDesignationId", "");
+      return;
+    }
+    if (
+      designationId &&
+      !designationOptions.some((option) => option.value === designationId)
+    ) {
+      form.setFieldValue("orgHierarchyDesignationId", "");
+    }
+  }, [
+    departmentId,
+    subDepartmentId,
+    designationId,
+    departmentOptions,
+    subDepartmentOptions,
+    designationOptions,
+    form,
+  ]);
 
   const levelLabel = useMemo(() => {
     if (!designationId) return "";
@@ -177,10 +281,15 @@ export default function OrgHierarchyRoleFields({
           <EmployeeFormField>
             <NativeSelectField
               controlClassName={controlClassName}
+              disabled={hierarchyBlocked}
               field={field}
               label="Department"
               options={departmentOptions}
-              placeholder="Select department"
+              placeholder={
+                hierarchyBlocked
+                  ? "Select location first"
+                  : "Select department"
+              }
               onValueChange={() => {
                 form.setFieldValue("orgHierarchySubDepartmentId", "");
                 form.setFieldValue("orgHierarchyDesignationId", "");
@@ -198,11 +307,17 @@ export default function OrgHierarchyRoleFields({
           <EmployeeFormField key={`sub-dept-${departmentId || "none"}`}>
             <NativeSelectField
               controlClassName={controlClassName}
-              disabled={!departmentId}
+              disabled={hierarchyBlocked || !departmentId}
               field={field}
               label="Sub department"
               options={subDepartmentOptions}
-              placeholder="Select sub department"
+              placeholder={
+                hierarchyBlocked
+                  ? "Select location first"
+                  : !departmentId
+                    ? "Select department first"
+                    : "Select sub department"
+              }
               onValueChange={() => {
                 form.setFieldValue("orgHierarchyDesignationId", "");
               }}
@@ -221,11 +336,19 @@ export default function OrgHierarchyRoleFields({
           >
             <NativeSelectField
               controlClassName={controlClassName}
-              disabled={!departmentId || !subDepartmentId}
+              disabled={hierarchyBlocked || !departmentId || !subDepartmentId}
               field={field}
               label="Designation"
               options={designationOptions}
-              placeholder="Select designation"
+              placeholder={
+                hierarchyBlocked
+                  ? "Select location first"
+                  : !departmentId
+                    ? "Select department first"
+                    : !subDepartmentId
+                      ? "Select sub department first"
+                      : "Select designation"
+              }
             />
           </EmployeeFormField>
         )}

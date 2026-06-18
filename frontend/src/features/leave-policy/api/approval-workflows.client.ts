@@ -1,6 +1,7 @@
 // Approval workflow definition client. Talks to /api/admin/approval-workflows.
 
 import { API_BASE } from "@/lib/hrms-client";
+import type { HierarchyScopeRow } from "@/features/leave-policy/lib/leave-plan-scope";
 
 export type WorkflowStage = "Manager" | "DeptHead" | "HR";
 
@@ -10,11 +11,19 @@ export const STAGE_LABELS: Record<WorkflowStage, string> = {
   HR: "HR",
 };
 
+/** Default runtime approver chain (location → department → sub-dept mapped). */
+export const DEFAULT_WORKFLOW_STAGES: WorkflowStage[] = [
+  "Manager",
+  "DeptHead",
+  "HR",
+];
+
 export interface ApprovalWorkflow {
   id: number;
   name: string;
   description: string | null;
   stages: WorkflowStage[];
+  scope: HierarchyScopeRow[];
   isActive: boolean;
 }
 
@@ -22,6 +31,7 @@ export interface ApprovalWorkflowUpsert {
   name: string;
   description: string | null;
   stages: WorkflowStage[];
+  scope: HierarchyScopeRow[];
   isActive: boolean;
 }
 
@@ -44,7 +54,10 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export async function listWorkflows(): Promise<ApprovalWorkflow[]> {
   const r = await call<{ data: ApprovalWorkflow[] }>("");
-  return r.data;
+  return r.data.map((w) => ({
+    ...w,
+    scope: w.scope ?? [],
+  }));
 }
 
 export async function createWorkflow(
@@ -54,7 +67,7 @@ export async function createWorkflow(
     method: "POST",
     body: JSON.stringify(body),
   });
-  return r.data;
+  return { ...r.data, scope: r.data.scope ?? [] };
 }
 
 export async function updateWorkflow(
@@ -65,7 +78,7 @@ export async function updateWorkflow(
     method: "PATCH",
     body: JSON.stringify(body),
   });
-  return r.data;
+  return { ...r.data, scope: r.data.scope ?? [] };
 }
 
 export async function deleteWorkflow(id: number): Promise<void> {
