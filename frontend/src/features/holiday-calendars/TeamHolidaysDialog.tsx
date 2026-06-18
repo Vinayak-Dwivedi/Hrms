@@ -17,6 +17,16 @@ import {
   type GlobalHoliday,
 } from "./api/holiday-calendars.client";
 import EditHolidayDialog from "./EditHolidayDialog";
+import {
+  employeeEditIconBtnClass,
+  employeeIconPen,
+  employeeListTableEmptyClass,
+  employeeListTableHeadClass,
+  employeeListTableRowClass,
+  employeeModalTitleClass,
+  holidayIconWrapClass,
+  holidayModalCancelClass,
+} from "./holiday-calendars-theme";
 
 const DAY_NAMES = [
   "Sun",
@@ -86,11 +96,11 @@ export default function TeamHolidaysDialog({
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[lab(52%_28_-70)] to-[lab(36.9089%_35.0961_-85.6872)]">
+            <div className={holidayIconWrapClass}>
               <CalendarDays size={18} className="text-white" />
             </div>
             <div>
-              <h2 className="text-[18px] font-bold text-gray-900 leading-tight">
+              <h2 className={employeeModalTitleClass}>
                 {team.name}
               </h2>
               <p className="text-[12.5px] text-gray-500 mt-0.5">
@@ -112,7 +122,7 @@ export default function TeamHolidaysDialog({
         {/* Body */}
         <div className="overflow-y-auto">
           <table className="w-full text-[13px]">
-            <thead className="bg-gray-50 text-gray-500 sticky top-0">
+            <thead className="bg-gray-50 border-b border-gray-100 sticky top-0">
               <tr>
                 <Th>Date</Th>
                 <Th>Day</Th>
@@ -125,7 +135,7 @@ export default function TeamHolidaysDialog({
                 <tr>
                   <td
                     colSpan={4}
-                    className="text-center py-12 text-gray-400 text-[12.5px]"
+                    className={employeeListTableEmptyClass}
                   >
                     No holidays assigned to this team yet. Use “Add Team” to edit
                     its holiday list, or assign holidays from the Holidays screen.
@@ -133,10 +143,7 @@ export default function TeamHolidaysDialog({
                 </tr>
               )}
               {teamHolidays.map((h) => (
-                <tr
-                  key={h.id}
-                  className="border-t border-gray-100 hover:bg-gray-50/50"
-                >
+                <tr key={h.id} className={employeeListTableRowClass}>
                   <Td className="font-semibold text-gray-900 whitespace-nowrap">
                     {h.date}
                   </Td>
@@ -155,9 +162,9 @@ export default function TeamHolidaysDialog({
                         type="button"
                         onClick={() => setEditing(h)}
                         title="Edit holiday"
-                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
+                        className={employeeEditIconBtnClass}
                       >
-                        <Pencil size={14} />
+                        <Pencil className={employeeIconPen} />
                       </button>
                       <button
                         type="button"
@@ -185,7 +192,7 @@ export default function TeamHolidaysDialog({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50"
+            className={holidayModalCancelClass}
           >
             Close
           </button>
@@ -213,12 +220,7 @@ function Th({
   className?: string;
 }) {
   return (
-    <th
-      className={[
-        "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
-        className ?? "",
-      ].join(" ")}
-    >
+    <th className={[employeeListTableHeadClass, className ?? ""].join(" ")}>
       {children}
     </th>
   );

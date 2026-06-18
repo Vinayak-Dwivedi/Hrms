@@ -10,6 +10,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Loader2, RotateCcw, Save } from "lucide-react";
 import {
+  employeeBtnClass,
+  employeeCardClass,
+  employeeErrorBannerClass,
+  employeeInputClass,
+  employeeLoadingClass,
+  employeeSelectClass,
+} from "@/features/employees/employee-theme";
+import {
   createPolicy,
   getPolicyForLeaveType,
   updatePolicy,
@@ -33,7 +41,7 @@ function Toggle({
       onClick={() => onChange(!checked)}
       className={[
         "relative shrink-0 rounded-full transition-colors duration-200 w-10 h-5.5 disabled:opacity-40",
-        checked ? "bg-[#ff014f]" : "bg-gray-300",
+        checked ? "bg-[lab(36.9089%_35.0961_-85.6872)]" : "bg-gray-300",
       ].join(" ")}
       style={{ width: 40, height: 22 }}
       aria-pressed={checked}
@@ -133,9 +141,9 @@ export default function CompOffSection() {
   return (
     <div className="flex flex-col gap-5">
       {/* How it works */}
-      <section className="bg-white border border-gray-200 rounded-2xl px-6 py-5">
+      <section className={`${employeeCardClass} px-6 py-5`}>
         <div className="flex items-center gap-2 mb-2">
-          <CalendarClock size={16} className="text-[#ff014f]" />
+          <CalendarClock size={16} className="text-[lab(52%_28_-70)]" />
           <h3 className="text-[15px] font-bold text-gray-900">
             Compensatory Off
           </h3>
@@ -151,7 +159,7 @@ export default function CompOffSection() {
           {["Work holiday / week-off", "Request", "Manager approves", "Credit added", "Use later"].map(
             (step, i, arr) => (
               <span key={step} className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-full bg-pink-50 text-[#be185d] border border-pink-100">
+                <span className="px-2.5 py-1 rounded-full bg-[lab(97%_4_-18)] text-[lab(52%_28_-70)] border border-slate-200">
                   {step}
                 </span>
                 {i < arr.length - 1 && <span className="text-gray-300">→</span>}
@@ -162,17 +170,15 @@ export default function CompOffSection() {
       </section>
 
       {error && (
-        <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        <div className={employeeErrorBannerClass}>
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-[12px] text-gray-500">
-          <Loader2 size={14} className="animate-spin" /> Loading…
-        </div>
+        <div className={employeeLoadingClass}>Loading…</div>
       ) : (
-        <section className="bg-white border border-gray-200 rounded-2xl divide-y divide-gray-100">
+        <section className={`${employeeCardClass} divide-y divide-slate-100`}>
           <SettingRow
             title="Enable Compensatory Off"
             desc="Allow employees to earn comp-off for working holidays / weekly offs."
@@ -194,7 +200,7 @@ export default function CompOffSection() {
                 value={expiryMode}
                 onChange={(e) => setExpiryMode(e.target.value as "yearEnd" | "afterDays")}
                 disabled={!enabled}
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] disabled:opacity-50"
+                className={employeeSelectClass}
               >
                 <option value="afterDays">After N days</option>
                 <option value="yearEnd">At year end</option>
@@ -206,7 +212,7 @@ export default function CompOffSection() {
                   value={expiryDays}
                   onChange={(e) => setExpiryDays(e.target.value)}
                   disabled={!enabled}
-                  className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] disabled:opacity-50"
+                  className={`${employeeInputClass} w-20 text-right disabled:opacity-50`}
                 />
               )}
             </div>
@@ -222,7 +228,7 @@ export default function CompOffSection() {
           type="button"
           onClick={save}
           disabled={saving || loading || !compOffTypeId}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50"
+          className={employeeBtnClass}
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           Save Settings

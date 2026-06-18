@@ -6,7 +6,7 @@ import * as xlsx from "xlsx";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import { accounts, users } from "@/db/schema/auth";
-import { orgHierarchyDepartments as departments, designations, employees, orgHierarchyStructure, roles } from "@/db/schema/hrms";
+import { branches, orgHierarchyDepartments as departments, designations, employees, orgHierarchyStructure, roles } from "@/db/schema/hrms";
 import { generatePassword } from "@/lib/generate-password";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { hashPassword } from "@/lib/password";
@@ -147,6 +147,7 @@ const updateEmployeeSchema = z
     designationId: nullableId.optional(),
     gradeId: nullableId.optional(),
     branchId: nullableId.optional(),
+    locationId: nullableId.optional(),
     reportingManagerId: nullableId.optional(),
     reportingChain: z.array(z.number().int().positive()).optional(),
     maritalStatus: z.enum(MARITAL_STATUS_OPTIONS).optional().nullable(),
@@ -210,6 +211,11 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
       await resolveOrgHierarchyStructure(rest.orgHierarchyStructureId);
     }
 
+    const locationBranchId = resolveLocationBranchId(rest);
+    if (locationBranchId) {
+      await resolveBranchLocation(locationBranchId);
+    }
+
     const nextReportingChain =
       reportingChain ??
       (rest.reportingManagerId ? [rest.reportingManagerId] : []);
@@ -235,7 +241,7 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
       ...(rest.departmentId !== undefined ? { departmentId: rest.departmentId } : {}),
       ...(rest.designationId !== undefined ? { designationId: rest.designationId } : {}),
       ...(rest.gradeId !== undefined ? { gradeId: rest.gradeId } : {}),
-      ...(rest.branchId !== undefined ? { branchId: rest.branchId } : {}),
+      ...syncEmployeeLocationPatch(rest),
       reportingManagerId: rest.reportingManagerId ?? null,
       reportingChain: nextReportingChain,
       maritalStatus: rest.maritalStatus ?? null,
@@ -364,6 +370,7 @@ const createEmployeeSchema = z
     designationId: optionalId,
     gradeId: optionalId,
     branchId: optionalId,
+    locationId: optionalId,
     reportingManagerId: optionalId,
     maritalStatus: z.enum(MARITAL_STATUS_OPTIONS).optional().nullable(),
     spouseName: z.string().trim().max(200).optional().nullable(),
@@ -470,6 +477,36 @@ async function resolveOrgHierarchyStructure(structureId: number) {
   return row;
 }
 
+function resolveLocationBranchId(body: {
+  locationId?: number;
+  branchId?: number;
+}): number | undefined {
+  return body.locationId ?? body.branchId;
+}
+
+async function resolveBranchLocation(branchId: number) {
+  const [row] = await db
+    .select({ id: branches.id })
+    .from(branches)
+    .where(eq(branches.id, branchId))
+    .limit(1);
+  if (!row) {
+    throw new ApiError(400, "INVALID_LOCATION", "Selected location not found.");
+  }
+  return row;
+}
+
+function syncEmployeeLocationPatch(body: {
+  locationId?: number | null;
+  branchId?: number | null;
+}): { locationId: number | null; branchId: number | null } | Record<string, never> {
+  if (body.locationId === undefined && body.branchId === undefined) {
+    return {};
+  }
+  const branchId = body.locationId ?? body.branchId ?? null;
+  return { locationId: branchId, branchId };
+}
+
 async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendInvitation?: boolean }) {
   const workEmail = body.workEmail.toLowerCase();
   const personalEmail = body.personalEmail.toLowerCase();
@@ -479,6 +516,11 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
   const authRole = await resolveAuthRole(body.roleId);
   if (body.orgHierarchyStructureId) {
     await resolveOrgHierarchyStructure(body.orgHierarchyStructureId);
+  }
+
+  const locationBranchId = resolveLocationBranchId(body);
+  if (locationBranchId) {
+    await resolveBranchLocation(locationBranchId);
   }
 
   if (body.reportingManagerId) {
@@ -551,7 +593,8 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
         designationId: body.designationId,
         gradeId: body.gradeId,
         orgHierarchyStructureId: body.orgHierarchyStructureId ?? null,
-        branchId: body.branchId,
+        branchId: locationBranchId,
+        locationId: locationBranchId,
         reportingManagerId: body.reportingManagerId,
         reportingChain,
         maritalStatus: body.maritalStatus ?? undefined,

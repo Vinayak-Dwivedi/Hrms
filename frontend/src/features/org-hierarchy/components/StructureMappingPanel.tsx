@@ -4,6 +4,7 @@ import { Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
+import { fetchBranches } from "@/features/employees/api/employees.client";
 import {
   createOrgStructure,
   deleteOrgStructure,
@@ -23,6 +24,11 @@ import {
   structureFormSchema,
   type StructureFormValues,
 } from "@/features/org-hierarchy/schemas/org-hierarchy.schema";
+import {
+  filterDepartmentsByLocation,
+  filterDesignationsByLocation,
+  filterSubDepartmentsByDepartmentAndLocation,
+} from "@/features/org-hierarchy/lib/org-hierarchy-location";
 import {
   employeeBtnClass,
   employeeBtnOutlineSmClass,
@@ -64,6 +70,8 @@ export default function StructureMappingPanel({
   const [allSubDepartments, setAllSubDepartments] = useState<OrgSubDepartment[]>([]);
   const [formSubDepartments, setFormSubDepartments] = useState<OrgSubDepartment[]>([]);
   const [designations, setDesignations] = useState<OrgDesignation[]>([]);
+  const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
+  const [locationId, setLocationId] = useState("");
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [values, setValues] = useState<StructureFormValues>(emptyStructureForm);
@@ -84,16 +92,18 @@ export default function StructureMappingPanel({
 
   async function reload() {
     try {
-      const [s, d, sub, des] = await Promise.all([
+      const [s, d, sub, des, brs] = await Promise.all([
         fetchOrgStructure(),
         fetchOrgDepartments(),
         fetchOrgSubDepartments(),
         fetchOrgDesignations(),
+        fetchBranches(),
       ]);
       setStructures(s);
       setDepartments(d);
       setAllSubDepartments(sub);
       setDesignations(des);
+      setBranches(brs);
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -110,6 +120,88 @@ export default function StructureMappingPanel({
     }
     void fetchOrgSubDepartments(Number(values.departmentId)).then(setFormSubDepartments);
   }, [values.departmentId]);
+
+  const parsedLocationId = useMemo(() => {
+    if (!locationId.trim()) return null;
+    const id = Number(locationId);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  }, [locationId]);
+
+  const visibleDepartments = useMemo(() => {
+    if (parsedLocationId == null) return [];
+    return filterDepartmentsByLocation(departments, parsedLocationId);
+  }, [departments, parsedLocationId]);
+
+  const visibleSubDepartments = useMemo(() => {
+    if (parsedLocationId == null) return [];
+    return filterSubDepartmentsByDepartmentAndLocation(
+      formSubDepartments,
+      values.departmentId ? Number(values.departmentId) : null,
+      parsedLocationId,
+    );
+  }, [formSubDepartments, values.departmentId, parsedLocationId]);
+
+  const visibleDesignations = useMemo(() => {
+    if (
+      parsedLocationId == null ||
+      !values.departmentId ||
+      !values.subDepartmentId
+    ) {
+      return [];
+    }
+    return filterDesignationsByLocation(designations, parsedLocationId);
+  }, [
+    designations,
+    parsedLocationId,
+    values.departmentId,
+    values.subDepartmentId,
+  ]);
+
+  useEffect(() => {
+    if (
+      values.departmentId &&
+      !visibleDepartments.some((row) => String(row.id) === values.departmentId)
+    ) {
+      setValues((current) => ({
+        ...current,
+        departmentId: "",
+        subDepartmentId: "",
+        designationId: "",
+      }));
+      return;
+    }
+    if (
+      values.subDepartmentId &&
+      !visibleSubDepartments.some(
+        (row) => String(row.id) === values.subDepartmentId,
+      )
+    ) {
+      setValues((current) => ({
+        ...current,
+        subDepartmentId: "",
+        designationId: "",
+      }));
+      return;
+    }
+    if (
+      values.designationId &&
+      !visibleDesignations.some(
+        (row) => String(row.id) === values.designationId,
+      )
+    ) {
+      setValues((current) => ({
+        ...current,
+        designationId: "",
+      }));
+    }
+  }, [
+    values.departmentId,
+    values.subDepartmentId,
+    values.designationId,
+    visibleDepartments,
+    visibleSubDepartments,
+    visibleDesignations,
+  ]);
 
   useEffect(() => {
     if (editStructureId == null) return;
@@ -142,12 +234,14 @@ export default function StructureMappingPanel({
   function openAdd() {
     setEditId(null);
     setValues(emptyStructureForm);
+    setLocationId("");
     setError(null);
     setModalOpen(true);
   }
 
   function openEdit(row: OrgStructure) {
     setEditId(row.id);
+    setLocationId("");
     setValues({
       departmentId: String(row.departmentId),
       subDepartmentId: String(row.subDepartmentId),
@@ -172,6 +266,10 @@ export default function StructureMappingPanel({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!locationId.trim()) {
+      setError("Select a location first.");
+      return;
+    }
     const parsed = structureFormSchema.safeParse(values);
     if (!parsed.success) {
       setError(parsed.error.issues.map((i) => i.message).join(" "));
@@ -338,6 +436,33 @@ export default function StructureMappingPanel({
           {error && <div className={employeeErrorBannerClass}>{error}</div>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className={employeeFilterLabelClass} htmlFor="struct-location">
+                Location
+              </label>
+              <select
+                id="struct-location"
+                className={employeeSelectClass}
+                value={locationId}
+                onChange={(e) => {
+                  setLocationId(e.target.value);
+                  setValues((current) => ({
+                    ...current,
+                    departmentId: "",
+                    subDepartmentId: "",
+                    designationId: "",
+                  }));
+                }}
+              >
+                <option value="">Select location</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className={employeeFilterLabelClass} htmlFor="struct-dept">
                 Department
@@ -346,16 +471,20 @@ export default function StructureMappingPanel({
                 id="struct-dept"
                 className={employeeSelectClass}
                 value={values.departmentId}
+                disabled={!locationId}
                 onChange={(e) =>
                   setValues((v) => ({
                     ...v,
                     departmentId: e.target.value,
                     subDepartmentId: "",
+                    designationId: "",
                   }))
                 }
               >
-                <option value="">Select department</option>
-                {departments.map((d) => (
+                <option value="">
+                  {locationId ? "Select department" : "Select location first"}
+                </option>
+                {visibleDepartments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
@@ -372,12 +501,22 @@ export default function StructureMappingPanel({
                 className={employeeSelectClass}
                 value={values.subDepartmentId}
                 onChange={(e) =>
-                  setValues((v) => ({ ...v, subDepartmentId: e.target.value }))
+                  setValues((v) => ({
+                    ...v,
+                    subDepartmentId: e.target.value,
+                    designationId: "",
+                  }))
                 }
-                disabled={!values.departmentId}
+                disabled={!locationId || !values.departmentId}
               >
-                <option value="">Select sub-department</option>
-                {formSubDepartments.map((s) => (
+                <option value="">
+                  {!locationId
+                    ? "Select location first"
+                    : !values.departmentId
+                      ? "Select department first"
+                      : "Select sub-department"}
+                </option>
+                {visibleSubDepartments.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -399,9 +538,20 @@ export default function StructureMappingPanel({
                     designationId: e.target.value,
                   }))
                 }
+                disabled={
+                  !locationId || !values.departmentId || !values.subDepartmentId
+                }
               >
-                <option value="">Select designation</option>
-                {designations.map((d) => (
+                <option value="">
+                  {!locationId
+                    ? "Select location first"
+                    : !values.departmentId
+                      ? "Select department first"
+                      : !values.subDepartmentId
+                        ? "Select sub-department first"
+                        : "Select designation"}
+                </option>
+                {visibleDesignations.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>

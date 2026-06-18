@@ -19,15 +19,23 @@ export const createDepartmentSchema = z.object({
   code: z.string().trim().min(1).max(20),
   status: z.enum(ORG_HIERARCHY_STATUS).optional(),
   companyId: z.number().int().positive().nullable().optional(),
+  branchIds: z.array(z.number().int().positive()).default([]),
 });
 
-export const updateDepartmentSchema = createDepartmentSchema.partial();
+export const updateDepartmentSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  code: z.string().trim().min(1).max(20).optional(),
+  status: z.enum(ORG_HIERARCHY_STATUS).optional(),
+  companyId: z.number().int().positive().nullable().optional(),
+  branchIds: z.array(z.number().int().positive()).optional(),
+});
 
 export const createSubDepartmentSchema = z.object({
   departmentId: z.number().int().positive(),
   name: z.string().trim().min(1).max(100),
   status: z.enum(ORG_HIERARCHY_STATUS).optional(),
   companyId: z.number().int().positive().nullable().optional(),
+  branchIds: z.array(z.number().int().positive()).default([]),
 });
 
 export const updateSubDepartmentSchema = z.object({
@@ -35,6 +43,7 @@ export const updateSubDepartmentSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   status: z.enum(ORG_HIERARCHY_STATUS).optional(),
   companyId: z.number().int().positive().nullable().optional(),
+  branchIds: z.array(z.number().int().positive()).optional(),
 });
 
 export const createLevelSchema = z.object({
@@ -50,6 +59,7 @@ export const createDesignationSchema = z.object({
   code: z.string().trim().min(1).max(20).optional(),
   levelId: z.number().int().positive(),
   status: z.enum(ORG_HIERARCHY_STATUS).optional(),
+  branchIds: z.array(z.number().int().positive()).default([]),
 });
 
 export const updateDesignationSchema = createDesignationSchema.partial();

@@ -6,22 +6,17 @@ import { API_BASE } from "@/lib/hrms-client";
 export type LeavePlanStatus = "Draft" | "Active" | "Archived";
 export type AccrualMethod = "Annual" | "Monthly";
 
+import type { HierarchyScopeRow } from "@/features/leave-policy/lib/leave-plan-scope";
+
 export type PlanScopeType =
   | "Company"
   | "Branch"
-  | "Location"
   | "Department"
-  | "SubDepartment"
-  | "Designation"
-  | "Grade"
-  | "EmploymentType"
-  | "Employee";
+  | "SubDepartment";
 
-export interface PlanScopeRow {
+export interface PlanScopeRow extends HierarchyScopeRow {
   id?: number;
   scopeType: PlanScopeType;
-  scopeId: number | null;
-  priority: number;
 }
 
 export interface PlanAllocation {

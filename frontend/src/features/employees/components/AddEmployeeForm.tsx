@@ -315,6 +315,25 @@ function AddEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
 
+          <EmployeeFormField>
+            <form.Field name="locationId" validators={fieldValidators.locationId}>
+              {(field) => (
+                <NativeSelectField
+                  {...employeeSelectControl}
+                  field={field}
+                  label="Location"
+                  options={toSelectOptions(branches)}
+                  placeholder="Select location"
+                  onValueChange={() => {
+                    form.setFieldValue("orgHierarchyDepartmentId", "");
+                    form.setFieldValue("orgHierarchySubDepartmentId", "");
+                    form.setFieldValue("orgHierarchyDesignationId", "");
+                  }}
+                />
+              )}
+            </form.Field>
+          </EmployeeFormField>
+
           <OrgHierarchyRoleFields
             form={form}
             controlClassName={employeeFormNativeSelectClass}
@@ -324,6 +343,7 @@ function AddEmployeeFormContent({
             designations={designations}
             levels={levels}
             structures={structures}
+            requireLocation
           />
 
           <EmployeeFormField>
@@ -344,20 +364,6 @@ function AddEmployeeFormContent({
                   label="Reporting manager"
                   options={toManagerSelectOptions(managers)}
                   placeholder="Select manager"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
-
-          <EmployeeFormField>
-            <form.Field name="branchId" validators={fieldValidators.branchId}>
-              {(field) => (
-                <NativeSelectField
-                  {...employeeSelectControl}
-                  field={field}
-                  label="Location"
-                  options={toSelectOptions(branches)}
-                  placeholder="Select location"
                 />
               )}
             </form.Field>

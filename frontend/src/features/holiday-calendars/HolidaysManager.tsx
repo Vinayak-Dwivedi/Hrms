@@ -27,6 +27,24 @@ import {
 } from "./api/holiday-calendars.client";
 import { cn } from "@/lib/utils";
 import EditHolidayDialog from "./EditHolidayDialog";
+import {
+  employeeBtnClass,
+  employeeBtnOutlineSmClass,
+  employeeCardClass,
+  employeeEditIconBtnClass,
+  employeeErrorBannerClass,
+  employeeIconPen,
+  employeeIconSm,
+  employeeInputClass,
+  employeeListTableEmptyClass,
+  employeeListTableHeadClass,
+  employeeListTableRowClass,
+  holidayAccentText,
+  holidayCountBadgeClass,
+  holidayDayBadgeClass,
+  holidayDayBadgeEmptyClass,
+  holidayLinkAccentClass,
+} from "./holiday-calendars-theme";
 
 interface AddRow {
   date: string;
@@ -155,9 +173,9 @@ export default function HolidaysManager({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50"
+          className={employeeBtnOutlineSmClass}
         >
-          <ArrowLeft size={15} /> Back to Teams
+          <ArrowLeft className={employeeIconSm} /> Back to Teams
         </button>
         <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
           Holidays
@@ -165,9 +183,9 @@ export default function HolidaysManager({
       </div>
 
       {/* Add holiday card */}
-      <section className="bg-white border border-gray-200 rounded-2xl p-5">
+      <section className={`${employeeCardClass} p-5`}>
         <div className="flex items-center gap-2 mb-3">
-          <CalendarDays size={16} className="text-[lab(36.9089%_35.0961_-85.6872)]" />
+          <CalendarDays size={16} className={holidayAccentText} />
           <h2 className="text-[14px] font-bold text-gray-900">Add Holiday</h2>
           <span className="text-[12px] text-gray-400">
             — add one or more, then assign to teams from the team dialog.
@@ -184,14 +202,12 @@ export default function HolidaysManager({
                 type="date"
                 value={row.date}
                 onChange={(e) => updateRow(idx, { date: e.target.value })}
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
+                className={employeeInputClass}
               />
               <span
                 className={[
                   "text-[12px] font-semibold text-center px-2 py-1.5 rounded",
-                  row.date
-                    ? "bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)]"
-                    : "bg-gray-100 text-gray-400 italic",
+                  row.date ? holidayDayBadgeClass : holidayDayBadgeEmptyClass,
                 ].join(" ")}
               >
                 {row.date ? dayOfWeek(row.date) : "Day"}
@@ -200,7 +216,7 @@ export default function HolidaysManager({
                 value={row.name}
                 onChange={(e) => updateRow(idx, { name: e.target.value })}
                 placeholder="Holiday name (e.g. Republic Day)"
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
+                className={employeeInputClass}
               />
               <button
                 type="button"
@@ -218,13 +234,13 @@ export default function HolidaysManager({
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] font-bold text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)] disabled:opacity-50"
+            className={`self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] disabled:opacity-50 ${holidayLinkAccentClass}`}
           >
             <Plus size={14} /> Add another
           </button>
 
           {error && (
-            <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+            <div className={employeeErrorBannerClass}>
               {error}
             </div>
           )}
@@ -239,7 +255,7 @@ export default function HolidaysManager({
               type="button"
               onClick={saveNew}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`${employeeBtnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {saving ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -253,7 +269,7 @@ export default function HolidaysManager({
       </section>
 
       {/* All holidays table */}
-      <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      <section className={`${employeeCardClass} overflow-hidden`}>
         <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-[14px] font-bold text-gray-900">All Holidays</h2>
           <span className="text-[12px] text-gray-400">
@@ -262,7 +278,7 @@ export default function HolidaysManager({
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
-            <thead className="bg-gray-50 text-gray-500">
+            <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <Th>Date</Th>
                 <Th>Day</Th>
@@ -271,22 +287,16 @@ export default function HolidaysManager({
                 <Th className="text-right pr-6">Action</Th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {sortedHolidays.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="text-center py-10 text-gray-400 text-[12.5px]"
-                  >
+                  <td colSpan={6} className={employeeListTableEmptyClass}>
                     No holidays yet. Add one above.
                   </td>
                 </tr>
               )}
               {sortedHolidays.map((h) => (
-                <tr
-                  key={h.id}
-                  className="border-t border-gray-100 hover:bg-gray-50/50"
-                >
+                <tr key={h.id} className={employeeListTableRowClass}>
                   <Td className="font-semibold text-gray-900 whitespace-nowrap">
                     {h.date}
                     {h.isHalfDay && (
@@ -307,7 +317,7 @@ export default function HolidaysManager({
                         title={h.teamIds
                           .map((id) => teamNames.get(id) ?? `#${id}`)
                           .join(", ")}
-                        className="inline-block bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)] font-semibold text-[12px] px-2.5 py-0.5 rounded-full"
+                        className={holidayCountBadgeClass}
                       >
                         {h.teamIds.length}
                       </span>
@@ -319,9 +329,9 @@ export default function HolidaysManager({
                         type="button"
                         onClick={() => setEditing(h)}
                         title="Edit"
-                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
+                        className={employeeEditIconBtnClass}
                       >
-                        <Pencil size={14} />
+                        <Pencil className={employeeIconPen} />
                       </button>
                       <button
                         type="button"
@@ -366,12 +376,7 @@ function Th({
   className?: string;
 }) {
   return (
-    <th
-      className={cn(
-        "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
-        className,
-      )}
-    >
+    <th className={[employeeListTableHeadClass, className ?? ""].join(" ")}>
       {children}
     </th>
   );

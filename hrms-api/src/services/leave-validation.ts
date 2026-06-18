@@ -211,12 +211,16 @@ export async function validateLeaveApplication(
     });
   }
 
-  // ── Attachment requirement ───────────────────────────────────────────
-  if (leaveTypeRow.attachmentRequired && !input.hasAttachment) {
+  // ── Proof requirement (threshold-based) ──────────────────────────────
+  if (
+    leaveTypeRow.requiresProofAfterDays != null &&
+    input.days > leaveTypeRow.requiresProofAfterDays &&
+    !input.hasAttachment
+  ) {
     errors.push({
       code: "ATTACHMENT_MISSING",
       field: "documentUrls",
-      message: `${leaveTypeRow.name} requires a supporting document.`,
+      message: `${leaveTypeRow.name} requires a supporting document when leave exceeds ${leaveTypeRow.requiresProofAfterDays} day(s).`,
     });
   }
 

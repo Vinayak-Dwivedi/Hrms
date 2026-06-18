@@ -8,6 +8,7 @@ export type OrgDepartment = {
   name: string;
   code: string;
   status: OrgHierarchyStatus;
+  branchIds: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -18,6 +19,7 @@ export type OrgSubDepartment = {
   companyId: number | null;
   name: string;
   status: OrgHierarchyStatus;
+  branchIds: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -36,6 +38,7 @@ export type OrgDesignation = {
   code: string | null;
   levelId: number;
   status: OrgHierarchyStatus;
+  branchIds?: number[];
   createdAt: string;
   updatedAt: string;
 };
@@ -198,13 +201,17 @@ export async function fetchOrgDepartments(
   const res = await jsonFetch<ListResponse<OrgDepartment>>(
     `${BASE}/departments${q}`,
   );
-  return res.data;
+  return res.data.map((row) => ({
+    ...row,
+    branchIds: row.branchIds ?? [],
+  }));
 }
 
 export async function createOrgDepartment(payload: {
   name: string;
   code: string;
   status?: OrgHierarchyStatus;
+  branchIds?: number[];
 }): Promise<OrgDepartment> {
   const res = await jsonFetch<ItemResponse<OrgDepartment>>(
     `${BASE}/departments`,
@@ -215,7 +222,12 @@ export async function createOrgDepartment(payload: {
 
 export async function updateOrgDepartment(
   id: number,
-  payload: Partial<{ name: string; code: string; status: OrgHierarchyStatus }>,
+  payload: Partial<{
+    name: string;
+    code: string;
+    status: OrgHierarchyStatus;
+    branchIds: number[];
+  }>,
 ): Promise<OrgDepartment> {
   const res = await jsonFetch<ItemResponse<OrgDepartment>>(
     `${BASE}/departments/${id}`,
@@ -236,13 +248,17 @@ export async function fetchOrgSubDepartments(
   const res = await jsonFetch<ListResponse<OrgSubDepartment>>(
     `${BASE}/sub-departments?${params}`,
   );
-  return res.data;
+  return res.data.map((row) => ({
+    ...row,
+    branchIds: row.branchIds ?? [],
+  }));
 }
 
 export async function createOrgSubDepartment(payload: {
   departmentId: number;
   name: string;
   status?: OrgHierarchyStatus;
+  branchIds?: number[];
 }): Promise<OrgSubDepartment> {
   const res = await jsonFetch<ItemResponse<OrgSubDepartment>>(
     `${BASE}/sub-departments`,
@@ -257,6 +273,7 @@ export async function updateOrgSubDepartment(
     departmentId: number;
     name: string;
     status: OrgHierarchyStatus;
+    branchIds: number[];
   }>,
 ): Promise<OrgSubDepartment> {
   const res = await jsonFetch<ItemResponse<OrgSubDepartment>>(
@@ -310,7 +327,10 @@ export async function fetchOrgDesignations(
   const res = await jsonFetch<ListResponse<OrgDesignation>>(
     `${BASE}/designations?${params}`,
   );
-  return res.data;
+  return res.data.map((row) => ({
+    ...row,
+    branchIds: row.branchIds ?? [],
+  }));
 }
 
 export async function createOrgDesignation(payload: {
@@ -318,6 +338,7 @@ export async function createOrgDesignation(payload: {
   code?: string;
   levelId: number;
   status?: OrgHierarchyStatus;
+  branchIds?: number[];
 }): Promise<OrgDesignation> {
   const res = await jsonFetch<ItemResponse<OrgDesignation>>(
     `${BASE}/designations`,
@@ -333,6 +354,7 @@ export async function updateOrgDesignation(
     code: string;
     levelId: number;
     status: OrgHierarchyStatus;
+    branchIds: number[];
   }>,
 ): Promise<OrgDesignation> {
   const res = await jsonFetch<ItemResponse<OrgDesignation>>(

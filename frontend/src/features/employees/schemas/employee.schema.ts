@@ -197,6 +197,8 @@ export const orgHierarchySubDepartmentFieldSchema =
 export const orgHierarchyDesignationFieldSchema =
   requiredSelectId("Designation");
 export const branchFieldSchema = requiredSelectId("Location");
+export const locationFieldSchema = branchFieldSchema;
+export const optionalLocationFieldSchema = optionalSelectFieldSchema("location");
 export const optionalReportingManagerFieldSchema = optionalSelectFieldSchema(
   "reporting manager",
 );
@@ -240,7 +242,7 @@ export function createEmployeeFieldValidators(validRoleIds: number[]) {
     orgHierarchyDesignationId: fieldValidators(
       orgHierarchyDesignationFieldSchema,
     ),
-    branchId: fieldValidators(branchFieldSchema),
+    locationId: fieldValidators(locationFieldSchema),
     reportingManagerId: fieldValidators(optionalReportingManagerFieldSchema),
     password: fieldValidators(loginPasswordFieldSchema),
   };
@@ -297,7 +299,7 @@ export function createEmployeeFormSchema(
       orgHierarchyDepartmentId: orgHierarchyDepartmentFieldSchema,
       orgHierarchySubDepartmentId: orgHierarchySubDepartmentFieldSchema,
       orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
-      branchId: branchFieldSchema,
+      locationId: locationFieldSchema,
       reportingManagerId: optionalReportingManagerFieldSchema,
       password: z.string().optional(),
       confirmPassword: z.string().optional(),
@@ -337,7 +339,7 @@ export const defaultCreateEmployeeValues: CreateEmployeeFormValues = {
   orgHierarchyDepartmentId: "",
   orgHierarchySubDepartmentId: "",
   orgHierarchyDesignationId: "",
-  branchId: "",
+  locationId: "",
   reportingManagerId: "",
   password: "",
   confirmPassword: "",
@@ -356,7 +358,7 @@ export function toCreatePayload(values: CreateEmployeeFormValues) {
   return {
     ...rest,
     middleName: rest.middleName?.trim() || null,
-    branchId: Number(rest.branchId),
+    locationId: Number(rest.locationId),
     reportingManagerId,
   };
 }
@@ -382,7 +384,7 @@ export function toApiPayload(
     joiningDate: base.joiningDate,
     roleId: Number(base.roleId),
     orgHierarchyStructureId,
-    branchId: base.branchId,
+    locationId: base.locationId,
     ...(base.reportingManagerId != null
       ? { reportingManagerId: base.reportingManagerId }
       : {}),
@@ -461,7 +463,7 @@ export function createUpdateEmployeeFieldValidators(validRoleIds: number[] = [])
     orgHierarchyDesignationId: fieldValidators(
       orgHierarchyDesignationFieldSchema,
     ),
-    branchId: fieldValidators(optionalBranchFieldSchema),
+    locationId: fieldValidators(optionalLocationFieldSchema),
     reportingManagerId: fieldValidators(optionalReportingManagerFieldSchema),
   };
 }
@@ -484,7 +486,7 @@ export function createUpdateEmployeeFormSchema(validRoleIds: number[] = []) {
       orgHierarchyDepartmentId: orgHierarchyDepartmentFieldSchema,
       orgHierarchySubDepartmentId: orgHierarchySubDepartmentFieldSchema,
       orgHierarchyDesignationId: orgHierarchyDesignationFieldSchema,
-      branchId: optionalBranchFieldSchema,
+      locationId: optionalLocationFieldSchema,
       reportingManagerId: optionalReportingManagerFieldSchema,
       maritalStatus: z
         .enum([...MARITAL_STATUS_OPTIONS, ""] as const)
@@ -549,7 +551,8 @@ export function toUpdateApiPayload(
     joiningDate: values.joiningDate,
     employeeStatus: values.employeeStatus,
     orgHierarchyStructureId,
-    branchId: idToNumberOrNull(values.branchId),
+    locationId: idToNumberOrNull(values.locationId),
+    branchId: idToNumberOrNull(values.locationId),
     reportingManagerId,
     reportingChain: reportingManagerId ? [reportingManagerId] : [],
     maritalStatus,
@@ -615,7 +618,12 @@ export function detailToFormValues(
     orgHierarchyDepartmentId: orgHierarchy?.orgHierarchyDepartmentId ?? "",
     orgHierarchySubDepartmentId: orgHierarchy?.orgHierarchySubDepartmentId ?? "",
     orgHierarchyDesignationId: orgHierarchy?.orgHierarchyDesignationId ?? "",
-    branchId: employee.branchId != null ? String(employee.branchId) : "",
+    locationId:
+      employee.locationId != null
+        ? String(employee.locationId)
+        : employee.branchId != null
+          ? String(employee.branchId)
+          : "",
     reportingManagerId:
       employee.reportingManagerId != null
         ? String(employee.reportingManagerId)

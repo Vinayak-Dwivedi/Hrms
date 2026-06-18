@@ -6,27 +6,33 @@ export const orgStatusSchema = z.enum(["Active", "Inactive"]);
 
 
 
-export const departmentFormSchema = z.object({
+export const departmentFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Department name is required.").max(100),
+    code: z.string().trim().min(1, "Department code is required.").max(20),
+    status: orgStatusSchema,
+    allLocations: z.boolean(),
+    branchIds: z.array(z.number().int().positive()),
+  })
+  .refine((v) => v.branchIds.length > 0, {
+    message: "Select at least one location.",
+    path: ["branchIds"],
+  });
 
-  name: z.string().trim().min(1, "Department name is required.").max(100),
-
-  code: z.string().trim().min(1, "Department code is required.").max(20),
-
-  status: orgStatusSchema,
-
-});
 
 
-
-export const subDepartmentFormSchema = z.object({
-
-  departmentId: z.string().min(1, "Department is required."),
-
-  name: z.string().trim().min(1, "Sub department name is required.").max(100),
-
-  status: orgStatusSchema,
-
-});
+export const subDepartmentFormSchema = z
+  .object({
+    departmentId: z.string().min(1, "Department is required."),
+    name: z.string().trim().min(1, "Sub department name is required.").max(100),
+    status: orgStatusSchema,
+    allLocations: z.boolean(),
+    branchIds: z.array(z.number().int().positive()),
+  })
+  .refine((v) => v.branchIds.length > 0, {
+    message: "Select at least one location.",
+    path: ["branchIds"],
+  });
 
 
 
@@ -56,17 +62,19 @@ export const levelFormSchema = z.object({
 
 
 
-export const designationFormSchema = z.object({
-
-  name: z.string().trim().min(1, "Designation name is required.").max(150),
-
-  code: z.string().trim().max(20, "Designation code must be at most 20 characters."),
-
-  levelId: z.string().min(1, "Level / grade is required."),
-
-  status: orgStatusSchema,
-
-});
+export const designationFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "Designation name is required.").max(150),
+    code: z.string().trim().max(20, "Designation code must be at most 20 characters."),
+    levelId: z.string().min(1, "Level / grade is required."),
+    status: orgStatusSchema,
+    allLocations: z.boolean(),
+    branchIds: z.array(z.number().int().positive()),
+  })
+  .refine((v) => v.branchIds.length > 0, {
+    message: "Select at least one location.",
+    path: ["branchIds"],
+  });
 
 
 
@@ -102,6 +110,10 @@ export const emptyDepartmentForm: DepartmentFormValues = {
 
   status: "Active",
 
+  allLocations: false,
+
+  branchIds: [],
+
 };
 
 
@@ -113,6 +125,10 @@ export const emptySubDepartmentForm: SubDepartmentFormValues = {
   name: "",
 
   status: "Active",
+
+  allLocations: false,
+
+  branchIds: [],
 
 };
 
@@ -139,6 +155,10 @@ export const emptyDesignationForm: DesignationFormValues = {
   levelId: "",
 
   status: "Active",
+
+  allLocations: false,
+
+  branchIds: [],
 
 };
 

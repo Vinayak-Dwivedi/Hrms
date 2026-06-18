@@ -33,7 +33,7 @@ const baseValues: CreateEmployeeFormValues = {
   orgHierarchyDepartmentId: "1",
   orgHierarchySubDepartmentId: "1",
   orgHierarchyDesignationId: "1",
-  branchId: "1",
+  locationId: "1",
   reportingManagerId: "1",
   password: "",
   confirmPassword: "",
@@ -169,6 +169,7 @@ describe("toApiPayload", () => {
     const payload = toApiPayload(baseValues, 42);
     assert.equal("password" in payload, false);
     assert.equal(payload.orgHierarchyStructureId, 42);
+    assert.equal(payload.locationId, 1);
   });
 
   it("includes password when provided", () => {
@@ -214,7 +215,7 @@ const baseUpdateValues = {
   orgHierarchyDepartmentId: "1",
   orgHierarchySubDepartmentId: "2",
   orgHierarchyDesignationId: "3",
-  branchId: "1",
+  locationId: "1",
   reportingManagerId: "1",
   maritalStatus: "" as const,
   spouseName: "",
@@ -283,6 +284,7 @@ describe("detailToFormValues", () => {
       spouseName: null,
       gradeId: null,
       branchId: 1,
+      locationId: 1,
       reportingManagerId: 1,
       orgHierarchyStructureId: 99,
       roleId: 2,

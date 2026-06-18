@@ -173,7 +173,10 @@ export default function EmployeeDetailView({
         <DetailRow label="Designation" value={orgRole.designation} />
         <DetailRow label="Level / grade" value={orgRole.levelGrade} />
         <DetailRow label="Reporting manager" value={managerLabel} />
-        <DetailRow label="Branch" value={lookupName(employee.branchId, branches)} />
+        <DetailRow
+          label="Location"
+          value={lookupName(employee.locationId ?? employee.branchId, branches)}
+        />
         <DetailRow label="Marital status" value={employee.maritalStatus ?? "—"} />
         <DetailRow label="Spouse name" value={employee.spouseName ?? "—"} />
       </div>
