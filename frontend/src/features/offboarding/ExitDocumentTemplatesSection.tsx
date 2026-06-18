@@ -219,7 +219,7 @@ function DocTemplateDialog({
             <input className={inputClass} type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
           </div>
           <label className="flex items-center gap-2 cursor-pointer pt-6">
-            <input type="checkbox" className="w-4 h-4 accent-[#FF014F]" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+            <input type="checkbox" className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)]" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             <span className="text-sm text-gray-700">Active</span>
           </label>
         </div>
@@ -241,7 +241,7 @@ function DocTemplateDialog({
           <label className={labelClass}>HTML Template</label>
           <textarea
             ref={htmlRef}
-            className="w-full min-h-[260px] px-3 py-2 border border-gray-300 rounded-md text-[13px] font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#ffb9ce]"
+            className="w-full min-h-[260px] px-3 py-2 border border-gray-300 rounded-md text-[13px] font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-[#bfdbfe]"
             value={html}
             onChange={(e) => setHtml(e.target.value)}
           />

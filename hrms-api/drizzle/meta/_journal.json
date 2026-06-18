@@ -313,29 +313,64 @@
     {
       "idx": 44,
       "version": "7",
+      "when": 1781755100000,
+      "tag": "20260618100000_employees_location_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1781856000000,
+      "tag": "20260618100000_exit_interview_template_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1781859600000,
+      "tag": "20260618110000_weekly_off_roster",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781863200000,
+      "tag": "20260618120000_resignation_resumed_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
       "when": 1781755200000,
       "tag": "20260618120000_org_hierarchy_sub_dept_branches",
       "breakpoints": true
     },
     {
-      "idx": 45,
+      "idx": 49,
       "version": "7",
       "when": 1781758800000,
       "tag": "20260618130000_org_hierarchy_department_branches",
       "breakpoints": true
     },
     {
-      "idx": 46,
+      "idx": 50,
       "version": "7",
       "when": 1781762400000,
       "tag": "20260618140000_org_hierarchy_designation_branches",
       "breakpoints": true
     },
     {
-      "idx": 47,
+      "idx": 51,
       "version": "7",
       "when": 1781766000000,
       "tag": "20260618150000_approval_workflow_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1781866800000,
+      "tag": "20260618130000_unify_departments_org_hierarchy",
       "breakpoints": true
     }
   ]

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Eye, PauseCircle, Wallet, X } from "lucide-react";
+import { Check, Eye, PauseCircle, Play, Wallet, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
   hrBuyoutDecision,
   hrHold,
   hrReject,
+  hrResume,
   listHrResignations,
   type ResignationStatus,
   type ResignationWithEmployee,
@@ -63,6 +64,16 @@ export default function HrResignationsSection() {
     void load();
   }, []);
 
+  async function resume(r: ResignationWithEmployee) {
+    try {
+      await hrResume(r.id);
+      toast.success(`${r.employee.firstName}'s resignation resumed — back under HR review.`);
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to resume.");
+    }
+  }
+
   const view = useMemo(
     () => (filter === "pending" ? rows.filter((r) => r.status === "ManagerApproved") : rows),
     [rows, filter],
@@ -81,8 +92,10 @@ export default function HrResignationsSection() {
               onClick={() => setFilter(f)}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors capitalize"
               style={{
-                color: active ? "#dc143c" : "#6b7280",
-                borderBottom: active ? "2px solid #dc143c" : "2px solid transparent",
+                color: active ? "lab(36.9089% 35.0961 -85.6872)" : "#6b7280",
+                borderBottom: active
+                  ? "2px solid lab(36.9089% 35.0961 -85.6872)"
+                  : "2px solid transparent",
               }}
             >
               {f === "pending" ? "Pending HR" : "All"}
@@ -158,11 +171,21 @@ export default function HrResignationsSection() {
                           </ActionBtn>
                         </>
                       )}
+                      {r.status === "OnHold" && (
+                        <ActionBtn
+                          title="Resume — return to HR review"
+                          border="#86efac"
+                          color="#16a34a"
+                          onClick={() => resume(r)}
+                        >
+                          <Play size={16} />
+                        </ActionBtn>
+                      )}
                       {r.buyoutRequested && r.buyoutStatus === "Requested" && (
                         <ActionBtn
                           title="Decide notice buyout"
-                          border="#c4b5fd"
-                          color="#7c3aed"
+                          border="#bfdbfe"
+                          color="lab(36.9089% 35.0961 -85.6872)"
                           onClick={() => setBuyoutTarget(r)}
                         >
                           <Wallet size={16} />
@@ -174,14 +197,15 @@ export default function HrResignationsSection() {
                             title={`Notice buyout ${r.buyoutStatus.toLowerCase()}`}
                             className="text-[11px] font-semibold px-2 py-0.5 rounded"
                             style={{
-                              background: r.buyoutStatus === "Approved" ? "#ede9fe" : "#fee2e2",
-                              color: r.buyoutStatus === "Approved" ? "#6d28d9" : "#b91c1c",
+                              background: r.buyoutStatus === "Approved" ? "lab(97% 4 -18)" : "#fee2e2",
+                              color: r.buyoutStatus === "Approved" ? "lab(30% 38 -90)" : "#b91c1c",
                             }}
                           >
                             Buyout {r.buyoutStatus.toLowerCase()}
                           </span>
                         )}
                       {r.status !== "ManagerApproved" &&
+                        r.status !== "OnHold" &&
                         !(r.buyoutRequested && r.buyoutStatus === "Requested") &&
                         !(
                           r.buyoutRequested &&
@@ -320,7 +344,7 @@ function BuyoutDialog({
         </button>
         <button
           type="button"
-          className="px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-[#7c3aed] hover:bg-[#6d28d9] transition-colors disabled:opacity-60"
+          className="px-5 py-2.5 rounded-lg text-sm font-medium text-white bg-[lab(36.9089%_35.0961_-85.6872)] hover:bg-[lab(30%_38_-90)] transition-colors disabled:opacity-60"
           onClick={() => void decide("Approved")}
           disabled={busy != null}
         >
@@ -462,7 +486,7 @@ function RemarksDialog({
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer">
-      <input type="checkbox" className="w-4 h-4 accent-[#FF014F] cursor-pointer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="text-sm text-gray-700">{label}</span>
     </label>
   );

@@ -132,7 +132,7 @@ export default function CaseDocumentsDialog({
                               type="button"
                               disabled={busy}
                               onClick={() => generate(item, true)}
-                              className="px-3 py-1.5 bg-[#FF014F] hover:bg-[#eb0249] text-white text-[12px] font-semibold rounded-lg transition-colors disabled:opacity-60"
+                              className="px-3 py-1.5 bg-[lab(36.9089%_35.0961_-85.6872)] hover:bg-[lab(30%_38_-90)] text-white text-[12px] font-semibold rounded-lg transition-colors disabled:opacity-60"
                             >
                               {busy ? "…" : "Generate"}
                             </button>

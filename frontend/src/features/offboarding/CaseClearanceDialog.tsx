@@ -78,7 +78,7 @@ export default function CaseClearanceDialog({
             <div className="flex items-center gap-3">
               <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
                 <div
-                  className="h-full bg-gradient-to-r from-[#FF014F] to-[#eb0249] transition-all"
+                  className="h-full bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] transition-all"
                   style={{ width: `${data.summary.total ? (data.summary.done / data.summary.total) * 100 : 0}%` }}
                 />
               </div>

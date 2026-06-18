@@ -18,7 +18,7 @@ const CASE_STATUS: Record<OffboardingCase["status"], { bg: string; color: string
 
 const BUYOUT_STYLE: Record<string, { bg: string; color: string; label: string }> = {
   Requested: { bg: "#fef9c3", color: "#b45309", label: "Buyout requested" },
-  Approved: { bg: "#ede9fe", color: "#6d28d9", label: "Buyout approved" },
+  Approved: { bg: "lab(97% 4 -18)", color: "lab(30% 38 -90)", label: "Buyout approved" },
   Rejected: { bg: "#fee2e2", color: "#b91c1c", label: "Buyout declined" },
 };
 
@@ -90,7 +90,7 @@ export default function CaseDetailDialog({
             <div className="flex items-center gap-2 mb-5">
               <StatusPill bg={s.bg} color={s.color} label={s.label} />
               {c.fnfStatus === "Approved" && (
-                <StatusPill bg="#ede9fe" color="#6d28d9" label="FnF Approved" />
+                <StatusPill bg="lab(97% 4 -18)" color="lab(30% 38 -90)" label="FnF Approved" />
               )}
               {c.fnfStatus === "Paid" && (
                 <StatusPill bg="#dcfce7" color="#15803d" label="FnF Paid" />
@@ -115,13 +115,13 @@ export default function CaseDetailDialog({
                         stage.state === "done"
                           ? "#dcfce7"
                           : stage.state === "current"
-                            ? "#ffe4ec"
+                            ? "lab(97% 4 -18)"
                             : "#f3f4f6",
                       color:
                         stage.state === "done"
                           ? "#15803d"
                           : stage.state === "current"
-                            ? "#FF014F"
+                            ? "lab(36.9089% 35.0961 -85.6872)"
                             : "#9ca3af",
                     }}
                   >

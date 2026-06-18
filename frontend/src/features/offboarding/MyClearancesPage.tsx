@@ -124,7 +124,7 @@ export default function MyClearancesPage() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ ...cellStyle, fontWeight: 600, color: "#7c3aed", whiteSpace: "nowrap" }}>
+                  <td style={{ ...cellStyle, fontWeight: 600, color: "lab(36.9089% 35.0961 -85.6872)", whiteSpace: "nowrap" }}>
                     {c.caseNumber}
                   </td>
                   <td style={cellStyle}>{c.departmentName ?? "—"}</td>
@@ -136,7 +136,7 @@ export default function MyClearancesPage() {
                           className="h-full rounded-full"
                           style={{
                             width: `${pct}%`,
-                            background: pct === 100 ? "#16a34a" : "#7c3aed",
+                            background: pct === 100 ? "#16a34a" : "lab(36.9089% 35.0961 -85.6872)",
                           }}
                         />
                       </div>

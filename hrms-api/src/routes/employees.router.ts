@@ -6,7 +6,7 @@ import * as xlsx from "xlsx";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import { accounts, users } from "@/db/schema/auth";
-import { branches, departments, designations, employees, orgHierarchyStructure, roles } from "@/db/schema/hrms";
+import { branches, orgHierarchyDepartments as departments, designations, employees, orgHierarchyStructure, roles } from "@/db/schema/hrms";
 import { generatePassword } from "@/lib/generate-password";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { hashPassword } from "@/lib/password";

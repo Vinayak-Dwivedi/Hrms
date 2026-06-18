@@ -45,14 +45,7 @@ export default function OffboardingPage() {
 
   return (
     <div className="flex flex-col gap-6 pb-10">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-[22px] font-bold text-gray-900 leading-tight">Offboarding</h1>
-          <p className="text-[13px] text-gray-500 mt-1">
-            Review resignations, track offboarding cases, and configure resignation flows.
-          </p>
-        </div>
-      </div>
+     
 
       {/* Tab bar */}
       <div className="bg-white border border-gray-200 rounded-2xl px-2 py-2 inline-flex self-start gap-1">
@@ -66,7 +59,7 @@ export default function OffboardingPage() {
               className={[
                 "px-4 py-2 rounded-xl text-sm font-medium transition-colors",
                 active
-                  ? "bg-gradient-to-r from-[#FF014F] to-[#eb0249] text-white"
+                  ? "bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] text-white"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
               ].join(" ")}
             >

@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import ManagerResignations from "@/components/manager/ManagerResignations";
+import CompOffApprovals from "@/features/comp-off/CompOffApprovals";
 import {
   employeeCardClass,
   employeeFilterLabelClass,
@@ -1406,7 +1407,12 @@ function SubTabs<K extends string>({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type MainTab = "leave" | "regularisation" | "resignation" | "discussion";
+type MainTab =
+  | "leave"
+  | "regularisation"
+  | "resignation"
+  | "discussion"
+  | "compoff";
 type LeaveSubTab = "all" | "pending" | "approved" | "rejected" | "forwarded";
 type RegSubTab = "all" | "pending" | "approved" | "rejected";
 
@@ -1802,6 +1808,7 @@ export default function Approvals() {
             { key: "regularisation" as MainTab, label: "Regularisation" },
             { key: "resignation" as MainTab, label: "Resignation" },
             { key: "discussion" as MainTab, label: "Discussion" },
+            { key: "compoff" as MainTab, label: "Comp-Off" },
           ].map((t) => (
             <button
               key={t.key}
@@ -1959,6 +1966,11 @@ export default function Approvals() {
 
       {mainTab === "resignation" && <ManagerResignations />}
       {mainTab === "discussion" && <ManagerResignations mode="discussion" />}
+      {mainTab === "compoff" && (
+        <div className="pt-4">
+          <CompOffApprovals />
+        </div>
+      )}
     </div>
   );
 }

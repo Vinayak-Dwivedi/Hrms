@@ -25,6 +25,7 @@ import {
   type GlobalHoliday,
   type HolidayCalendarSummary,
 } from "./api/holiday-calendars.client";
+import { cn } from "@/lib/utils";
 import EditHolidayDialog from "./EditHolidayDialog";
 import {
   employeeBtnClass,
@@ -282,7 +283,6 @@ export default function HolidaysManager({
                 <Th>Date</Th>
                 <Th>Day</Th>
                 <Th>Name</Th>
-                <Th>Type</Th>
                 <Th className="text-center">Teams</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
@@ -299,17 +299,14 @@ export default function HolidaysManager({
                 <tr key={h.id} className={employeeListTableRowClass}>
                   <Td className="font-semibold text-gray-900 whitespace-nowrap">
                     {h.date}
-                  </Td>
-                  <Td className="text-gray-700">{dayOfWeek(h.date)}</Td>
-                  <Td className="text-gray-900">
-                    {h.name}
                     {h.isHalfDay && (
                       <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                         Half-day
                       </span>
                     )}
                   </Td>
-                  <Td className="text-gray-700">{h.type}</Td>
+                  <Td className="text-gray-700">{dayOfWeek(h.date)}</Td>
+                  <Td className="text-gray-900">{h.name}</Td>
                   <Td className="text-center">
                     {h.teamIds.length === 0 ? (
                       <span className="text-gray-400 italic text-[12px]">
@@ -393,7 +390,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td className={["px-4 py-3 align-middle", className ?? ""].join(" ")}>
+    <td className={cn("px-4 py-3 align-middle", className)}>
       {children}
     </td>
   );

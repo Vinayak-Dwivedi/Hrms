@@ -13,7 +13,7 @@ import { z } from "zod";
 import { db } from "@/db/runtime";
 import {
   approvalWorkflows,
-  departments,
+  orgHierarchyDepartments as departments,
   employees,
   leavePlanScope,
   leavePlans,

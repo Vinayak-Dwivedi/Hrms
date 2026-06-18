@@ -20,6 +20,7 @@ export type ScopeType =
   | "Branch"
   | "Location"
   | "Department"
+  | "SubDepartment"
   | "Designation"
   | "Grade"
   | "EmploymentType"
@@ -173,6 +174,47 @@ export async function deleteWeeklyOff(id: number): Promise<void> {
     credentials: "include",
   });
   if (!res.ok) throw await parseErr(res);
+}
+
+// ── Roster planner ──
+
+export interface RosterEmployee {
+  id: number;
+  empId: string;
+  name: string;
+}
+export interface RosterData {
+  from: string;
+  to: string;
+  employees: RosterEmployee[];
+  /** employeeId → list of off-date strings (YYYY-MM-DD) */
+  offDates: Record<number, string[]>;
+}
+
+export async function fetchRoster(configId: number, month: string): Promise<RosterData> {
+  const res = await fetch(buildUrl(`/${configId}/roster?month=${month}`), {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!res.ok) throw await parseErr(res);
+  const body = (await res.json()) as { data: RosterData };
+  return body.data;
+}
+
+export async function saveRoster(
+  configId: number,
+  month: string,
+  entries: { employeeId: number; date: string }[],
+): Promise<number> {
+  const res = await fetch(buildUrl(`/${configId}/roster`), {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ month, entries }),
+  });
+  if (!res.ok) throw await parseErr(res);
+  const body = (await res.json()) as { data: { saved: number } };
+  return body.data.saved;
 }
 
 export function defaultSettingsForMode(

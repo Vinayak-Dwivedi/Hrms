@@ -7,7 +7,6 @@ import { db } from "@/db/runtime";
 import {
   attendanceRecords,
   branches,
-  departments,
   designations,
   employees,
   employmentTypes,
@@ -128,8 +127,8 @@ meRouter.get("/", async (req, res, next) => {
           .where(eq(designations.id, emp.designationId)).limit(1)
       : [];
     const [department] = emp.departmentId
-      ? await db.select({ name: departments.name }).from(departments)
-          .where(eq(departments.id, emp.departmentId)).limit(1)
+      ? await db.select({ name: orgHierarchyDepartments.name }).from(orgHierarchyDepartments)
+          .where(eq(orgHierarchyDepartments.id, emp.departmentId)).limit(1)
       : [];
     const [grade] = emp.gradeId
       ? await db.select({ code: grades.code }).from(grades)

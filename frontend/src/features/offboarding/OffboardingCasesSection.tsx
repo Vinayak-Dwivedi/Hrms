@@ -85,7 +85,7 @@ export default function OffboardingCasesSection() {
                   <button
                     type="button"
                     onClick={() => setDetailCase(c)}
-                    className="text-[#7c3aed] hover:underline cursor-pointer"
+                    className="text-[lab(36.9089%_35.0961_-85.6872)] hover:underline cursor-pointer"
                   >
                     {c.caseNumber}
                   </button>
@@ -102,7 +102,7 @@ export default function OffboardingCasesSection() {
                       <button
                         type="button"
                         onClick={() => setDetailCase(c)}
-                        className="block font-semibold text-gray-900 truncate hover:text-[#7c3aed] hover:underline cursor-pointer text-left"
+                        className="block font-semibold text-gray-900 truncate hover:text-[lab(36.9089%_35.0961_-85.6872)] hover:underline cursor-pointer text-left"
                       >
                         {c.employee.firstName} {c.employee.lastName}
                       </button>

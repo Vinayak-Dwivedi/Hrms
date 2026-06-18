@@ -51,12 +51,14 @@ try {
   `;
   const [branch] = await sql`SELECT id FROM branches WHERE name = 'iLeads Dehradun HQ'`;
 
+  // Departments live in the unified org-hierarchy table (the legacy flat
+  // `departments` table was merged into it).
   await sql`
-    INSERT INTO departments (name, location_area, headcount)
-    VALUES ('Operations', 'HQ-3F', 7)
-    ON CONFLICT (name) DO NOTHING
+    INSERT INTO org_hierarchy_departments (name, code, location_area, headcount)
+    VALUES ('Operations', 'OPS', 'HQ-3F', 7)
+    ON CONFLICT DO NOTHING
   `;
-  const [dept] = await sql`SELECT id FROM departments WHERE name = 'Operations'`;
+  const [dept] = await sql`SELECT id FROM org_hierarchy_departments WHERE name = 'Operations' ORDER BY id LIMIT 1`;
 
   for (const [code, name] of [
     ["L1", "Junior IC"],

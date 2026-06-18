@@ -6,38 +6,15 @@
 //   - Add Team     → AddTeamDialog (name + dept + sub-dept + holiday checklist)
 //   - Add Holiday  → AddHolidayDialog (multi-row date/day/name)
 //
-// Main table: one row per Team with NAME / LOCATION / DEPARTMENT /
-// SUB-DEPARTMENT / HOLIDAYS / STATUS / ACTION columns.
+// Main table: one row per Team with NAME / DEPARTMENT / SUB-DEPARTMENT /
+// HOLIDAYS / STATUS / ACTION columns.
 //
 // Data model (unchanged from earlier session):
 //   Teams (= holiday_calendars) carry scope rows.
 //   Holidays are first-class rows; linked to teams via holiday_team_links.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Loader2, Pencil, PlusCircle, RotateCcw, Search, Trash2 } from "lucide-react";
-import {
-  employeeBtnOutlineSmClass,
-  employeeBtnSmClass,
-  employeeCardClass,
-  employeeEditIconBtnClass,
-  employeeErrorBannerClass,
-  employeeFilterLabelClass,
-  employeeIconMd,
-  employeeIconPen,
-  employeeIconSm,
-  employeeIconXs,
-  employeeInputClass,
-  employeeListResetBtnClass,
-  employeeListTableEmptyClass,
-  employeeListTableFooterClass,
-  employeeListTableHeadClass,
-  employeeListTableRowClass,
-  employeeListTableSummaryClass,
-  employeeSelectClass,
-  employeeViewIconBtnClass,
-  holidayCountBadgeClass,
-  holidayNameLinkClass,
-} from "./holiday-calendars-theme";
+import { Eye, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   deleteHolidayCalendar,
   listGlobalHolidays,
@@ -47,34 +24,16 @@ import {
   type HolidayCalendarDetail,
   type HolidayCalendarSummary,
 } from "./api/holiday-calendars.client";
+import { cn } from "@/lib/utils";
 import AddTeamDialog from "./AddTeamDialog";
 import HolidaysManager from "./HolidaysManager";
 import TeamHolidaysDialog from "./TeamHolidaysDialog";
-import { scopeToLabels } from "./scope-labels";
-import { fetchDepartmentsList } from "@/features/departments/api/departments.client";
-import { fetchBranches } from "@/features/employees/api/employees.client";
-import { API_BASE } from "@/lib/hrms-client";
 
 interface TeamRow extends HolidayCalendarSummary {
-  locationLabel: string | null;
-  departmentLabel: string | null;
-  subDepartmentLabel: string | null;
+  departmentName: string | null;
+  subDepartmentName: string | null;
+  locationName: string | null;
   holidayCount: number;
-}
-
-async function fetchSubDepartmentNames(): Promise<Map<number, string>> {
-  const res = await fetch(`${API_BASE}/api/hrms/sub-departments?limit=500`, {
-    credentials: "include",
-  });
-  if (!res.ok) return new Map();
-  const body = (await res.json()) as {
-    data: Array<{ id: number; name: string }>;
-  };
-  const map = new Map<number, string>();
-  for (const row of body.data ?? []) {
-    map.set(row.id, row.name);
-  }
-  return map;
 }
 
 export default function HolidayPolicyPage() {
@@ -87,7 +46,6 @@ export default function HolidayPolicyPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<HolidayCalendarDetail | null>(null);
@@ -99,39 +57,42 @@ export default function HolidayPolicyPage() {
     { id: number; name: string; status: string } | null
   >(null);
 
-  const [branchNames, setBranchNames] = useState<Map<number, string>>(
-    new Map(),
-  );
+  // Org-setup lookups (for name resolution on each row).
   const [departmentNames, setDepartmentNames] = useState<Map<number, string>>(
     new Map(),
   );
   const [subDepartmentNames, setSubDepartmentNames] = useState<
     Map<number, string>
   >(new Map());
+  const [branchNames, setBranchNames] = useState<Map<number, string>>(new Map());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [teamSummaries, holidayList, branches, deptList, subNames] =
+      // Fetch teams + holidays + lookups in parallel.
+      const [teamSummaries, holidayList, deptRes, subRes, branchRes] =
         await Promise.all([
           listHolidayCalendars(),
           listGlobalHolidays(),
-          fetchBranches(),
-          fetchDepartmentsList(),
-          fetchSubDepartmentNames(),
+          fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
+          fetch("/api/hrms/sub-departments?limit=500", { credentials: "include" }),
+          fetch("/api/hrms/branches?limit=500", { credentials: "include" }),
         ]);
       setTeams(teamSummaries);
       setHolidays(holidayList);
-
-      const brNames = new Map<number, string>();
-      for (const b of branches) brNames.set(b.id, b.name);
-      setBranchNames(brNames);
-
-      const deptNames = new Map<number, string>();
-      for (const d of deptList) deptNames.set(d.id, d.name);
-      setDepartmentNames(deptNames);
-      setSubDepartmentNames(subNames);
+      if (deptRes.ok) {
+        const body = (await deptRes.json()) as { data: Array<{ id: number; name: string }> };
+        setDepartmentNames(new Map(body.data.map((r) => [r.id, r.name])));
+      }
+      if (subRes.ok) {
+        const body = (await subRes.json()) as { data: Array<{ id: number; name: string }> };
+        setSubDepartmentNames(new Map(body.data.map((r) => [r.id, r.name])));
+      }
+      if (branchRes.ok) {
+        const body = (await branchRes.json()) as { data: Array<{ id: number; name: string }> };
+        setBranchNames(new Map(body.data.map((r) => [r.id, r.name])));
+      }
 
       // Hydrate team details for the table (need scope + holidayIds per row).
       const details = await Promise.all(
@@ -159,40 +120,42 @@ export default function HolidayPolicyPage() {
   const rows = useMemo<TeamRow[]>(() => {
     return teams.map((t) => {
       const detail = teamDetails.get(t.id);
+      const deptIds: number[] = [];
+      const subDeptIds: number[] = [];
+      const branchIds: number[] = [];
+      let hasCompany = false;
       const holidayCount = detail?.holidayIds.length ?? t.holidayCount ?? 0;
-      const labels = detail
-        ? scopeToLabels(
-            detail.scope,
-            branchNames,
-            departmentNames,
-            subDepartmentNames,
-          )
-        : {
-            locationLabel: null,
-            departmentLabel: null,
-            subDepartmentLabel: null,
-          };
+      if (detail) {
+        for (const s of detail.scope) {
+          if (s.scopeType === "Company") hasCompany = true;
+          else if (s.scopeType === "Department" && s.scopeId != null) deptIds.push(s.scopeId);
+          else if (s.scopeType === "SubDepartment" && s.scopeId != null) subDeptIds.push(s.scopeId);
+          else if (s.scopeType === "Branch" && s.scopeId != null) branchIds.push(s.scopeId);
+        }
+      }
+      const joinNames = (ids: number[], names: Map<number, string>): string | null =>
+        ids.length === 0 ? null : ids.map((id) => names.get(id) ?? `#${id}`).join(", ");
       return {
         ...t,
-        ...labels,
+        departmentName: hasCompany ? "All" : joinNames(deptIds, departmentNames),
+        subDepartmentName: hasCompany ? "All" : joinNames(subDeptIds, subDepartmentNames),
+        locationName: hasCompany ? "All locations" : joinNames(branchIds, branchNames),
         holidayCount,
       };
     });
-  }, [teams, teamDetails, branchNames, departmentNames, subDepartmentNames]);
+  }, [teams, teamDetails, departmentNames, subDepartmentNames, branchNames]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (statusFilter && r.status !== statusFilter) return false;
-      if (!q) return true;
-      return (
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
         r.name.toLowerCase().includes(q) ||
-        (r.locationLabel?.toLowerCase().includes(q) ?? false) ||
-        (r.departmentLabel?.toLowerCase().includes(q) ?? false) ||
-        (r.subDepartmentLabel?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [rows, search, statusFilter]);
+        (r.departmentName?.toLowerCase().includes(q) ?? false) ||
+        (r.subDepartmentName?.toLowerCase().includes(q) ?? false) ||
+        (r.locationName?.toLowerCase().includes(q) ?? false),
+    );
+  }, [rows, search]);
 
   async function handleDelete(team: TeamRow) {
     if (!confirm(`Delete team "${team.name}"? Holiday links will be removed.`)) {
@@ -204,11 +167,6 @@ export default function HolidayPolicyPage() {
     } catch (e) {
       alert((e as Error).message);
     }
-  }
-
-  function resetFilters() {
-    setSearch("");
-    setStatusFilter("");
   }
 
   // Full-screen Holidays manager (Add Holiday + all-holidays table).
@@ -225,98 +183,69 @@ export default function HolidayPolicyPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
-        Holiday Policy
-      </h1>
+      
 
-      {/* Search + filter card */}
-      <section className={`${employeeCardClass} p-5`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Search">
-            <div className="relative">
-              <Search
-                size={14}
-                className={`absolute left-3 top-1/2 -translate-y-1/2 ${employeeIconXs} text-slate-400`}
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search teams…"
-                className={`${employeeInputClass} pl-9`}
-              />
-            </div>
-          </Field>
-          <Field label="Status">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={employeeSelectClass}
-            >
-              <option value="">All Statuses</option>
-              <option value="Draft">Draft</option>
-              <option value="Published">Published</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </Field>
+      {/* Search left, actions right — clean single row */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search
+            size={15}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search policies…"
+            className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
+          />
         </div>
-
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center gap-2 sm:ml-auto">
           <button
             type="button"
-            onClick={resetFilters}
-            className={employeeListResetBtnClass}
+            onClick={() => setView("holidays")}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12.5px] font-semibold text-[lab(36.9089%_35.0961_-85.6872)] bg-white border border-gray-200 hover:border-[lab(36.9089%_35.0961_-85.6872)] hover:bg-blue-50/60 shadow-sm transition-colors"
           >
-            <RotateCcw className={employeeIconXs} /> Reset Filters
+            <Plus size={14} /> Add Holiday
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setView("holidays")}
-              className={employeeBtnOutlineSmClass}
-            >
-              <PlusCircle className={employeeIconSm} /> Add Holiday
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingTeam(null);
-                setTeamDialogOpen(true);
-              }}
-              className={employeeBtnSmClass}
-            >
-              <PlusCircle className={employeeIconSm} /> Add Team
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTeam(null);
+              setTeamDialogOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] shadow-sm hover:shadow-md transition-shadow"
+          >
+            <Plus size={14} /> Add Policy
+          </button>
         </div>
-      </section>
+      </div>
 
       {/* Errors */}
       {error && (
-        <div className={employeeErrorBannerClass}>
+        <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
           {error}
         </div>
       )}
 
       {/* Team table */}
-      <section className={`${employeeCardClass} overflow-hidden`}>
+      <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <Th>Name</Th>
                 <Th>Location</Th>
                 <Th>Department</Th>
                 <Th>Sub-Department</Th>
                 <Th className="text-center">Holidays</Th>
-                <Th className="text-center">Status</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {loading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className={employeeListTableEmptyClass}>
-                    <Loader2 className={`${employeeIconSm} animate-spin inline mr-2`} />
+                  <td colSpan={6} className="text-center py-12 text-gray-400">
+                    <Loader2 size={18} className="animate-spin inline mr-2" />
                     Loading…
                   </td>
                 </tr>
@@ -324,7 +253,7 @@ export default function HolidayPolicyPage() {
 
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className={employeeListTableEmptyClass}>
+                  <td colSpan={6} className="text-center py-10 text-gray-400 text-[12.5px]">
                     No teams.{" "}
                     {teams.length === 0
                       ? 'Click "Add Team" to create one.'
@@ -336,7 +265,7 @@ export default function HolidayPolicyPage() {
               {filtered.map((r) => (
                 <tr
                   key={r.id}
-                  className={employeeListTableRowClass}
+                  className="border-t border-gray-100 hover:bg-gray-50/50"
                 >
                   <Td>
                     <button
@@ -348,27 +277,24 @@ export default function HolidayPolicyPage() {
                           status: r.status,
                         })
                       }
-                      className={holidayNameLinkClass}
+                      className="font-semibold text-gray-900 hover:text-[lab(30%_38_-90)] hover:underline text-left"
                     >
                       {r.name}
                     </button>
                   </Td>
-                  <Td className="text-gray-700 max-w-[160px]">
-                    <ScopeCell label={r.locationLabel} />
+                  <Td className="text-gray-700">
+                    {r.locationName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
-                  <Td className="text-gray-700 max-w-[160px]">
-                    <ScopeCell label={r.departmentLabel} />
+                  <Td className="text-gray-700">
+                    {r.departmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
-                  <Td className="text-gray-700 max-w-[160px]">
-                    <ScopeCell label={r.subDepartmentLabel} />
+                  <Td className="text-gray-700">
+                    {r.subDepartmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
                   <Td className="text-center">
-                    <span className={holidayCountBadgeClass}>
+                    <span className="inline-block bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)] font-semibold text-[12px] px-2.5 py-0.5 rounded-full">
                       {r.holidayCount}
                     </span>
-                  </Td>
-                  <Td className="text-center">
-                    <StatusBadge status={r.status} />
                   </Td>
                   <Td className="text-right pr-6">
                     <div className="inline-flex items-center gap-2">
@@ -382,9 +308,9 @@ export default function HolidayPolicyPage() {
                           })
                         }
                         title="View holidays"
-                        className={employeeViewIconBtnClass}
+                        className="text-emerald-600 hover:text-emerald-800"
                       >
-                        <Eye className={employeeIconMd} />
+                        <Eye size={14} />
                       </button>
                       <button
                         type="button"
@@ -396,9 +322,9 @@ export default function HolidayPolicyPage() {
                           }
                         }}
                         title="Edit"
-                        className={employeeEditIconBtnClass}
+                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
                       >
-                        <Pencil className={employeeIconPen} />
+                        <Pencil size={14} />
                       </button>
                       <button
                         type="button"
@@ -417,11 +343,9 @@ export default function HolidayPolicyPage() {
         </div>
 
         {filtered.length > 0 && (
-          <div className={employeeListTableFooterClass}>
-            <p className={employeeListTableSummaryClass}>
-              Showing 1 to {filtered.length} of {filtered.length} result
-              {filtered.length === 1 ? "" : "s"}
-            </p>
+          <div className="px-5 py-3 text-[12px] text-gray-500 border-t border-gray-100">
+            Showing 1 to {filtered.length} of {filtered.length} result
+            {filtered.length === 1 ? "" : "s"}
           </div>
         )}
       </section>
@@ -454,50 +378,6 @@ export default function HolidayPolicyPage() {
 
 // ─── tiny components ──────────────────────────────────────────────────────
 
-function ScopeCell({ label }: { label: string | null }) {
-  if (label == null) {
-    return <span className="text-gray-400 italic">—</span>;
-  }
-  return (
-    <span className="block truncate" title={label}>
-      {label}
-    </span>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className={employeeFilterLabelClass}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    Draft: "bg-amber-50 text-amber-700 border-amber-200",
-    Published: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Archived: "bg-gray-100 text-gray-600 border-gray-200",
-  };
-  return (
-    <span
-      className={[
-        "inline-block text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border",
-        map[status] ?? "bg-gray-100 text-gray-600 border-gray-200",
-      ].join(" ")}
-    >
-      {status}
-    </span>
-  );
-}
-
 function Th({
   children,
   className,
@@ -507,10 +387,10 @@ function Th({
 }) {
   return (
     <th
-      className={[
-        employeeListTableHeadClass,
-        className ?? "",
-      ].join(" ")}
+      className={cn(
+        "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
+        className,
+      )}
     >
       {children}
     </th>
@@ -525,7 +405,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td className={["px-4 py-3 align-middle", className ?? ""].join(" ")}>
+    <td className={cn("px-4 py-3 align-middle", className)}>
       {children}
     </td>
   );

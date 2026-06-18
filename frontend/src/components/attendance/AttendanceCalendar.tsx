@@ -37,6 +37,9 @@ interface Props {
   onSubmitRegularisation?: (input: RegularisationSubmission) => Promise<void>;
   regularisationHistory?: ReadonlyArray<RegularisationHistoryItem>;
   onMonthChange?: (year: number, month0: number) => void;
+  /** Open the Apply-Leave form for today automatically on mount (e.g. when the
+   *  user arrives from the "Apply Leave" quick link). */
+  autoApplyLeave?: boolean;
 }
 
 const MONTHS = [
@@ -904,6 +907,7 @@ export default function AttendanceCalendar({
   onSubmitRegularisation,
   regularisationHistory = [],
   onMonthChange,
+  autoApplyLeave = false,
 }: Props) {
   const today = todayOverride ?? toYMD(new Date());
   const [year, setYear]     = useState(initialYear  ?? parseInt(today.slice(0, 4)));
@@ -912,6 +916,17 @@ export default function AttendanceCalendar({
   const [upcomingYmd, setUpcomingYmd]     = useState<string | null>(null);
   const [showLeaveForm, setShowLeaveForm] = useState(false);
   const [regDate, setRegDate]             = useState<string | null>(null);
+
+  // Auto-open the Apply-Leave form once when arriving via the quick link, as
+  // soon as leave balances are available (they load async).
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (!autoApplyLeave || !onSubmitLeave || leaveBalances.length === 0) return;
+    autoOpenedRef.current = true;
+    setUpcomingYmd(today);
+    setShowLeaveForm(true);
+  }, [autoApplyLeave, onSubmitLeave, leaveBalances.length, today]);
 
   // Sync internal state when parent updates props after a month-change fetch
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional sync

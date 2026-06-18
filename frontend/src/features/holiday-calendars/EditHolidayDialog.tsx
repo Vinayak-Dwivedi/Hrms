@@ -9,7 +9,6 @@ import { Loader2, Save } from "lucide-react";
 import {
   updateGlobalHoliday,
   type GlobalHoliday,
-  type HolidayType,
 } from "./api/holiday-calendars.client";
 import {
   employeeBtnClass,
@@ -20,14 +19,6 @@ import {
   holidayCheckboxClass,
   holidayModalCancelClass,
 } from "./holiday-calendars-theme";
-
-const HOLIDAY_TYPES: HolidayType[] = [
-  "National",
-  "Regional",
-  "Optional",
-  "Restricted",
-  "Festival",
-];
 
 export default function EditHolidayDialog({
   open,
@@ -42,9 +33,7 @@ export default function EditHolidayDialog({
 }) {
   const [date, setDate] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState<HolidayType>("National");
   const [isHalfDay, setIsHalfDay] = useState(false);
-  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,9 +41,7 @@ export default function EditHolidayDialog({
     if (open && holiday) {
       setDate(holiday.date);
       setName(holiday.name);
-      setType(holiday.type);
       setIsHalfDay(holiday.isHalfDay);
-      setDescription(holiday.description ?? "");
       setError(null);
     }
   }, [open, holiday]);
@@ -68,12 +55,12 @@ export default function EditHolidayDialog({
     setSaving(true);
     setError(null);
     try {
+      // Only date / name / half-day are editable here. Type, description and
+      // team assignments are intentionally omitted so the PATCH preserves them.
       await updateGlobalHoliday(holiday.id, {
         date,
         name: name.trim(),
-        type,
         isHalfDay,
-        description: description.trim() ? description.trim() : null,
       });
       onSaved();
     } catch (e) {
@@ -99,35 +86,14 @@ export default function EditHolidayDialog({
         </div>
 
         <div className="px-6 py-4 flex flex-col gap-3">
-          <Field label="Date">
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={`w-full ${employeeInputClass}`}
-            />
-          </Field>
-          <Field label="Name">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Holiday name"
-              className={`w-full ${employeeInputClass}`}
-            />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as HolidayType)}
+            <Field label="Date">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 className={`w-full ${employeeInputClass}`}
-              >
-                {HOLIDAY_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              />
             </Field>
             <Field label="Half day">
               <label className="inline-flex items-center gap-2 h-[38px] px-1 text-[13px] text-gray-700">
@@ -141,13 +107,12 @@ export default function EditHolidayDialog({
               </label>
             </Field>
           </div>
-          <Field label="Description">
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Optional note"
-              className={`w-full ${employeeInputClass} resize-none`}
+          <Field label="Name">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Holiday name"
+              className={`w-full ${employeeInputClass}`}
             />
           </Field>
 

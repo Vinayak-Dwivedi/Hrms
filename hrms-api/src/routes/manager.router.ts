@@ -5,7 +5,7 @@ import { db } from "@/db/runtime";
 import {
   attendanceRecords,
   branches,
-  departments,
+  orgHierarchyDepartments as departments,
   designations,
   employees,
   grades,

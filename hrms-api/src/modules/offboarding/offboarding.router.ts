@@ -189,6 +189,15 @@ offboardingRouter.post("/hr/resignations/:id/hold", hrAccess, async (req, res, n
   }
 });
 
+offboardingRouter.post("/hr/resignations/:id/resume", hrAccess, async (req, res, next) => {
+  try {
+    const hr = await loadCurrentEmployee(req.user!.id);
+    res.json({ data: await svc.hrResume(hr.id, idParam(req), auditCtx(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 offboardingRouter.post("/hr/resignations/:id/reject", hrAccess, async (req, res, next) => {
   try {
     const hr = await loadCurrentEmployee(req.user!.id);

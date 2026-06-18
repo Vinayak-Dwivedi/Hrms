@@ -127,7 +127,6 @@ export default function TeamHolidaysDialog({
                 <Th>Date</Th>
                 <Th>Day</Th>
                 <Th>Name</Th>
-                <Th>Type</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
             </thead>
@@ -135,7 +134,7 @@ export default function TeamHolidaysDialog({
               {teamHolidays.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className={employeeListTableEmptyClass}
                   >
                     No holidays assigned to this team yet. Use “Add Team” to edit
@@ -157,7 +156,6 @@ export default function TeamHolidaysDialog({
                       </span>
                     )}
                   </Td>
-                  <Td className="text-gray-700">{h.type}</Td>
                   <Td className="text-right pr-6">
                     <div className="inline-flex items-center gap-2.5">
                       <button

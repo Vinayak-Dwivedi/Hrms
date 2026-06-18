@@ -111,7 +111,7 @@ export default function MyLeaveSection({
               <h3 className={enterpriseCardTitleClass}>My Leave</h3>
             )}
             <Link
-              href="/leave/new"
+              href="/attendance?apply=1"
               className={cn(enterpriseLinkClass, "text-[12px] hover:underline shrink-0")}
             >
               Apply Leave →

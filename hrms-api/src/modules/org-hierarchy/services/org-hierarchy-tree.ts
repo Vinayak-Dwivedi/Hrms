@@ -17,7 +17,7 @@ export type HierarchyTreeSubDepartment = {
 export type HierarchyTreeDepartment = {
   id: number;
   name: string;
-  code: string;
+  code: string | null;
   subDepartments: HierarchyTreeSubDepartment[];
 };
 
@@ -31,7 +31,7 @@ export type HierarchyTreeDepartment = {
  */
 export function buildHierarchyTree(
   structureRows: StructureJoinRow[],
-  departments: Array<{ id: number; name: string; code: string }> = [],
+  departments: Array<{ id: number; name: string; code: string | null }> = [],
   subDepartments: Array<{ id: number; name: string; departmentId: number }> = [],
 ): HierarchyTreeDepartment[] {
   const deptMap = new Map<number, HierarchyTreeDepartment>();

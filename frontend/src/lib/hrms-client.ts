@@ -590,13 +590,19 @@ interface RawLeaveBalance {
 }
 
 function mapLeaveBalance(b: RawLeaveBalance): UILeaveType {
+  // "Total" is the entitlement for the period = what's been used plus what's
+  // still available. The raw opening_balance is 0 under the accrual model
+  // (credits land in accrued/closing, not opening), so deriving total from it
+  // showed empty 0/0 rings. used + closing is always the true total.
+  const used = Number(b.used);
+  const closing = Number(b.closingBalance);
   return {
     id: String(b.leaveTypeId),
     name: b.name,
     code: b.code,
-    used: Number(b.used),
-    total: Number(b.openingBalance),
-    available: Number(b.closingBalance),
+    used,
+    total: used + closing,
+    available: closing,
     allowHalfDay: b.allowHalfDay,
     minNoticeDays: b.minNoticeDays,
     allowNegativeBalance: b.allowNegativeBalance,

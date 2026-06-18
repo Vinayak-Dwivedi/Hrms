@@ -1,8 +1,10 @@
+import { isNotNull } from "drizzle-orm";
 import { Router } from "express";
+import { db } from "@/db/runtime";
 import {
   branches,
   broadcasts,
-  departments,
+  orgHierarchyDepartments as departments,
   designations,
   employees,
   employmentTypes,
@@ -40,6 +42,28 @@ export const hrmsRouter: Router = Router();
 
 hrmsRouter.use("/onboarding", hrOnboardingRoutes);
 hrmsRouter.use("/org-hierarchy", orgSetupAccess, orgHierarchyRoutes);
+
+// Which departments / sub-departments are actually present at each branch
+// (location), derived from where employees sit. Departments are independent of
+// locations in the schema, so this is the practical "allotted to" mapping used
+// to narrow the department picker once a location is chosen.
+hrmsRouter.get("/org-allocation", orgSetupAccess, async (_req, res, next) => {
+  try {
+    const rows = await db
+      .selectDistinct({
+        branchId: employees.branchId,
+        departmentId: employees.departmentId,
+        subDepartmentId: employees.subDepartmentId,
+      })
+      .from(employees)
+      .where(isNotNull(employees.branchId));
+    res.json({
+      data: rows.filter((r) => r.branchId != null && r.departmentId != null),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
 
 hrmsRouter.use("/branches",                  orgSetupAccess, createCrudRouter("branch", branches));
 hrmsRouter.use("/locations",                 orgSetupAccess, createCrudRouter("location", locations));

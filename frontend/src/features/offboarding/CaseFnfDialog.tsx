@@ -157,9 +157,9 @@ export default function CaseFnfDialog({
             <div className="rounded-xl border border-gray-200 overflow-hidden">
               <TotalRow label="Total Earnings" value={formatMoney(data.totals.totalEarnings)} />
               <TotalRow label="Total Deductions" value={`− ${formatMoney(data.totals.totalDeductions)}`} />
-              <div className="flex items-center justify-between px-4 py-3 bg-[#fff1f2]">
-                <span className="text-[13px] font-bold text-[#be185d]">Net Settlement</span>
-                <span className="text-[15px] font-bold text-[#be185d]">{formatMoney(data.totals.netAmount)}</span>
+              <div className="flex items-center justify-between px-4 py-3 bg-[lab(97%_4_-18)]">
+                <span className="text-[13px] font-bold text-[lab(36.9089%_35.0961_-85.6872)]">Net Settlement</span>
+                <span className="text-[15px] font-bold text-[lab(36.9089%_35.0961_-85.6872)]">{formatMoney(data.totals.netAmount)}</span>
               </div>
             </div>
           </>
@@ -263,13 +263,13 @@ function LineRow({
   return (
     <div className="flex items-center gap-2">
       <input
-        className="flex-1 h-[36px] px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#ffb9ce]"
+        className="flex-1 h-[36px] px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#bfdbfe]"
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         onBlur={() => label !== line.label && onSave(line.id, { label })}
       />
       <input
-        className="w-32 h-[36px] px-3 border border-gray-300 rounded-md text-sm text-right focus:outline-none focus:ring-1 focus:ring-[#ffb9ce]"
+        className="w-32 h-[36px] px-3 border border-gray-300 rounded-md text-sm text-right focus:outline-none focus:ring-1 focus:ring-[#bfdbfe]"
         type="number"
         min={0}
         value={amount}

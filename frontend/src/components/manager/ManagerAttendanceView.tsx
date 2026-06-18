@@ -78,6 +78,7 @@ export default function ManagerAttendanceView({
   const { available: reportingManager, loading: probeLoading } =
     useReportingManagerAvailable();
   const [scope, setScope] = useState<AttendanceScope>(initialScope);
+  const autoApplyLeave = searchParams.get("apply") === "1";
 
   useEffect(() => {
     if (probeLoading) return;
@@ -110,7 +111,7 @@ export default function ManagerAttendanceView({
   }
 
   if (!reportingManager) {
-    return <RoleAttendance role="employee" />;
+    return <RoleAttendance role="employee" autoApplyLeave={autoApplyLeave} />;
   }
 
   const scopeToggle = (
@@ -123,7 +124,11 @@ export default function ManagerAttendanceView({
       style={{ height: "calc(100vh - 7rem)" }}
     >
       {scope === "mine" ? (
-        <RoleAttendance role="manager" leadingToolbar={scopeToggle} />
+        <RoleAttendance
+          role="manager"
+          leadingToolbar={scopeToggle}
+          autoApplyLeave={autoApplyLeave}
+        />
       ) : (
         <>
           <div className="flex items-center shrink-0">{scopeToggle}</div>

@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 
 // Shared visual primitives for the Offboarding hub — kept consistent with the
-// leave-approvals tables and the employee portal theme (brand pink #FF014F).
+// leave-approvals tables and the employee portal theme (brand pink lab(36.9089% 35.0961 -85.6872)).
 
 export const cellStyle: CSSProperties = {
   padding: "14px 16px",
@@ -28,9 +28,9 @@ export const headStyle: CSSProperties = {
 export const labelClass =
   "block text-xs font-medium text-gray-500 uppercase mb-1.5 tracking-wide";
 export const inputClass =
-  "w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#ffb9ce] focus:border-transparent";
+  "w-full h-[38px] px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#bfdbfe] focus:border-transparent";
 export const primaryBtn =
-  "inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF014F] hover:bg-[#eb0249] text-white font-medium rounded-lg text-sm transition-colors disabled:opacity-60";
+  "inline-flex items-center gap-2 px-5 py-2.5 bg-[lab(36.9089%_35.0961_-85.6872)] hover:bg-[lab(30%_38_-90)] text-white font-medium rounded-lg text-sm transition-colors disabled:opacity-60";
 export const ghostBtn =
   "inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-lg border border-gray-300 transition-colors text-xs";
 
@@ -152,7 +152,7 @@ export function initials(a: string, b: string) {
 }
 
 export function avatarColor(seed: string) {
-  const palette = ["#FF014F", "#7c3aed", "#0ea5e9", "#16a34a", "#d97706", "#db2777"];
+  const palette = ["lab(36.9089% 35.0961 -85.6872)", "#0ea5e9", "#16a34a", "#d97706", "#db2777", "#0891b2"];
   let h = 0;
   for (let i = 0; i < (seed?.length ?? 0); i++) h = (h * 31 + seed.charCodeAt(i)) % palette.length;
   return palette[h];

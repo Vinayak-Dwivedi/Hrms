@@ -14,13 +14,17 @@ function AttendancePageContent() {
   const searchParams = useSearchParams();
   const scope: AttendanceScope =
     searchParams.get("scope") === "team" ? "team" : "mine";
+  const autoApplyLeave = searchParams.get("apply") === "1";
 
   if (hasPermission("leave.approve")) {
     return <ManagerAttendanceView initialScope={scope} />;
   }
 
   return (
-    <RoleAttendance role={resolveUiRole(hasPermission, user?.role)} />
+    <RoleAttendance
+      role={resolveUiRole(hasPermission, user?.role)}
+      autoApplyLeave={autoApplyLeave}
+    />
   );
 }
 

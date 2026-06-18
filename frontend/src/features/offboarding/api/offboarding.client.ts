@@ -308,6 +308,14 @@ export function hrHold(id: number, remarks?: string | null): Promise<Resignation
   );
 }
 
+export function hrResume(id: number): Promise<Resignation> {
+  return unwrap(
+    jsonFetch<{ data: Resignation }>(`/hr/resignations/${id}/resume`, {
+      method: "POST",
+    }),
+  );
+}
+
 export function hrReject(id: number, remarks?: string | null): Promise<Resignation> {
   return unwrap(
     jsonFetch<{ data: Resignation }>(`/hr/resignations/${id}/reject`, {
@@ -582,6 +590,11 @@ export type ExitQuestion = {
   scaleMax?: number;
 };
 
+export type ExitScopeRow = {
+  scopeType: "Company" | "Branch" | "Department" | "SubDepartment";
+  scopeId: number | null;
+};
+
 export type ExitInterviewTemplate = {
   id: number;
   name: string;
@@ -589,6 +602,7 @@ export type ExitInterviewTemplate = {
   questions: ExitQuestion[];
   isActive: boolean;
   isDefault: boolean;
+  scope?: ExitScopeRow[];
   createdAt: string;
   updatedAt: string;
 };
@@ -626,6 +640,7 @@ export type ExitTemplatePayload = {
   questions: ExitQuestion[];
   isActive: boolean;
   isDefault: boolean;
+  scope?: ExitScopeRow[];
 };
 
 export function listExitTemplates(): Promise<ExitInterviewTemplate[]> {
@@ -982,7 +997,7 @@ export function printDocumentHtml(title: string, renderedHtml: string): void {
     <meta charset="utf-8" />
     <style>
       body { font-family: Georgia, 'Times New Roman', serif; color: #1f2937; max-width: 720px; margin: 48px auto; padding: 0 24px; line-height: 1.6; }
-      h2 { font-size: 20px; border-bottom: 2px solid #FF014F; padding-bottom: 8px; }
+      h2 { font-size: 20px; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; }
       p { margin: 12px 0; }
       @media print { body { margin: 24px; } }
     </style></head><body>${renderedHtml}

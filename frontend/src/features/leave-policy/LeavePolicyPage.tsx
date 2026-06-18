@@ -8,6 +8,8 @@ import CompOffSection from "./CompOffSection";
 import ApprovalSection from "./ApprovalSection";
 import MasterLeaveTypesSection from "./MasterLeaveTypesSection";
 import LeavePoliciesSection from "./LeavePoliciesSection";
+import WeeklyOffPage from "@/features/weekly-off/WeeklyOffPage";
+import HolidayPolicyPage from "@/features/holiday-calendars/HolidayPolicyPage";
 
 // Leave Policy is a tabbed settings page. The tab indicator slides under the
 // active label, and the panel content slides + cross-fades when switching.
@@ -18,13 +20,28 @@ import LeavePoliciesSection from "./LeavePoliciesSection";
 // Theme: matches the employee-portal pages — white card with slate border,
 // brand lab accent for active states.
 
-type Tab = "master" | "policies" | "comp-off" | "approval";
-const TAB_ORDER: Tab[] = ["master", "policies", "comp-off", "approval"];
+type Tab =
+  | "master"
+  | "policies"
+  | "comp-off"
+  | "approval"
+  | "weekly-off"
+  | "holiday";
+const TAB_ORDER: Tab[] = [
+  "master",
+  "policies",
+  "comp-off",
+  "approval",
+  "weekly-off",
+  "holiday",
+];
 const TAB_LABEL: Record<Tab, string> = {
   master: "Leave Types",
   policies: "Leave Policies",
   "comp-off": "Compensatory Off",
   approval: "Approval",
+  "weekly-off": "Weekly Off",
+  holiday: "Holiday Policy",
 };
 
 export default function LeavePolicyPage() {
@@ -67,6 +84,8 @@ export default function LeavePolicyPage() {
           {tab === "policies" && <LeavePoliciesSection />}
           {tab === "comp-off" && <CompOffSection />}
           {tab === "approval" && <ApprovalSection />}
+          {tab === "weekly-off" && <WeeklyOffPage />}
+          {tab === "holiday" && <HolidayPolicyPage />}
         </div>
       </div>
 
@@ -111,7 +130,7 @@ function TabHeader({
   active: Tab;
   onChange: (t: Tab) => void;
 }) {
-  const TAB_WIDTH = 190;
+  const TAB_WIDTH = 158;
   const activeIdx = TAB_ORDER.indexOf(active);
   return (
     <div className={`${employeeCardClass} px-2 py-2 inline-flex relative self-start`}>

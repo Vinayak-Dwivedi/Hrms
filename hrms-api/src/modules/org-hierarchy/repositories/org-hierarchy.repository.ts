@@ -705,7 +705,7 @@ export type StructureJoinRow = {
   structureId: number;
   departmentId: number;
   departmentName: string;
-  departmentCode: string;
+  departmentCode: string | null;
   subDepartmentId: number;
   subDepartmentName: string;
   designationId: number;

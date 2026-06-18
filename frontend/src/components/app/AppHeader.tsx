@@ -33,6 +33,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/admin/reports": "Reports",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
+  "/holiday-calendars": "Holiday Policy",
+  "/weekly-off": "Weekly Off",
   "/hierarchy": "Hierarchy",
   "/departments/hierarchy": "Department Hierarchy",
 };

@@ -311,6 +311,12 @@ export async function holidaysForEmployee(
   // Step 1 — every published calendar whose scope matches the employee.
   const calendarIds = await resolveAllCalendarsForEmployee(emp);
   if (calendarIds.length === 0) {
+    // Holiday policies are authoritative once any exist: an employee not
+    // covered by any published calendar gets no holidays. Only fall back to the
+    // legacy global holiday list when NO published calendar exists at all
+    // (fresh setup / pre-policy data). To cover everyone, create a policy scoped
+    // to "Entire Organisation" (Company scope).
+    if (await anyPublishedCalendarExists()) return [];
     return legacyHolidaysForEmployee(emp, fromDate, toDate);
   }
 
@@ -349,11 +355,22 @@ export async function holidaysForEmployee(
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  if (calendarHolidays.length === 0) {
-    return legacyHolidaysForEmployee(emp, fromDate, toDate);
-  }
-
+  // The employee is covered by ≥1 calendar, so those calendars define their
+  // holidays — an empty in-range result is a legitimate "no holidays", not a
+  // reason to fall back to the global list.
   return calendarHolidays;
+}
+
+/** True if any Published holiday calendar exists in the system. Used to decide
+ *  whether the legacy global-holiday fallback still applies (it only does on a
+ *  fresh/pre-policy setup with zero published calendars). */
+async function anyPublishedCalendarExists(): Promise<boolean> {
+  const [row] = await db
+    .select({ id: holidayCalendars.id })
+    .from(holidayCalendars)
+    .where(eq(holidayCalendars.status, "Published"))
+    .limit(1);
+  return Boolean(row);
 }
 
 /** All published calendars whose scope rows include this employee. Unlike
