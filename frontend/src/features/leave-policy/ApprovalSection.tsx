@@ -1,9 +1,7 @@
 ﻿"use client";
 
-// Approval Workflows — define named, ordered approver chains (Manager →
-// Department Head → HR) and assign them to a Leave Policy. A leave request then
-// walks the assigned workflow one approver at a time. Table + modal dialog,
-// matching the Leave Types / Leave Policies tabs.
+// Approval Workflows — define named, ordered approver chains assigned to a
+// leave policy scope (location + department) and runtime stages (Manager → HR).
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -12,7 +10,6 @@ import {
   ChevronRight,
   Loader2,
   MapPin,
-  Network,
   Pencil,
   PlusCircle,
   RotateCcw,
@@ -36,25 +33,22 @@ import {
 import {
   createWorkflow,
   deleteWorkflow,
-  DEFAULT_WORKFLOW_STAGES,
   listWorkflows,
   updateWorkflow,
   type ApprovalWorkflow,
 } from "./api/approval-workflows.client";
 import LeavePlanHierarchyScopeEditor from "./LeavePlanHierarchyScopeEditor";
 import {
-  formatScopeSummary,
-  hydrateCascadeFromRows,
-  isCascadeScopeValid,
+  hydrateCascadeForWorkflow,
+  isWorkflowLocationDeptScopeValid,
   resolveScopeLabels,
+  savedWorkflowScope,
   type HierarchyScopeRow,
   type ScopeLabelLookups,
 } from "./lib/leave-plan-scope";
 import { useHierarchyScopeLookups } from "./lib/use-hierarchy-scope-lookups";
 
-const DEFAULT_SCOPE: HierarchyScopeRow[] = [
-  { scopeType: "Company", scopeId: null, priority: 100 },
-];
+const DEFAULT_RUNTIME_STAGES = ["Manager", "DeptHead", "HR"] as const;
 
 export default function ApprovalSection() {
   const [items, setItems] = useState<ApprovalWorkflow[]>([]);
@@ -97,8 +91,8 @@ export default function ApprovalSection() {
             Approval Workflows
           </h3>
           <p className="text-[12.5px] text-gray-500 mt-0.5 leading-snug">
-            Ordered approver chains. Assign one to a policy on the Leave Policies
-            tab — leave requests then walk it stage by stage.
+            Assign by location and department. Link a workflow to a leave policy
+            — requests then walk the approver chain stage by stage.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -132,7 +126,7 @@ export default function ApprovalSection() {
           <thead className="bg-gray-50 text-gray-500">
             <tr>
               <Th>Name</Th>
-              <Th>Organizational Path</Th>
+              <Th>Location → Department</Th>
               <Th className="text-center">Status</Th>
               <Th className="text-right pr-6">Action</Th>
             </tr>
@@ -163,7 +157,11 @@ export default function ApprovalSection() {
                   )}
                 </Td>
                 <Td>
-                  <ScopePath scope={w.scope} lookups={lookups} loading={lookupsLoading} />
+                  <WorkflowScopePath
+                    scope={w.scope}
+                    lookups={lookups}
+                    loading={lookupsLoading}
+                  />
                 </Td>
                 <Td className="text-center">
                   <span
@@ -216,7 +214,7 @@ export default function ApprovalSection() {
   );
 }
 
-function ScopePath({
+function WorkflowScopePath({
   scope,
   lookups,
   loading,
@@ -225,19 +223,12 @@ function ScopePath({
   lookups: ScopeLabelLookups;
   loading: boolean;
 }) {
-  const cascade = hydrateCascadeFromRows(scope);
+  const cascade = hydrateCascadeForWorkflow(scope);
   const resolved = resolveScopeLabels(scope, lookups);
-  const summary = formatScopeSummary(scope, {
-    locationName: resolved.locationName,
-    departmentName: resolved.departmentName,
-    subDepartmentName: resolved.subDepartmentName,
-  });
 
-  if (resolved.companyWide) {
+  if (!isWorkflowLocationDeptScopeValid(scope)) {
     return (
-      <span className="text-[12px] font-medium text-gray-700">
-        Entire organization
-      </span>
+      <span className="text-[12px] text-gray-400 italic">Not configured</span>
     );
   }
 
@@ -245,7 +236,7 @@ function ScopePath({
     return (
       <span className="inline-flex items-center gap-1 text-[11.5px] text-gray-400">
         <Loader2 size={12} className="animate-spin" />
-        Loading path…
+        Loading…
       </span>
     );
   }
@@ -253,6 +244,9 @@ function ScopePath({
   const locationLabel =
     resolved.locationName ??
     (cascade.locationId != null ? `Location #${cascade.locationId}` : "—");
+  const departmentLabel =
+    resolved.departmentName ??
+    (cascade.departmentId != null ? `Dept #${cascade.departmentId}` : "—");
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
@@ -262,30 +256,11 @@ function ScopePath({
         tone="sky"
       />
       <ChevronRight size={12} className="text-gray-300 shrink-0" />
-      {resolved.allDepartments ? (
-        <ScopeValueChip label="All departments" tone="violet" />
-      ) : (
-        <ScopeValueChip
-          icon={<Building2 size={12} className="text-violet-600" />}
-          label={resolved.departmentName ?? "—"}
-          tone="violet"
-        />
-      )}
-      {!resolved.allDepartments && (
-        <>
-          <ChevronRight size={12} className="text-gray-300 shrink-0" />
-          {resolved.allSubDepartments ? (
-            <ScopeValueChip label="All sub-departments" tone="emerald" />
-          ) : (
-            <ScopeValueChip
-              icon={<Network size={12} className="text-emerald-600" />}
-              label={resolved.subDepartmentName ?? "—"}
-              tone="emerald"
-            />
-          )}
-        </>
-      )}
-      <span className="sr-only">{summary}</span>
+      <ScopeValueChip
+        icon={<Building2 size={12} className="text-violet-600" />}
+        label={departmentLabel}
+        tone="violet"
+      />
     </div>
   );
 }
@@ -297,12 +272,11 @@ function ScopeValueChip({
 }: {
   icon?: React.ReactNode;
   label: string;
-  tone: "sky" | "violet" | "emerald";
+  tone: "sky" | "violet";
 }) {
   const toneClass = {
     sky: "bg-sky-50 text-sky-900 border-sky-100",
     violet: "bg-violet-50 text-violet-900 border-violet-100",
-    emerald: "bg-emerald-50 text-emerald-900 border-emerald-100",
   }[tone];
 
   return (
@@ -331,12 +305,12 @@ function WorkflowDialog({
   const [name, setName] = useState(editing ? target.name : "");
   const [description, setDescription] = useState(editing ? (target.description ?? "") : "");
   const [scope, setScope] = useState<HierarchyScopeRow[]>(
-    editing ? (target.scope?.length ? target.scope : DEFAULT_SCOPE) : DEFAULT_SCOPE,
+    editing ? savedWorkflowScope(target.scope ?? []) : [],
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const scopeValid = isCascadeScopeValid(hydrateCascadeFromRows(scope));
+  const scopeValid = isWorkflowLocationDeptScopeValid(scope);
 
   if (target === null) return null;
   const editId = target !== "new" ? target.id : null;
@@ -349,7 +323,7 @@ function WorkflowDialog({
       const body = {
         name: name.trim(),
         description: description.trim() ? description.trim() : null,
-        stages: DEFAULT_WORKFLOW_STAGES,
+        stages: [...DEFAULT_RUNTIME_STAGES],
         scope,
         isActive: true,
       };
@@ -400,14 +374,12 @@ function WorkflowDialog({
           </Field>
 
           <Field label="Approval Stages (in order)">
-            <p className="text-[11.5px] text-gray-500 -mt-1 mb-2 leading-snug">
-              Location → Department → Sub-department (same hierarchy as leave
-              policy scope)
-            </p>
             <LeavePlanHierarchyScopeEditor
               scope={scope}
               onChange={setScope}
               embedded
+              variant="workflow"
+              workflowLevels="location-department"
             />
           </Field>
 

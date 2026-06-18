@@ -11,12 +11,6 @@ export const STAGE_LABELS: Record<WorkflowStage, string> = {
   HR: "HR",
 };
 
-/** Default runtime approver chain (location → department → sub-dept mapped). */
-export const DEFAULT_WORKFLOW_STAGES: WorkflowStage[] = [
-  "Manager",
-  "DeptHead",
-  "HR",
-];
 
 export interface ApprovalWorkflow {
   id: number;
