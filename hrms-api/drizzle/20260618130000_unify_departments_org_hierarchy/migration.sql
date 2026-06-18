@@ -34,6 +34,23 @@ DECLARE
   m RECORD;
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'departments') THEN
+    -- Ensure every legacy department has a matching row (by name) in the unified
+    -- table. On environments where the org-hierarchy table was never populated
+    -- (e.g. production), this creates the rows so the remap below can re-point
+    -- every reference instead of orphaning it. `code` is dropped when it would
+    -- collide with an existing org code.
+    INSERT INTO "org_hierarchy_departments" ("company_id", "name", "code", "location_area", "headcount")
+    SELECT NULL,
+           d."name",
+           CASE WHEN EXISTS (SELECT 1 FROM "org_hierarchy_departments" o2 WHERE o2."code" = d."code")
+                THEN NULL ELSE d."code" END,
+           d."location_area",
+           d."headcount"
+      FROM "departments" d
+     WHERE NOT EXISTS (
+             SELECT 1 FROM "org_hierarchy_departments" o WHERE lower(o."name") = lower(d."name")
+           );
+
     FOR m IN
       SELECT d.id AS legacy_id, o.id AS org_id, d.manager_id, d.location_area, d.headcount
         FROM "departments" d
