@@ -61,11 +61,6 @@ export default function AddTeamDialog({
   const [branches, setBranches] = useState<LookupRow[] | null>(null);
   const [departments, setDepartments] = useState<LookupRow[] | null>(null);
   const [subDepartments, setSubDepartments] = useState<LookupRow[] | null>(null);
-  // Distinct (branch, department, sub-department) tuples from employees — used
-  // to narrow the department picker to those present at the chosen location(s).
-  const [allocation, setAllocation] = useState<
-    { branchId: number; departmentId: number; subDepartmentId: number | null }[]
-  >([]);
 
   // Load org lookups once when dialog opens.
   useEffect(() => {
@@ -73,20 +68,13 @@ export default function AddTeamDialog({
     let cancelled = false;
     (async () => {
       try {
-        const [deptRes, subRes, branchRes, allocRes] = await Promise.all([
+        const [deptRes, subRes, branchRes] = await Promise.all([
           fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
           fetch("/api/hrms/sub-departments?limit=500", {
             credentials: "include",
           }),
           fetch("/api/hrms/branches?limit=500", { credentials: "include" }),
-          fetch("/api/hrms/org-allocation", { credentials: "include" }),
         ]);
-        if (allocRes.ok) {
-          const body = (await allocRes.json()) as {
-            data: Array<{ branchId: number; departmentId: number; subDepartmentId: number | null }>;
-          };
-          if (!cancelled) setAllocation(body.data);
-        }
         if (branchRes.ok) {
           const body = (await branchRes.json()) as {
             data: Array<{ id: number; name: string }>;
@@ -150,17 +138,10 @@ export default function AddTeamDialog({
     setError(null);
   }, [open, initial]);
 
-  // Departments present at the picked location(s). With no location picked, all
-  // departments are available; once a location is chosen, only departments that
-  // actually exist there (per the employee allocation) are shown.
-  const visibleDepartments = useMemo(() => {
-    if (!departments) return [];
-    if (branchIds.size === 0) return departments;
-    const allowed = new Set(
-      allocation.filter((a) => branchIds.has(a.branchId)).map((a) => a.departmentId),
-    );
-    return departments.filter((d) => allowed.has(d.id));
-  }, [departments, branchIds, allocation]);
+  // Every department is selectable regardless of the chosen location — a
+  // department can be scoped even with no employees there yet, and org-wide
+  // ("All Locations") departments must always appear.
+  const visibleDepartments = useMemo(() => departments ?? [], [departments]);
 
   // Drop any selected departments no longer offered for the chosen location(s).
   useEffect(() => {

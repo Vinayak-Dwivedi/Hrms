@@ -30,24 +30,19 @@ export default function OrgScopePicker({
   const [branches, setBranches] = useState<Lookup[] | null>(null);
   const [departments, setDepartments] = useState<Lookup[] | null>(null);
   const [subDepartments, setSubDepartments] = useState<Lookup[] | null>(null);
-  const [allocation, setAllocation] = useState<
-    { branchId: number; departmentId: number; subDepartmentId: number | null }[]
-  >([]);
 
   // Load org lookups once.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [d, s, b, a] = await Promise.all([
+        const [d, s, b] = await Promise.all([
           fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
           fetch("/api/hrms/sub-departments?limit=500", { credentials: "include" }),
           fetch("/api/hrms/branches?limit=500", { credentials: "include" }),
-          fetch("/api/hrms/org-allocation", { credentials: "include" }),
         ]);
         if (d.ok && !cancelled) setDepartments((await d.json()).data);
         if (b.ok && !cancelled) setBranches((await b.json()).data);
-        if (a.ok && !cancelled) setAllocation((await a.json()).data);
         if (s.ok && !cancelled) {
           const body = (await s.json()) as {
             data: Array<{ id: number; name: string; departmentId: number | null }>;
@@ -83,15 +78,10 @@ export default function OrgScopePicker({
     setSubDepartmentIds(su);
   }, [initial]);
 
-  // Departments present at the chosen location(s).
-  const visibleDepartments = useMemo(() => {
-    if (!departments) return [];
-    if (branchIds.size === 0) return departments;
-    const allowed = new Set(
-      allocation.filter((a) => branchIds.has(a.branchId)).map((a) => a.departmentId),
-    );
-    return departments.filter((d) => allowed.has(d.id));
-  }, [departments, branchIds, allocation]);
+  // Every department is selectable regardless of the chosen location — a
+  // department can be scoped even with no employees there yet, and org-wide
+  // ("All Locations") departments must always appear.
+  const visibleDepartments = useMemo(() => departments ?? [], [departments]);
 
   // Sub-departments of the chosen department(s).
   const visibleSubDepartments = useMemo(() => {

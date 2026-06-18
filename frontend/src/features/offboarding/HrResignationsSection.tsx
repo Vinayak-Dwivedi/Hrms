@@ -92,8 +92,10 @@ export default function HrResignationsSection() {
               onClick={() => setFilter(f)}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors capitalize"
               style={{
-                color: active ? "#dc143c" : "#6b7280",
-                borderBottom: active ? "2px solid #dc143c" : "2px solid transparent",
+                color: active ? "lab(36.9089% 35.0961 -85.6872)" : "#6b7280",
+                borderBottom: active
+                  ? "2px solid lab(36.9089% 35.0961 -85.6872)"
+                  : "2px solid transparent",
               }}
             >
               {f === "pending" ? "Pending HR" : "All"}

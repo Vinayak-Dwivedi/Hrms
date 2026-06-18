@@ -134,19 +134,8 @@ const SETTINGS_SECTION: NavSection = {
       href: "/locations",
       requiredPermission: "admin.roles",
     },
+    // Holiday Policy and Weekly Off now live as tabs inside Leave Policy.
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
-    {
-      icon: CalendarIcon,
-      label: "Holiday Policy",
-      href: "/holiday-calendars",
-      requiredPermission: "admin.roles",
-    },
-    {
-      icon: CalendarIcon,
-      label: "Weekly Off",
-      href: "/weekly-off",
-      requiredPermission: "admin.roles",
-    },
     {
       icon: Receipt,
       label: "Leave Credits",
