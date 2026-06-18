@@ -46,18 +46,9 @@ const TAB_LABEL: Record<Tab, string> = {
 
 export default function LeavePolicyPage() {
   const [tab, setTab] = useState<Tab>("master");
-  // Direction of slide for the new panel: forward when going comp-off → approval,
-  // backward when going the other way. Drives the CSS transform.
-  const [direction, setDirection] = useState<"forward" | "backward">("forward");
 
   function switchTab(next: Tab) {
     if (next === tab) return;
-    const curIdx = TAB_ORDER.indexOf(tab);
-    const nextIdx = TAB_ORDER.indexOf(next);
-    setDirection(nextIdx > curIdx ? "forward" : "backward");
-
-
-    
     setTab(next);
   }
 
@@ -69,17 +60,13 @@ export default function LeavePolicyPage() {
       {/* Tab header */}
       <TabHeader active={tab} onChange={switchTab} />
 
-      {/* Animated panel — each panel slides in from its side and fades in */}
-      <div className="relative overflow-hidden">
-        <div
-          key={tab}
-          className={[
-            "transition-[transform,opacity] duration-300 ease-out",
-            direction === "forward"
-              ? "animate-slide-in-right"
-              : "animate-slide-in-left",
-          ].join(" ")}
-        >
+      {/* Panel — fades in on tab switch. Deliberately NO transform/overflow
+          here: a transformed (or overflow-hidden) ancestor becomes the
+          containing block for the `fixed` modals inside the Weekly Off / Holiday
+          Policy panels, trapping + clipping them instead of covering the
+          viewport. An opacity-only fade avoids creating a containing block. */}
+      <div className="relative">
+        <div key={tab} className="animate-fade-in">
           {tab === "master" && <MasterLeaveTypesSection />}
           {tab === "policies" && <LeavePoliciesSection />}
           {tab === "comp-off" && <CompOffSection />}
@@ -90,31 +77,16 @@ export default function LeavePolicyPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes slideInRight {
+        @keyframes fadeIn {
           from {
             opacity: 0;
-            transform: translateX(24px);
           }
           to {
             opacity: 1;
-            transform: translateX(0);
           }
         }
-        @keyframes slideInLeft {
-          from {
-            opacity: 0;
-            transform: translateX(-24px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        .animate-slide-in-right {
-          animation: slideInRight 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
-        }
-        .animate-slide-in-left {
-          animation: slideInLeft 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        .animate-fade-in {
+          animation: fadeIn 200ms ease-out both;
         }
       `}</style>
     </div>
