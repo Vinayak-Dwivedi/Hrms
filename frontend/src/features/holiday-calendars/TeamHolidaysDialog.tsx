@@ -86,7 +86,7 @@ export default function TeamHolidaysDialog({
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[#ec4899] to-[#be185d]">
+            <div className="rounded-xl flex items-center justify-center w-10 h-10 bg-gradient-to-br from-[lab(52%_28_-70)] to-[lab(36.9089%_35.0961_-85.6872)]">
               <CalendarDays size={18} className="text-white" />
             </div>
             <div>
@@ -117,7 +117,6 @@ export default function TeamHolidaysDialog({
                 <Th>Date</Th>
                 <Th>Day</Th>
                 <Th>Name</Th>
-                <Th>Type</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
             </thead>
@@ -125,7 +124,7 @@ export default function TeamHolidaysDialog({
               {teamHolidays.length === 0 && (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={4}
                     className="text-center py-12 text-gray-400 text-[12.5px]"
                   >
                     No holidays assigned to this team yet. Use “Add Team” to edit
@@ -150,14 +149,13 @@ export default function TeamHolidaysDialog({
                       </span>
                     )}
                   </Td>
-                  <Td className="text-gray-700">{h.type}</Td>
                   <Td className="text-right pr-6">
                     <div className="inline-flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => setEditing(h)}
                         title="Edit holiday"
-                        className="text-[#ff014f] hover:text-[#eb0249]"
+                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
                       >
                         <Pencil size={14} />
                       </button>

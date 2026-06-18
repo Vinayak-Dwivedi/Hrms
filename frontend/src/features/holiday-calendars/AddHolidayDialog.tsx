@@ -154,13 +154,13 @@ export default function AddHolidayDialog({
                 type="date"
                 value={row.date}
                 onChange={(e) => updateRow(idx, { date: e.target.value })}
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
               />
               <span
                 className={[
                   "text-[12px] font-semibold text-center px-2 py-1.5 rounded",
                   row.date
-                    ? "bg-pink-50 text-[#be185d]"
+                    ? "bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)]"
                     : "bg-gray-100 text-gray-400 italic",
                 ].join(" ")}
               >
@@ -170,7 +170,7 @@ export default function AddHolidayDialog({
                 value={row.name}
                 onChange={(e) => updateRow(idx, { name: e.target.value })}
                 placeholder="Holiday name (e.g. Republic Day)"
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
               />
               <button
                 type="button"
@@ -190,7 +190,7 @@ export default function AddHolidayDialog({
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-center inline-flex items-center gap-1.5 mt-1 text-[13px] font-bold text-[#ff014f] hover:text-[#eb0249] disabled:opacity-50"
+            className="self-center inline-flex items-center gap-1.5 mt-1 text-[13px] font-bold text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)] disabled:opacity-50"
           >
             <Plus size={14} /> Add Holiday
           </button>
@@ -223,7 +223,7 @@ export default function AddHolidayDialog({
               type="button"
               onClick={save}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Save

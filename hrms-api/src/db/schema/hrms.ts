@@ -177,6 +177,7 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   "RESIGNATION_APPROVED_BY_HR",
   "RESIGNATION_REJECTED_BY_HR",
   "RESIGNATION_ON_HOLD",
+  "RESIGNATION_RESUMED",
   "RESIGNATION_DISCUSSION_REQUESTED",
   "RESIGNATION_BUYOUT_DECISION",
   "OFFBOARDING_CASE_CREATED",
@@ -339,34 +340,9 @@ export const branches = pgTable(
   ],
 );
 
-export const departments = pgTable(
-  "departments",
-  {
-    id: serial("id").primaryKey(),
-    name: varchar("name", { length: 100 }).notNull().unique(),
-    // short code shown in Org Setup → Department (e.g. HR, IT). Nullable so
-    // pre-existing rows remain valid; unique when present.
-    code: varchar("code", { length: 20 }).unique(),
-    // forward ref to employees.id — resolved lazily at runtime; also serves as
-    // the "department lead" in the Org Setup UI.
-    managerId: integer("manager_id").references(
-      (): AnyPgColumn => employees.id,
-      { onDelete: "set null" },
-    ),
-    locationArea: varchar("location_area", { length: 200 }),
-    headcount: integer("headcount").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    check("dept_headcount_chk", sql`${table.headcount} >= 0`),
-  ],
-);
+// NOTE: the former flat `departments` table has been unified into
+// `orgHierarchyDepartments` (the single source of truth). All department FKs
+// now reference that table.
 
 export const grades = pgTable("grades", {
   id: serial("id").primaryKey(),
@@ -408,7 +384,7 @@ export const designations = pgTable(
     // short code shown in Org Setup → Designation (e.g. MGR, CEO). Nullable so
     // pre-existing rows remain valid; unique when present.
     code: varchar("code", { length: 20 }).unique(),
-    departmentId: integer("department_id").references(() => departments.id, {
+    departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
       onDelete: "set null",
     }),
     gradeMinId: integer("grade_min_id").references(() => grades.id, {
@@ -439,7 +415,7 @@ export const subDepartments = pgTable("sub_departments", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 150 }).notNull().unique(),
   code: varchar("code", { length: 20 }).unique(),
-  departmentId: integer("department_id").references(() => departments.id, {
+  departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
     onDelete: "set null",
   }),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -461,8 +437,18 @@ export const orgHierarchyDepartments = pgTable(
     id: serial("id").primaryKey(),
     companyId: integer("company_id"),
     name: varchar("name", { length: 100 }).notNull(),
-    code: varchar("code", { length: 20 }).notNull(),
+    // Optional in the unified table: the legacy /api/hrms/departments create
+    // flow doesn't supply a code (the org-hierarchy Masters editor does).
+    code: varchar("code", { length: 20 }),
     status: orgHierarchyStatusEnum("status").notNull().default("Active"),
+    // Carried over from the former flat `departments` table when it was merged
+    // in. `managerId` is the department lead (used by approval-workflow routing).
+    managerId: integer("manager_id").references(
+      (): AnyPgColumn => employees.id,
+      { onDelete: "set null" },
+    ),
+    locationArea: varchar("location_area", { length: 200 }),
+    headcount: integer("headcount").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -643,7 +629,7 @@ export const employees = pgTable(
       .notNull()
       .default(sql`'{}'::int[]`),
 
-    departmentId: integer("department_id").references(() => departments.id, {
+    departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
       onDelete: "set null",
     }),
     // Optional sub-department (process/campaign) the employee belongs to.
@@ -1154,7 +1140,7 @@ export const offboardingCases = pgTable(
     employeeId: integer("employee_id")
       .notNull()
       .references(() => employees.id, { onDelete: "cascade" }),
-    departmentId: integer("department_id").references(() => departments.id, {
+    departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
       onDelete: "set null",
     }),
     reportingManagerId: integer("reporting_manager_id").references(
@@ -1277,6 +1263,26 @@ export const exitInterviewTemplates = pgTable("exit_interview_templates", {
     .$onUpdate(() => new Date())
     .notNull(),
 });
+
+// Scope rows for an exit-interview template — Company | Branch | Department |
+// SubDepartment. A template with no scope rows is the catch-all (used when no
+// scoped template matches the employee); otherwise the most-specific matching
+// template is assigned. Mirrors clearance_template_scope.
+export const exitInterviewTemplateScope = pgTable(
+  "exit_interview_template_scope",
+  {
+    id: serial("id").primaryKey(),
+    templateId: integer("template_id")
+      .notNull()
+      .references(() => exitInterviewTemplates.id, { onDelete: "cascade" }),
+    scopeType: varchar("scope_type", { length: 20 }).notNull(),
+    scopeId: integer("scope_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("idx_exit_template_scope_template").on(table.templateId)],
+);
 
 // One exit-interview response per offboarding case. `answers` is a map of
 // questionId → value (string | number | string[] | boolean).
@@ -2119,6 +2125,30 @@ export const weeklyOffScope = pgTable("weekly_off_scope", {
     .notNull(),
 });
 
+// Per-employee off-day assignments for Roster-mode weekly-off configs. Each row
+// = one employee is off on one date. A planner manages these via the roster
+// grid; the weekly-off resolver reads them for Roster-mode employees.
+export const weeklyOffRosterEntries = pgTable(
+  "weekly_off_roster_entries",
+  {
+    id: serial("id").primaryKey(),
+    configId: integer("config_id")
+      .notNull()
+      .references(() => weeklyOffConfigs.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    offDate: date("off_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("weekly_off_roster_unique").on(table.employeeId, table.offDate),
+    index("idx_weekly_off_roster_config").on(table.configId),
+  ],
+);
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 9 — ORG SETUP: LOCATIONS
 // ───────────────────────────────────────────────────────────────────────────
@@ -2206,8 +2236,8 @@ export type Location = typeof locations.$inferSelect;
 export type NewLocation = typeof locations.$inferInsert;
 export type Branch = typeof branches.$inferSelect;
 export type NewBranch = typeof branches.$inferInsert;
-export type Department = typeof departments.$inferSelect;
-export type NewDepartment = typeof departments.$inferInsert;
+export type Department = typeof orgHierarchyDepartments.$inferSelect;
+export type NewDepartment = typeof orgHierarchyDepartments.$inferInsert;
 export type Grade = typeof grades.$inferSelect;
 export type NewGrade = typeof grades.$inferInsert;
 export type EmploymentType = typeof employmentTypes.$inferSelect;

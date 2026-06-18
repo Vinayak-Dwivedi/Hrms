@@ -11,10 +11,15 @@
 // either all save or none do.
 
 import { Router } from "express";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, or, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/runtime";
-import { weeklyOffConfigs, weeklyOffScope } from "@/db/schema/hrms";
+import {
+  employees,
+  weeklyOffConfigs,
+  weeklyOffRosterEntries,
+  weeklyOffScope,
+} from "@/db/schema/hrms";
 import { ApiError } from "@/middleware/error";
 
 export const adminWeeklyOffConfigsRouter: Router = Router();
@@ -24,6 +29,7 @@ const SCOPE_TYPES = [
   "Branch",
   "Location",
   "Department",
+  "SubDepartment",
   "Designation",
   "Grade",
   "EmploymentType",
@@ -328,6 +334,180 @@ adminWeeklyOffConfigsRouter.delete("/:id", async (req, res, next) => {
       throw new ApiError(404, "NOT_FOUND", "Weekly-off config not found.");
     }
     res.json({ deleted: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ───────────────────────── Roster planner ─────────────────────────
+// Roster-mode configs have no formula — a planner assigns each scoped
+// employee's off-days per date. These endpoints back the roster grid.
+
+const EMP_SCOPE_COL = {
+  Branch: employees.branchId,
+  Department: employees.departmentId,
+  SubDepartment: employees.subDepartmentId,
+  Designation: employees.designationId,
+  Grade: employees.gradeId,
+  EmploymentType: employees.employmentTypeId,
+  Employee: employees.id,
+} as const;
+
+// Active employees matching any of a config's scope rows (Company → everyone).
+async function employeesInScope(configId: number) {
+  const scopeRows = await db
+    .select({ scopeType: weeklyOffScope.scopeType, scopeId: weeklyOffScope.scopeId })
+    .from(weeklyOffScope)
+    .where(eq(weeklyOffScope.configId, configId));
+
+  const activeFilter = inArray(employees.employeeStatus, ["Active", "Probation", "Notice"]);
+  const baseCols = {
+    id: employees.id,
+    empId: employees.empId,
+    firstName: employees.firstName,
+    lastName: employees.lastName,
+  };
+
+  if (scopeRows.some((r) => r.scopeType === "Company")) {
+    return db.select(baseCols).from(employees).where(activeFilter).orderBy(employees.firstName);
+  }
+
+  const byType = new Map<keyof typeof EMP_SCOPE_COL, number[]>();
+  for (const r of scopeRows) {
+    if (r.scopeId == null) continue;
+    const key = r.scopeType as keyof typeof EMP_SCOPE_COL;
+    if (!(key in EMP_SCOPE_COL)) continue;
+    const arr = byType.get(key) ?? [];
+    arr.push(r.scopeId);
+    byType.set(key, arr);
+  }
+  const conds: SQL[] = [];
+  for (const [type, ids] of byType) conds.push(inArray(EMP_SCOPE_COL[type], ids));
+  if (conds.length === 0) return [];
+
+  return db
+    .select(baseCols)
+    .from(employees)
+    .where(and(activeFilter, or(...conds)))
+    .orderBy(employees.firstName);
+}
+
+function monthRange(month: string): { from: string; to: string } | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  if (mo < 1 || mo > 12) return null;
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return { from: `${m[1]}-${m[2]}-01`, to: `${m[1]}-${m[2]}-${String(last).padStart(2, "0")}` };
+}
+
+// GET /:id/roster?month=YYYY-MM — scoped employees + their off-days that month.
+adminWeeklyOffConfigsRouter.get("/:id/roster", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    const range = monthRange(typeof req.query.month === "string" ? req.query.month : "");
+    if (!range) throw new ApiError(400, "BAD_MONTH", "month=YYYY-MM is required.");
+
+    const [config] = await db
+      .select({ id: weeklyOffConfigs.id })
+      .from(weeklyOffConfigs)
+      .where(eq(weeklyOffConfigs.id, id))
+      .limit(1);
+    if (!config) throw new ApiError(404, "NOT_FOUND", "Weekly-off config not found.");
+
+    const emps = await employeesInScope(id);
+    const empIds = emps.map((e) => e.id);
+
+    const entries =
+      empIds.length === 0
+        ? []
+        : await db
+            .select({
+              employeeId: weeklyOffRosterEntries.employeeId,
+              offDate: weeklyOffRosterEntries.offDate,
+            })
+            .from(weeklyOffRosterEntries)
+            .where(
+              and(
+                inArray(weeklyOffRosterEntries.employeeId, empIds),
+                gte(weeklyOffRosterEntries.offDate, range.from),
+                lte(weeklyOffRosterEntries.offDate, range.to),
+              ),
+            );
+
+    const offDates: Record<number, string[]> = {};
+    for (const e of entries) {
+      const ds = typeof e.offDate === "string" ? e.offDate : String(e.offDate).slice(0, 10);
+      (offDates[e.employeeId] ??= []).push(ds);
+    }
+
+    res.json({
+      data: {
+        from: range.from,
+        to: range.to,
+        employees: emps.map((e) => ({
+          id: e.id,
+          empId: e.empId,
+          name: `${e.firstName} ${e.lastName ?? ""}`.trim(),
+        })),
+        offDates,
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const rosterSaveSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  entries: z
+    .array(
+      z.object({
+        employeeId: z.number().int().positive(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .max(20000),
+});
+
+// PUT /:id/roster — replace the month's off-days for the config's scoped staff.
+adminWeeklyOffConfigsRouter.put("/:id/roster", async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    const body = rosterSaveSchema.parse(req.body ?? {});
+    const range = monthRange(body.month);
+    if (!range) throw new ApiError(400, "BAD_MONTH", "month=YYYY-MM is required.");
+
+    const emps = await employeesInScope(id);
+    const scopedIds = new Set(emps.map((e) => e.id));
+    // Only accept entries for in-scope employees and in-month dates.
+    const rows = body.entries.filter(
+      (e) => scopedIds.has(e.employeeId) && e.date >= range.from && e.date <= range.to,
+    );
+
+    await db.transaction(async (tx) => {
+      if (scopedIds.size > 0) {
+        await tx
+          .delete(weeklyOffRosterEntries)
+          .where(
+            and(
+              inArray(weeklyOffRosterEntries.employeeId, [...scopedIds]),
+              gte(weeklyOffRosterEntries.offDate, range.from),
+              lte(weeklyOffRosterEntries.offDate, range.to),
+            ),
+          );
+      }
+      if (rows.length > 0) {
+        await tx.insert(weeklyOffRosterEntries).values(
+          rows.map((e) => ({ configId: id, employeeId: e.employeeId, offDate: e.date })),
+        );
+      }
+    });
+
+    res.json({ data: { saved: rows.length } });
   } catch (e) {
     next(e);
   }

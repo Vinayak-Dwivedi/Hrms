@@ -17,9 +17,10 @@ import {
 } from "@/db/schema/hrms";
 
 const SPECIFICITY_ORDER: Record<string, number> = {
-  Employee: 8,
-  Designation: 7,
-  Grade: 6,
+  Employee: 9,
+  Designation: 8,
+  Grade: 7,
+  SubDepartment: 6,
   Department: 5,
   Branch: 4,
   Location: 3,
@@ -31,12 +32,14 @@ export interface EmployeeDimensions {
   id: number;
   branchId: number | null;
   departmentId: number | null;
+  subDepartmentId: number | null;
   designationId: number | null;
   gradeId: number | null;
   employmentTypeId: number | null;
-  // Location is not directly attached to employees in the current schema.
-  // Location-scoped rules will need a branches→locations join when we wire
-  // the org-location relationship; for now they never match.
+  // Location is not directly attached to employees in the current schema —
+  // the app surfaces an employee's branch as their "Location", so Location-
+  // wise holiday policies are modelled with the Branch scope. The Location
+  // scope type stays unmatched until a true org-location link exists.
 }
 
 export async function loadEmployeeDimensions(
@@ -47,6 +50,7 @@ export async function loadEmployeeDimensions(
       id: employees.id,
       branchId: employees.branchId,
       departmentId: employees.departmentId,
+      subDepartmentId: employees.subDepartmentId,
       designationId: employees.designationId,
       gradeId: employees.gradeId,
       employmentTypeId: employees.employmentTypeId,
@@ -68,6 +72,8 @@ function dimensionFieldFor(
       return emp.branchId;
     case "Department":
       return emp.departmentId;
+    case "SubDepartment":
+      return emp.subDepartmentId;
     case "Designation":
       return emp.designationId;
     case "Grade":
@@ -297,6 +303,12 @@ export async function holidaysForEmployee(
   // Step 1 — every published calendar whose scope matches the employee.
   const calendarIds = await resolveAllCalendarsForEmployee(emp);
   if (calendarIds.length === 0) {
+    // Holiday policies are authoritative once any exist: an employee not
+    // covered by any published calendar gets no holidays. Only fall back to the
+    // legacy global holiday list when NO published calendar exists at all
+    // (fresh setup / pre-policy data). To cover everyone, create a policy scoped
+    // to "Entire Organisation" (Company scope).
+    if (await anyPublishedCalendarExists()) return [];
     return legacyHolidaysForEmployee(emp, fromDate, toDate);
   }
 
@@ -335,11 +347,22 @@ export async function holidaysForEmployee(
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  if (calendarHolidays.length === 0) {
-    return legacyHolidaysForEmployee(emp, fromDate, toDate);
-  }
-
+  // The employee is covered by ≥1 calendar, so those calendars define their
+  // holidays — an empty in-range result is a legitimate "no holidays", not a
+  // reason to fall back to the global list.
   return calendarHolidays;
+}
+
+/** True if any Published holiday calendar exists in the system. Used to decide
+ *  whether the legacy global-holiday fallback still applies (it only does on a
+ *  fresh/pre-policy setup with zero published calendars). */
+async function anyPublishedCalendarExists(): Promise<boolean> {
+  const [row] = await db
+    .select({ id: holidayCalendars.id })
+    .from(holidayCalendars)
+    .where(eq(holidayCalendars.status, "Published"))
+    .limit(1);
+  return Boolean(row);
 }
 
 /** All published calendars whose scope rows include this employee. Unlike

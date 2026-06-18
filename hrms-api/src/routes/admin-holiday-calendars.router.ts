@@ -105,6 +105,45 @@ const calendarPatchSchema = z.object({
 
 // ───── shape helpers ──────────────────────────────────────────────────────
 
+// A normalised, order-independent key for a set of scope rows, so two policies
+// with the same location/department/sub-department coverage compare equal.
+function scopeKey(rows: { scopeType: string; scopeId?: number | null }[]): string {
+  return rows
+    .map((s) => `${s.scopeType}:${s.scopeId ?? "null"}`)
+    .sort()
+    .join("|");
+}
+
+// Returns the name of an existing calendar whose scope exactly matches the
+// given scope (ignoring `excludeId`), or null if there's no such duplicate.
+async function findDuplicateScopeCalendar(
+  scope: { scopeType: string; scopeId?: number | null }[],
+  excludeId?: number,
+): Promise<string | null> {
+  const key = scopeKey(scope);
+  const cals = await db
+    .select({ id: holidayCalendars.id, name: holidayCalendars.name })
+    .from(holidayCalendars);
+  const allScopes = await db
+    .select({
+      calendarId: holidayCalendarScope.calendarId,
+      scopeType: holidayCalendarScope.scopeType,
+      scopeId: holidayCalendarScope.scopeId,
+    })
+    .from(holidayCalendarScope);
+  const byCalendar = new Map<number, { scopeType: string; scopeId: number | null }[]>();
+  for (const r of allScopes) {
+    const arr = byCalendar.get(r.calendarId) ?? [];
+    arr.push({ scopeType: r.scopeType, scopeId: r.scopeId });
+    byCalendar.set(r.calendarId, arr);
+  }
+  for (const c of cals) {
+    if (c.id === excludeId) continue;
+    if (scopeKey(byCalendar.get(c.id) ?? []) === key) return c.name;
+  }
+  return null;
+}
+
 async function loadFullCalendar(calendarId: number) {
   const [cal] = await db
     .select()
@@ -228,6 +267,17 @@ adminHolidayCalendarsRouter.post("/", async (req, res, next) => {
   try {
     const body = calendarUpsertSchema.parse(req.body);
 
+    // Block a second policy with the exact same scope (location / department /
+    // sub-department coverage) — there can only be one per coverage.
+    const dup = await findDuplicateScopeCalendar(body.scope);
+    if (dup) {
+      throw new ApiError(
+        409,
+        "DUPLICATE_SCOPE",
+        `A holiday policy with this coverage already exists ("${dup}").`,
+      );
+    }
+
     const createdId = await db.transaction(async (tx) => {
       const [cal] = await tx
         .insert(holidayCalendars)
@@ -301,6 +351,18 @@ adminHolidayCalendarsRouter.patch("/:id", async (req, res, next) => {
       throw new ApiError(400, "BAD_ID", "Numeric id required.");
     }
     const body = calendarPatchSchema.parse(req.body);
+
+    // If the scope is changing, reject a clash with another policy's coverage.
+    if (body.scope !== undefined) {
+      const dup = await findDuplicateScopeCalendar(body.scope, id);
+      if (dup) {
+        throw new ApiError(
+          409,
+          "DUPLICATE_SCOPE",
+          `A holiday policy with this coverage already exists ("${dup}").`,
+        );
+      }
+    }
 
     await db.transaction(async (tx) => {
       const updates: Record<string, unknown> = {};

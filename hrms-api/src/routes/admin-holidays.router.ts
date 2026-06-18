@@ -52,7 +52,21 @@ const upsertSchema = z.object({
   teamIds: z.array(z.number().int().positive()).default([]),
 });
 
-const patchSchema = upsertSchema.partial();
+// PATCH must NOT carry defaults: a field absent from the request body has to
+// stay `undefined` so the update leaves it alone. (`.partial()` keeps the
+// `.default()`s, which would e.g. reset teamIds to [] and wipe a holiday's team
+// assignments on an unrelated edit.)
+const patchSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  type: z
+    .enum(["National", "Regional", "Optional", "Restricted", "Festival"])
+    .optional(),
+  isHalfDay: z.boolean().optional(),
+  description: z.string().trim().max(500).optional().nullable(),
+  scope: z.array(perHolidayScopeRowSchema).optional(),
+  teamIds: z.array(z.number().int().positive()).optional(),
+});
 
 async function loadHolidayWithTeams(holidayId: number) {
   const [row] = await db

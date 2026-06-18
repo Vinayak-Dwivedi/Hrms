@@ -62,8 +62,8 @@ const scaleBtn = (active: boolean) =>
   [
     "min-w-[34px] h-[34px] px-2 rounded-lg text-sm font-medium border transition-colors",
     active
-      ? "bg-[#FF014F] border-[#FF014F] text-white"
-      : "bg-white border-gray-300 text-gray-600 hover:border-[#FF014F]/50",
+      ? "bg-[lab(36.9089%_35.0961_-85.6872)] border-[lab(36.9089%_35.0961_-85.6872)] text-white"
+      : "bg-white border-gray-300 text-gray-600 hover:border-[lab(36.9089%_35.0961_-85.6872)]/50",
   ].join(" ");
 
 function renderInput(
@@ -130,7 +130,7 @@ function renderInput(
             >
               <Star
                 size={26}
-                className={n <= current ? "fill-[#FF014F] text-[#FF014F]" : "text-gray-300"}
+                className={n <= current ? "fill-[lab(36.9089%_35.0961_-85.6872)] text-[lab(36.9089%_35.0961_-85.6872)]" : "text-gray-300"}
               />
             </button>
           ))}
@@ -145,7 +145,7 @@ function renderInput(
             <label key={opt} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
-                className="w-4 h-4 accent-[#FF014F]"
+                className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)]"
                 checked={value === opt}
                 onChange={() => onChange(opt)}
               />
@@ -165,7 +165,7 @@ function renderInput(
               <label key={opt} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 accent-[#FF014F]"
+                  className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)]"
                   checked={checked}
                   onChange={() =>
                     onChange(checked ? arr.filter((x) => x !== opt) : [...arr, opt])

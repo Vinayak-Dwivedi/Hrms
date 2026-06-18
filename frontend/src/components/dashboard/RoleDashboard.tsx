@@ -72,7 +72,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { formatDayCount } from "@/lib/format-day-count";
+import { formatDayCount, roundDays } from "@/lib/format-day-count";
 
 const SHIFT_MINUTES = 540;
 
@@ -213,7 +213,7 @@ function Ring({
           className="block w-full text-center font-bold text-gray-900 leading-none tabular-nums"
           style={{ fontSize: centerFontSize }}
         >
-          {used}/{total}
+          {roundDays(used)}/{roundDays(total)}
         </span>
       </div>
     </div>
@@ -1455,7 +1455,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   : [{ value: 1, color: "#e5e7eb" }]
               }
               center={{
-                label: grantedTotal > 0 ? String(grantedTotal) : "0",
+                label: grantedTotal > 0 ? roundDays(grantedTotal) : "0",
                 sub: "Available",
               }}
             />
@@ -1482,7 +1482,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
                     </span>
                   </div>
                   <span className="text-sm text-gray-600 font-semibold tabular-nums shrink-0">
-                    {s.value}
+                    {roundDays(s.value)}
                   </span>
                 </div>
               ))}

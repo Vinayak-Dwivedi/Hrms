@@ -2,21 +2,31 @@
 // expand it into a set of off-day date strings within a range. Uses the
 // same specificity-ranking logic as the holiday calendar resolver.
 
-import { eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db/runtime";
-import { weeklyOffConfigs, weeklyOffScope } from "@/db/schema/hrms";
+import {
+  weeklyOffConfigs,
+  weeklyOffRosterEntries,
+  weeklyOffScope,
+} from "@/db/schema/hrms";
 import type { EmployeeDimensions } from "./holiday-calendar-resolver";
 
 const SPECIFICITY_ORDER: Record<string, number> = {
-  Employee: 8,
-  Designation: 7,
-  Grade: 6,
+  Employee: 9,
+  Designation: 8,
+  Grade: 7,
+  SubDepartment: 6,
   Department: 5,
   Branch: 4,
   Location: 3,
   EmploymentType: 2,
   Company: 1,
 };
+
+// Fixed anchor (a UTC Monday) so a rotational cycle has the same phase no
+// matter which date range we expand — otherwise the rotation would depend on
+// the query window's start date.
+const ROTATION_EPOCH = Date.UTC(2024, 0, 1); // Mon 1 Jan 2024
 
 type DayName =
   | "Monday"
@@ -48,6 +58,8 @@ function dimensionFieldFor(
       return emp.branchId;
     case "Department":
       return emp.departmentId;
+    case "SubDepartment":
+      return emp.subDepartmentId;
     case "Designation":
       return emp.designationId;
     case "Grade":
@@ -172,12 +184,13 @@ export function weeklyOffDatesInRange(
   if (config.mode === "Rotational") {
     const pattern = config.settings.pattern as DayName[][] | undefined;
     if (pattern && pattern.length > 0) {
-      // Walk dates, anchor cycle at the start date.
+      // Anchor the cycle to a fixed epoch so the rotation phase is stable.
       for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
-        const weeksFromStart = Math.floor(
-          (d.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000),
+        const weeksFromEpoch = Math.floor(
+          (d.getTime() - ROTATION_EPOCH) / (7 * 24 * 60 * 60 * 1000),
         );
-        const weekInCycle = weeksFromStart % pattern.length;
+        const weekInCycle =
+          ((weeksFromEpoch % pattern.length) + pattern.length) % pattern.length;
         const week = pattern[weekInCycle] ?? [];
         const dayIdx = d.getUTCDay();
         if (week.some((day) => DAY_ORDER.indexOf(day) === dayIdx)) {
@@ -204,4 +217,44 @@ function parseDate(s: string): Date | null {
   return new Date(
     Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])),
   );
+}
+
+/** Roster-mode off-days for one employee: read from the planner's assignments
+ *  (weekly_off_roster_entries). Use this instead of weeklyOffDatesInRange when
+ *  the resolved config's mode is "Roster". */
+export async function rosterOffDatesForEmployee(
+  employeeId: number,
+  fromDate: string,
+  toDate: string,
+): Promise<Set<string>> {
+  const rows = await db
+    .select({ offDate: weeklyOffRosterEntries.offDate })
+    .from(weeklyOffRosterEntries)
+    .where(
+      and(
+        eq(weeklyOffRosterEntries.employeeId, employeeId),
+        gte(weeklyOffRosterEntries.offDate, fromDate),
+        lte(weeklyOffRosterEntries.offDate, toDate),
+      ),
+    );
+  return new Set(
+    rows.map((r) =>
+      typeof r.offDate === "string" ? r.offDate : String(r.offDate).slice(0, 10),
+    ),
+  );
+}
+
+/** Off-day dates for an employee in a range, handling all three modes:
+ *  Fixed/Rotational expand from the config; Roster reads the planner's roster. */
+export async function weeklyOffDatesForEmployee(
+  emp: EmployeeDimensions,
+  fromDate: string,
+  toDate: string,
+): Promise<Set<string>> {
+  const config = await resolveWeeklyOffForEmployee(emp);
+  if (!config) return new Set();
+  if (config.mode === "Roster") {
+    return rosterOffDatesForEmployee(emp.id, fromDate, toDate);
+  }
+  return weeklyOffDatesInRange(config, fromDate, toDate);
 }

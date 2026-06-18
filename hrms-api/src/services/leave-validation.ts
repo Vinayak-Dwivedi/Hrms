@@ -26,6 +26,7 @@ import {
 } from "./holiday-calendar-resolver";
 import {
   resolveWeeklyOffForEmployee,
+  rosterOffDatesForEmployee,
   weeklyOffDatesInRange,
 } from "./weekly-off-resolver";
 
@@ -274,11 +275,12 @@ export async function validateLeaveApplication(
 
     const woConfig = await resolveWeeklyOffForEmployee(dims);
     if (woConfig) {
-      const woDates = weeklyOffDatesInRange(
-        woConfig,
-        input.fromDate,
-        input.toDate,
-      );
+      // Roster mode reads the planner's per-employee assignments; Fixed /
+      // Rotational expand from the config formula.
+      const woDates =
+        woConfig.mode === "Roster"
+          ? await rosterOffDatesForEmployee(dims.id, input.fromDate, input.toDate)
+          : weeklyOffDatesInRange(woConfig, input.fromDate, input.toDate);
       if (woDates.size > 0) {
         warnings.push({
           code: "DATES_INCLUDE_WEEKLY_OFF",

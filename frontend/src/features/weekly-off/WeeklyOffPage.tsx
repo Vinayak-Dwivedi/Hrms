@@ -1,26 +1,77 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CalendarOff, Loader2, Plus, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarRange, Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import {
+  deleteWeeklyOff,
+  getWeeklyOff,
   listWeeklyOff,
+  updateWeeklyOff,
+  type AlternateDayRule,
+  type DayName,
+  type FixedSettings,
+  type RotationalSettings,
+  type WeeklyOffDetail,
   type WeeklyOffSummary,
 } from "./api/weekly-off.client";
-import WeeklyOffEditor from "./WeeklyOffEditor";
+import { cn } from "@/lib/utils";
+import RosterDialog from "./RosterDialog";
+import WeeklyOffDialog from "./WeeklyOffDialog";
 
-type EditingTarget = WeeklyOffSummary | "new" | null;
+type DialogTarget = WeeklyOffSummary | "new" | null;
+
+const SHORT: Record<DayName, string> = {
+  Monday: "Mon",
+  Tuesday: "Tue",
+  Wednesday: "Wed",
+  Thursday: "Thu",
+  Friday: "Fri",
+  Saturday: "Sat",
+  Sunday: "Sun",
+};
+
+// Human summary of a config's off-days.
+function offDaysSummary(d: WeeklyOffDetail): string {
+  if (d.mode === "Roster") return "Per roster";
+  if (d.mode === "Rotational") {
+    const s = d.settings as RotationalSettings;
+    return `Rotational · ${s.cycleWeeks ?? s.pattern?.length ?? 1}-week cycle`;
+  }
+  const s = d.settings as FixedSettings;
+  const parts = (s.days ?? []).map((x) => SHORT[x]);
+  for (const r of (s.alternateDays ?? []) as AlternateDayRule[]) {
+    const wk = [...r.weeks].sort((a, b) => a - b).join(",");
+    const label = wk === "1,3" ? "1st/3rd" : wk === "2,4" ? "2nd/4th" : `wk ${wk}`;
+    parts.push(`${label} ${SHORT[r.day]}`);
+  }
+  return parts.length ? parts.join(", ") : "—";
+}
+
+function scopeSummary(d: WeeklyOffDetail): string {
+  if (d.scope.some((s) => s.scopeType === "Company")) return "Entire organisation";
+  const n = d.scope.length;
+  if (n === 0) return "Unassigned";
+  return `${n} group${n === 1 ? "" : "s"}`;
+}
 
 export default function WeeklyOffPage() {
   const [items, setItems] = useState<WeeklyOffSummary[]>([]);
+  const [details, setDetails] = useState<Map<number, WeeklyOffDetail>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<EditingTarget>(null);
+  const [dialog, setDialog] = useState<DialogTarget>(null);
+  const [rosterFor, setRosterFor] = useState<WeeklyOffSummary | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setItems(await listWeeklyOff());
+      const list = await listWeeklyOff();
+      setItems(list);
+      const full = await Promise.all(list.map((c) => getWeeklyOff(c.id).catch(() => null)));
+      const m = new Map<number, WeeklyOffDetail>();
+      for (const d of full) if (d) m.set(d.id, d);
+      setDetails(m);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -32,165 +83,215 @@ export default function WeeklyOffPage() {
     refresh();
   }, [refresh]);
 
+  async function togglePublish(c: WeeklyOffSummary) {
+    const next = c.status === "Published" ? "Draft" : "Published";
+    try {
+      await updateWeeklyOff(c.id, { status: next });
+      await refresh();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  async function handleDelete(c: WeeklyOffSummary) {
+    if (!confirm(`Delete "${c.name}"? Scope assignments will also be removed.`)) return;
+    try {
+      await deleteWeeklyOff(c.id);
+      await refresh();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  const rows = useMemo(
+    () => items.map((c) => ({ c, d: details.get(c.id) })),
+    [items, details],
+  );
+
   return (
-    <div className="flex flex-col gap-6 pb-10">
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
-            Weekly Off
-          </h1>
-          <p className="text-[13px] text-gray-500 mt-1">
-            Define non-working day patterns and assign them to employee groups.
-          </p>
-        </div>
+    <div className="flex flex-col gap-5 pb-10">
+     
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => setDialog("new")}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] shadow-sm hover:shadow-md transition-shadow"
+        >
+          <Plus size={14} /> New Configuration
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_460px] gap-5 items-start">
-        <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-          <header className="flex items-center justify-between gap-4 px-6 py-5 border-b border-gray-100">
-            <div>
-              <h3 className="text-[15px] font-bold text-gray-900 leading-tight">
-                Weekly Off Configurations
-              </h3>
-              <p className="text-[12.5px] text-gray-500 mt-0.5 leading-snug">
-                Fixed (e.g. Sunday off), Rotational (e.g. 1-off / 4-week cycle),
-                or Roster-based.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
-              >
-                <RotateCcw size={12} className={loading ? "animate-spin" : ""} />
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditing("new")}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
-              >
-                <Plus size={12} /> New Configuration
-              </button>
-            </div>
-          </header>
+      {error && (
+        <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          {error}
+        </div>
+      )}
 
-          <div className="px-6 py-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10.5px] font-bold tracking-widest text-gray-400 uppercase">
-                Configurations
-              </p>
-              <p className="text-[11px] text-gray-400">
-                {items.length} Config{items.length === 1 ? "" : "s"}
-              </p>
-            </div>
-
-            {loading && items.length === 0 && (
-              <div className="flex items-center justify-center py-12 text-gray-400">
-                <Loader2 size={18} className="animate-spin mr-2" />
-                <span className="text-[12px]">Loading…</span>
-              </div>
-            )}
-
-            {error && (
-              <div className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mb-3">
-                {error}
-              </div>
-            )}
-
-            {!loading && items.length === 0 && !error && (
-              <div className="text-center py-10 text-gray-400">
-                <CalendarOff size={28} className="mx-auto mb-2 text-gray-300" />
-                <p className="text-[12.5px]">
-                  No configurations yet. Click "New Configuration".
-                </p>
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2.5">
-              {items.map((c) => (
-                <ConfigRow
-                  key={c.id}
-                  item={c}
-                  selected={
-                    editing !== null && editing !== "new" && editing.id === c.id
-                  }
-                  onConfigure={() => setEditing(c)}
-                />
+      <section className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <Th>Name</Th>
+                <Th>Mode</Th>
+                <Th>Off Days</Th>
+                <Th>Applies To</Th>
+                <Th className="text-center">Status</Th>
+                <Th className="text-right pr-6">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-gray-400">
+                    <Loader2 size={18} className="animate-spin inline mr-2" />
+                    Loading…
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-gray-400 text-[12.5px]">
+                    No configurations yet. Click "New Configuration".
+                  </td>
+                </tr>
+              )}
+              {rows.map(({ c, d }) => (
+                <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50/50">
+                  <Td>
+                    <button
+                      type="button"
+                      onClick={() => setDialog(c)}
+                      className="font-semibold text-gray-900 hover:text-[lab(30%_38_-90)] hover:underline text-left"
+                    >
+                      {c.name}
+                    </button>
+                    {c.description && (
+                      <p className="text-[11px] text-gray-400 truncate max-w-[260px]">{c.description}</p>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className="inline-block text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)]">
+                      {c.mode}
+                    </span>
+                  </Td>
+                  <Td className="text-gray-700">{d ? offDaysSummary(d) : "…"}</Td>
+                  <Td className="text-gray-700">
+                    {d ? (
+                      scopeSummary(d) === "Unassigned" ? (
+                        <span className="text-gray-400 italic">Unassigned</span>
+                      ) : (
+                        scopeSummary(d)
+                      )
+                    ) : (
+                      "…"
+                    )}
+                  </Td>
+                  <Td className="text-center">
+                    <StatusBadge status={c.status} />
+                  </Td>
+                  <Td className="text-right pr-6">
+                    <div className="inline-flex items-center gap-2">
+                      {c.mode === "Roster" && (
+                        <button
+                          type="button"
+                          onClick={() => setRosterFor(c)}
+                          title="Manage roster"
+                          className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
+                        >
+                          <CalendarRange size={15} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => togglePublish(c)}
+                        title={c.status === "Published" ? "Unpublish" : "Publish"}
+                        className={
+                          c.status === "Published"
+                            ? "text-amber-600 hover:text-amber-700"
+                            : "text-emerald-600 hover:text-emerald-700"
+                        }
+                      >
+                        {c.status === "Published" ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDialog(c)}
+                        title="Edit"
+                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c)}
+                        title="Delete"
+                        className="text-rose-500 hover:text-rose-700"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </Td>
+                </tr>
               ))}
-            </div>
-          </div>
-        </section>
-
-        <div className="lg:sticky lg:top-4">
-          <WeeklyOffEditor
-            target={editing}
-            onClose={() => setEditing(null)}
-            onSaved={() => {
-              refresh();
-              setEditing(null);
-            }}
-          />
+            </tbody>
+          </table>
         </div>
-      </div>
+        {rows.length > 0 && (
+          <div className="px-5 py-3 text-[12px] text-gray-500 border-t border-gray-100">
+            {rows.length} configuration{rows.length === 1 ? "" : "s"}
+          </div>
+        )}
+      </section>
+
+      {dialog && (
+        <WeeklyOffDialog
+          target={dialog}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {rosterFor && <RosterDialog config={rosterFor} onClose={() => setRosterFor(null)} />}
     </div>
   );
 }
 
-function ConfigRow({
-  item,
-  selected,
-  onConfigure,
-}: {
-  item: WeeklyOffSummary;
-  selected: boolean;
-  onConfigure: () => void;
-}) {
-  const statusTone: Record<WeeklyOffSummary["status"], string> = {
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
     Draft: "bg-amber-50 text-amber-700 border-amber-200",
     Published: "bg-emerald-50 text-emerald-700 border-emerald-200",
     Archived: "bg-gray-100 text-gray-600 border-gray-200",
   };
   return (
-    <button
-      type="button"
-      onClick={onConfigure}
+    <span
       className={[
-        "group flex items-center gap-4 text-left p-4 rounded-xl border transition-all",
-        "bg-white hover:border-[#ff014f]/40 hover:shadow-sm",
-        selected
-          ? "border-[#ff014f] shadow-[0_4px_12px_-4px_rgba(255,1,79,0.25)]"
-          : "border-gray-200",
+        "inline-block text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border",
+        map[status] ?? "bg-gray-100 text-gray-600 border-gray-200",
       ].join(" ")}
     >
-      <div className="shrink-0 w-10 h-10 rounded-xl bg-pink-50 text-[#ff014f] flex items-center justify-center group-hover:bg-[#eb0249] group-hover:text-white transition-colors">
-        <CalendarOff size={18} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h4 className="text-[14px] font-semibold text-gray-900 truncate">
-            {item.name}
-          </h4>
-          <span
-            className={[
-              "inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border",
-              statusTone[item.status],
-            ].join(" ")}
-          >
-            {item.status}
-          </span>
-          <span className="inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
-            {item.mode}
-          </span>
-        </div>
-        {item.description && (
-          <p className="text-[12px] text-gray-500 truncate mt-0.5">
-            {item.description}
-          </p>
-        )}
-      </div>
-    </button>
+      {status}
+    </span>
   );
+}
+
+function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <th
+      className={cn(
+        "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <td className={cn("px-4 py-3 align-middle", className)}>{children}</td>;
 }

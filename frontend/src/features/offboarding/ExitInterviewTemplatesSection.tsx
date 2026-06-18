@@ -10,10 +10,12 @@ import {
   type ExitInterviewTemplate,
   type ExitQuestion,
   type ExitQuestionType,
+  type ExitScopeRow,
   getExitTemplate,
   listExitTemplates,
   updateExitTemplate,
 } from "@/features/offboarding/api/offboarding.client";
+import TemplateScopePicker from "@/features/offboarding/TemplateScopePicker";
 import {
   ActionBtn,
   DialogShell,
@@ -152,6 +154,8 @@ function TemplateBuilderDialog({
   const [isActive, setIsActive] = useState(true);
   const [isDefault, setIsDefault] = useState(false);
   const [questions, setQuestions] = useState<ExitQuestion[]>([newQuestion()]);
+  const [scope, setScope] = useState<ExitScopeRow[]>([{ scopeType: "Company", scopeId: null }]);
+  const [initialScope, setInitialScope] = useState<ExitScopeRow[]>([]);
   const [loading, setLoading] = useState(templateId != null);
   const [busy, setBusy] = useState(false);
 
@@ -165,6 +169,7 @@ function TemplateBuilderDialog({
         setIsActive(t.isActive);
         setIsDefault(t.isDefault);
         setQuestions(t.questions.length ? t.questions : [newQuestion()]);
+        setInitialScope(t.scope ?? []);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to load template.");
       } finally {
@@ -203,6 +208,7 @@ function TemplateBuilderDialog({
         questions: cleaned,
         isActive,
         isDefault,
+        scope,
       };
       if (templateId != null) await updateExitTemplate(templateId, body);
       else await createExitTemplate(body);
@@ -242,7 +248,15 @@ function TemplateBuilderDialog({
               <Toggle label="Default template" checked={isDefault} onChange={setIsDefault} />
             </div>
 
-            <div className="space-y-3">
+            <div className="border-t border-gray-100 pt-4">
+              <TemplateScopePicker initial={initialScope} onChange={setScope} />
+              <p className="text-[11px] text-gray-400 mt-2">
+                Different teams can get different exit surveys — the most specific matching
+                template is assigned automatically when a case is created.
+              </p>
+            </div>
+
+            <div className="space-y-3 border-t border-gray-100 pt-4">
               <p className="text-[10.5px] font-bold tracking-widest text-gray-400 uppercase">Questions</p>
               {questions.map((q, i) => (
                 <QuestionEditor
@@ -408,7 +422,7 @@ function QuestionEditor({
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex items-center gap-2 cursor-pointer">
-      <input type="checkbox" className="w-4 h-4 accent-[#FF014F] cursor-pointer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="text-sm text-gray-700">{label}</span>
     </label>
   );

@@ -75,7 +75,7 @@ export default function HolidaysPage() {
               width: 38,
               height: 38,
               background:
-                "linear-gradient(135deg, #ec4899 0%, #be185d 100%)",
+                "linear-gradient(135deg, lab(52% 28 -70) 0%, lab(36.9089% 35.0961 -85.6872) 100%)",
             }}
           >
             <Calendar size={18} style={{ color: "#fff" }} />
@@ -134,7 +134,7 @@ export default function HolidaysPage() {
                   >
                     <p
                       className="text-[9px] font-bold"
-                      style={{ color: "#dc143c" }}
+                      style={{ color: "lab(36.9089% 35.0961 -85.6872)" }}
                     >
                       {month}
                     </p>

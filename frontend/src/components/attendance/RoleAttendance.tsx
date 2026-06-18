@@ -76,10 +76,13 @@ export default function RoleAttendance({
   role,
   leadingToolbar,
   showViewToggle = true,
+  autoApplyLeave = false,
 }: {
   role: Role;
   leadingToolbar?: React.ReactNode;
   showViewToggle?: boolean;
+  /** Auto-open the Apply-Leave form (arriving from the "Apply Leave" link). */
+  autoApplyLeave?: boolean;
 }) {
   const { available: reportingManager, loading: managerProbeLoading } =
     useReportingManagerAvailable();
@@ -248,6 +251,7 @@ export default function RoleAttendance({
                 onCancelLeave={handleCancelLeave}
                 onSubmitRegularisation={handleSubmitRegularisation}
                 onMonthChange={handleMonthChange}
+                autoApplyLeave={autoApplyLeave}
                 regularisationHistory={regHistory.map(
                   (r): RegularisationHistoryItem => ({
                     date: r.date,

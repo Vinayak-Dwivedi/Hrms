@@ -107,7 +107,7 @@ export default function ClearanceTemplatesSection() {
               <ul className="mt-3 space-y-1.5 flex-1">
                 {t.tasks.map((task, i) => (
                   <li key={i} className="flex items-center gap-2 text-[12.5px] text-gray-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#FF014F] shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[lab(36.9089%_35.0961_-85.6872)] shrink-0" />
                     {task}
                   </li>
                 ))}
@@ -325,7 +325,7 @@ function TemplateDialog({
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        className="w-4 h-4 accent-[#FF014F] cursor-pointer"
+                        className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer"
                         checked={deptIds.has(d.id)}
                         onChange={() => toggle(setDeptIds, d.id)}
                       />
@@ -337,7 +337,7 @@ function TemplateDialog({
                           <label key={s.id} className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
-                              className="w-3.5 h-3.5 accent-[#FF014F] cursor-pointer"
+                              className="w-3.5 h-3.5 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer"
                               checked={subDeptIds.has(s.id)}
                               onChange={() => toggle(setSubDeptIds, s.id)}
                             />
@@ -354,7 +354,7 @@ function TemplateDialog({
         </div>
 
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4 accent-[#FF014F] cursor-pointer" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          <input type="checkbox" className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           <span className="text-sm text-gray-700">Active (seed into new cases)</span>
         </label>
       </div>

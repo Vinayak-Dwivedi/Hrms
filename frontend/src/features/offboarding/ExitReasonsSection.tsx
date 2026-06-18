@@ -170,7 +170,7 @@ function ExitReasonDialog({
           </div>
           <div className="flex items-end">
             <label className="flex items-center gap-2 cursor-pointer pb-2">
-              <input type="checkbox" className="w-4 h-4 accent-[#FF014F] cursor-pointer" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+              <input type="checkbox" className="w-4 h-4 accent-[lab(36.9089%_35.0961_-85.6872)] cursor-pointer" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
               <span className="text-sm text-gray-700">Active</span>
             </label>
           </div>

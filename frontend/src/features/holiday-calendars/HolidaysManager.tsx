@@ -25,6 +25,7 @@ import {
   type GlobalHoliday,
   type HolidayCalendarSummary,
 } from "./api/holiday-calendars.client";
+import { cn } from "@/lib/utils";
 import EditHolidayDialog from "./EditHolidayDialog";
 
 interface AddRow {
@@ -166,7 +167,7 @@ export default function HolidaysManager({
       {/* Add holiday card */}
       <section className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-3">
-          <CalendarDays size={16} className="text-[#ff014f]" />
+          <CalendarDays size={16} className="text-[lab(36.9089%_35.0961_-85.6872)]" />
           <h2 className="text-[14px] font-bold text-gray-900">Add Holiday</h2>
           <span className="text-[12px] text-gray-400">
             — add one or more, then assign to teams from the team dialog.
@@ -183,13 +184,13 @@ export default function HolidaysManager({
                 type="date"
                 value={row.date}
                 onChange={(e) => updateRow(idx, { date: e.target.value })}
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
               />
               <span
                 className={[
                   "text-[12px] font-semibold text-center px-2 py-1.5 rounded",
                   row.date
-                    ? "bg-pink-50 text-[#be185d]"
+                    ? "bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)]"
                     : "bg-gray-100 text-gray-400 italic",
                 ].join(" ")}
               >
@@ -199,7 +200,7 @@ export default function HolidaysManager({
                 value={row.name}
                 onChange={(e) => updateRow(idx, { name: e.target.value })}
                 placeholder="Holiday name (e.g. Republic Day)"
-                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
+                className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-[12.5px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
               />
               <button
                 type="button"
@@ -217,7 +218,7 @@ export default function HolidaysManager({
             type="button"
             onClick={addRow}
             disabled={saving}
-            className="self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] font-bold text-[#ff014f] hover:text-[#eb0249] disabled:opacity-50"
+            className="self-start inline-flex items-center gap-1.5 mt-0.5 text-[13px] font-bold text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)] disabled:opacity-50"
           >
             <Plus size={14} /> Add another
           </button>
@@ -238,7 +239,7 @@ export default function HolidaysManager({
               type="button"
               onClick={saveNew}
               disabled={saving || validCount === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -266,7 +267,6 @@ export default function HolidaysManager({
                 <Th>Date</Th>
                 <Th>Day</Th>
                 <Th>Name</Th>
-                <Th>Type</Th>
                 <Th className="text-center">Teams</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
@@ -275,7 +275,7 @@ export default function HolidaysManager({
               {sortedHolidays.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="text-center py-10 text-gray-400 text-[12.5px]"
                   >
                     No holidays yet. Add one above.
@@ -289,17 +289,14 @@ export default function HolidaysManager({
                 >
                   <Td className="font-semibold text-gray-900 whitespace-nowrap">
                     {h.date}
-                  </Td>
-                  <Td className="text-gray-700">{dayOfWeek(h.date)}</Td>
-                  <Td className="text-gray-900">
-                    {h.name}
                     {h.isHalfDay && (
                       <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                         Half-day
                       </span>
                     )}
                   </Td>
-                  <Td className="text-gray-700">{h.type}</Td>
+                  <Td className="text-gray-700">{dayOfWeek(h.date)}</Td>
+                  <Td className="text-gray-900">{h.name}</Td>
                   <Td className="text-center">
                     {h.teamIds.length === 0 ? (
                       <span className="text-gray-400 italic text-[12px]">
@@ -310,7 +307,7 @@ export default function HolidaysManager({
                         title={h.teamIds
                           .map((id) => teamNames.get(id) ?? `#${id}`)
                           .join(", ")}
-                        className="inline-block bg-pink-50 text-[#be185d] font-semibold text-[12px] px-2.5 py-0.5 rounded-full"
+                        className="inline-block bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)] font-semibold text-[12px] px-2.5 py-0.5 rounded-full"
                       >
                         {h.teamIds.length}
                       </span>
@@ -322,7 +319,7 @@ export default function HolidaysManager({
                         type="button"
                         onClick={() => setEditing(h)}
                         title="Edit"
-                        className="text-[#ff014f] hover:text-[#eb0249]"
+                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
                       >
                         <Pencil size={14} />
                       </button>
@@ -370,10 +367,10 @@ function Th({
 }) {
   return (
     <th
-      className={[
+      className={cn(
         "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
-        className ?? "",
-      ].join(" ")}
+        className,
+      )}
     >
       {children}
     </th>
@@ -388,7 +385,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td className={["px-4 py-3 align-middle", className ?? ""].join(" ")}>
+    <td className={cn("px-4 py-3 align-middle", className)}>
       {children}
     </td>
   );

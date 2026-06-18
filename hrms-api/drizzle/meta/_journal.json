@@ -309,6 +309,34 @@
       "when": 1781751600000,
       "tag": "20260617130000_resignation_buyout",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1781856000000,
+      "tag": "20260618100000_exit_interview_template_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1781859600000,
+      "tag": "20260618110000_weekly_off_roster",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1781863200000,
+      "tag": "20260618120000_resignation_resumed_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781866800000,
+      "tag": "20260618130000_unify_departments_org_hierarchy",
+      "breakpoints": true
     }
   ]
 }

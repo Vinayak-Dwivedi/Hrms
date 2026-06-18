@@ -141,12 +141,24 @@ const exitQuestionSchema = z.object({
   scaleMax: z.number().int().min(2).max(10).optional(),
 });
 
+// Scope rows for an exit-interview template (who the survey applies to).
+// Company has no scopeId (applies to everyone); others reference an org unit.
+export const exitTemplateScopeSchema = z
+  .array(
+    z.object({
+      scopeType: z.enum(["Company", "Branch", "Department", "SubDepartment"]),
+      scopeId: z.number().int().positive().nullable(),
+    }),
+  )
+  .max(500);
+
 export const exitTemplateUpsertSchema = z.object({
   name: z.string().trim().min(1).max(150),
   description: z.string().trim().max(1000).optional().nullable(),
   questions: z.array(exitQuestionSchema).min(1).max(50),
   isActive: z.boolean().default(true),
   isDefault: z.boolean().default(false),
+  scope: exitTemplateScopeSchema.optional(),
 });
 export const exitTemplatePatchSchema = exitTemplateUpsertSchema.partial();
 

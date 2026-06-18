@@ -14,15 +14,7 @@
 //   Holidays are first-class rows; linked to teams via holiday_team_links.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Eye,
-  Loader2,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { Eye, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import {
   deleteHolidayCalendar,
   listGlobalHolidays,
@@ -32,6 +24,7 @@ import {
   type HolidayCalendarDetail,
   type HolidayCalendarSummary,
 } from "./api/holiday-calendars.client";
+import { cn } from "@/lib/utils";
 import AddTeamDialog from "./AddTeamDialog";
 import HolidaysManager from "./HolidaysManager";
 import TeamHolidaysDialog from "./TeamHolidaysDialog";
@@ -39,6 +32,7 @@ import TeamHolidaysDialog from "./TeamHolidaysDialog";
 interface TeamRow extends HolidayCalendarSummary {
   departmentName: string | null;
   subDepartmentName: string | null;
+  locationName: string | null;
   holidayCount: number;
 }
 
@@ -52,7 +46,6 @@ export default function HolidayPolicyPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
 
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<HolidayCalendarDetail | null>(null);
@@ -71,18 +64,21 @@ export default function HolidayPolicyPage() {
   const [subDepartmentNames, setSubDepartmentNames] = useState<
     Map<number, string>
   >(new Map());
+  const [branchNames, setBranchNames] = useState<Map<number, string>>(new Map());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       // Fetch teams + holidays + lookups in parallel.
-      const [teamSummaries, holidayList, deptRes, subRes] = await Promise.all([
-        listHolidayCalendars(),
-        listGlobalHolidays(),
-        fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
-        fetch("/api/hrms/sub-departments?limit=500", { credentials: "include" }),
-      ]);
+      const [teamSummaries, holidayList, deptRes, subRes, branchRes] =
+        await Promise.all([
+          listHolidayCalendars(),
+          listGlobalHolidays(),
+          fetch("/api/hrms/departments?limit=500", { credentials: "include" }),
+          fetch("/api/hrms/sub-departments?limit=500", { credentials: "include" }),
+          fetch("/api/hrms/branches?limit=500", { credentials: "include" }),
+        ]);
       setTeams(teamSummaries);
       setHolidays(holidayList);
       if (deptRes.ok) {
@@ -92,6 +88,10 @@ export default function HolidayPolicyPage() {
       if (subRes.ok) {
         const body = (await subRes.json()) as { data: Array<{ id: number; name: string }> };
         setSubDepartmentNames(new Map(body.data.map((r) => [r.id, r.name])));
+      }
+      if (branchRes.ok) {
+        const body = (await branchRes.json()) as { data: Array<{ id: number; name: string }> };
+        setBranchNames(new Map(body.data.map((r) => [r.id, r.name])));
       }
 
       // Hydrate team details for the table (need scope + holidayIds per row).
@@ -120,40 +120,42 @@ export default function HolidayPolicyPage() {
   const rows = useMemo<TeamRow[]>(() => {
     return teams.map((t) => {
       const detail = teamDetails.get(t.id);
-      let deptId: number | null = null;
-      let subDeptId: number | null = null;
-      let holidayCount = detail?.holidayIds.length ?? t.holidayCount ?? 0;
+      const deptIds: number[] = [];
+      const subDeptIds: number[] = [];
+      const branchIds: number[] = [];
+      let hasCompany = false;
+      const holidayCount = detail?.holidayIds.length ?? t.holidayCount ?? 0;
       if (detail) {
         for (const s of detail.scope) {
-          if (s.scopeType === "Department" && deptId == null) deptId = s.scopeId;
-          if (s.scopeType === "SubDepartment" && subDeptId == null)
-            subDeptId = s.scopeId;
+          if (s.scopeType === "Company") hasCompany = true;
+          else if (s.scopeType === "Department" && s.scopeId != null) deptIds.push(s.scopeId);
+          else if (s.scopeType === "SubDepartment" && s.scopeId != null) subDeptIds.push(s.scopeId);
+          else if (s.scopeType === "Branch" && s.scopeId != null) branchIds.push(s.scopeId);
         }
       }
+      const joinNames = (ids: number[], names: Map<number, string>): string | null =>
+        ids.length === 0 ? null : ids.map((id) => names.get(id) ?? `#${id}`).join(", ");
       return {
         ...t,
-        departmentName: deptId != null ? departmentNames.get(deptId) ?? `#${deptId}` : null,
-        subDepartmentName:
-          subDeptId != null
-            ? subDepartmentNames.get(subDeptId) ?? `#${subDeptId}`
-            : null,
+        departmentName: hasCompany ? "All" : joinNames(deptIds, departmentNames),
+        subDepartmentName: hasCompany ? "All" : joinNames(subDeptIds, subDepartmentNames),
+        locationName: hasCompany ? "All locations" : joinNames(branchIds, branchNames),
         holidayCount,
       };
     });
-  }, [teams, teamDetails, departmentNames, subDepartmentNames]);
+  }, [teams, teamDetails, departmentNames, subDepartmentNames, branchNames]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (statusFilter && r.status !== statusFilter) return false;
-      if (!q) return true;
-      return (
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
         r.name.toLowerCase().includes(q) ||
         (r.departmentName?.toLowerCase().includes(q) ?? false) ||
-        (r.subDepartmentName?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [rows, search, statusFilter]);
+        (r.subDepartmentName?.toLowerCase().includes(q) ?? false) ||
+        (r.locationName?.toLowerCase().includes(q) ?? false),
+    );
+  }, [rows, search]);
 
   async function handleDelete(team: TeamRow) {
     if (!confirm(`Delete team "${team.name}"? Holiday links will be removed.`)) {
@@ -165,11 +167,6 @@ export default function HolidayPolicyPage() {
     } catch (e) {
       alert((e as Error).message);
     }
-  }
-
-  function resetFilters() {
-    setSearch("");
-    setStatusFilter("");
   }
 
   // Full-screen Holidays manager (Add Holiday + all-holidays table).
@@ -186,70 +183,42 @@ export default function HolidayPolicyPage() {
 
   return (
     <div className="flex flex-col gap-5 pb-10">
-      <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
-        Holiday Policy
-      </h1>
+      
 
-      {/* Search + filter card */}
-      <section className="bg-white border border-gray-200 rounded-2xl p-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Search">
-            <div className="relative">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search teams…"
-                className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-              />
-            </div>
-          </Field>
-          <Field label="Status">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#fda4af] focus:border-[#fda4af]"
-            >
-              <option value="">All Statuses</option>
-              <option value="Draft">Draft</option>
-              <option value="Published">Published</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </Field>
+      {/* Search left, actions right — clean single row */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search
+            size={15}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search policies…"
+            className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] focus:border-[#bfdbfe]"
+          />
         </div>
-
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center gap-2 sm:ml-auto">
           <button
             type="button"
-            onClick={resetFilters}
-            className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-gray-600 hover:text-gray-900"
+            onClick={() => setView("holidays")}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12.5px] font-semibold text-[lab(36.9089%_35.0961_-85.6872)] bg-white border border-gray-200 hover:border-[lab(36.9089%_35.0961_-85.6872)] hover:bg-blue-50/60 shadow-sm transition-colors"
           >
-            <RotateCcw size={12} /> Reset Filters
+            <Plus size={14} /> Add Holiday
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setView("holidays")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-[#ff014f] bg-white border border-[#ff014f] hover:bg-pink-50"
-            >
-              <Plus size={13} /> Add Holiday
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingTeam(null);
-                setTeamDialogOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-[12.5px] font-bold text-white bg-gradient-to-r from-[#ff014f] to-[#eb0249] hover:shadow-md transition-shadow"
-            >
-              <Plus size={13} /> Add Team
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTeam(null);
+              setTeamDialogOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] shadow-sm hover:shadow-md transition-shadow"
+          >
+            <Plus size={14} /> Add Policy
+          </button>
         </div>
-      </section>
+      </div>
 
       {/* Errors */}
       {error && (
@@ -265,10 +234,10 @@ export default function HolidayPolicyPage() {
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <Th>Name</Th>
+                <Th>Location</Th>
                 <Th>Department</Th>
                 <Th>Sub-Department</Th>
                 <Th className="text-center">Holidays</Th>
-                <Th className="text-center">Status</Th>
                 <Th className="text-right pr-6">Action</Th>
               </tr>
             </thead>
@@ -308,10 +277,13 @@ export default function HolidayPolicyPage() {
                           status: r.status,
                         })
                       }
-                      className="font-semibold text-gray-900 hover:text-[#eb0249] hover:underline text-left"
+                      className="font-semibold text-gray-900 hover:text-[lab(30%_38_-90)] hover:underline text-left"
                     >
                       {r.name}
                     </button>
+                  </Td>
+                  <Td className="text-gray-700">
+                    {r.locationName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
                   <Td className="text-gray-700">
                     {r.departmentName ?? <span className="text-gray-400 italic">—</span>}
@@ -320,12 +292,9 @@ export default function HolidayPolicyPage() {
                     {r.subDepartmentName ?? <span className="text-gray-400 italic">—</span>}
                   </Td>
                   <Td className="text-center">
-                    <span className="inline-block bg-pink-50 text-[#be185d] font-semibold text-[12px] px-2.5 py-0.5 rounded-full">
+                    <span className="inline-block bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)] font-semibold text-[12px] px-2.5 py-0.5 rounded-full">
                       {r.holidayCount}
                     </span>
-                  </Td>
-                  <Td className="text-center">
-                    <StatusBadge status={r.status} />
                   </Td>
                   <Td className="text-right pr-6">
                     <div className="inline-flex items-center gap-2">
@@ -353,7 +322,7 @@ export default function HolidayPolicyPage() {
                           }
                         }}
                         title="Edit"
-                        className="text-[#ff014f] hover:text-[#eb0249]"
+                        className="text-[lab(36.9089%_35.0961_-85.6872)] hover:text-[lab(30%_38_-90)]"
                       >
                         <Pencil size={14} />
                       </button>
@@ -409,41 +378,6 @@ export default function HolidayPolicyPage() {
 
 // ─── tiny components ──────────────────────────────────────────────────────
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[10.5px] font-bold tracking-widest text-gray-400 uppercase">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    Draft: "bg-amber-50 text-amber-700 border-amber-200",
-    Published: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Archived: "bg-gray-100 text-gray-600 border-gray-200",
-  };
-  return (
-    <span
-      className={[
-        "inline-block text-[10.5px] font-bold uppercase tracking-wide px-2 py-0.5 rounded border",
-        map[status] ?? "bg-gray-100 text-gray-600 border-gray-200",
-      ].join(" ")}
-    >
-      {status}
-    </span>
-  );
-}
-
 function Th({
   children,
   className,
@@ -453,10 +387,10 @@ function Th({
 }) {
   return (
     <th
-      className={[
+      className={cn(
         "text-[10.5px] font-bold tracking-widest uppercase px-4 py-3 text-left",
-        className ?? "",
-      ].join(" ")}
+        className,
+      )}
     >
       {children}
     </th>
@@ -471,7 +405,7 @@ function Td({
   className?: string;
 }) {
   return (
-    <td className={["px-4 py-3 align-middle", className ?? ""].join(" ")}>
+    <td className={cn("px-4 py-3 align-middle", className)}>
       {children}
     </td>
   );

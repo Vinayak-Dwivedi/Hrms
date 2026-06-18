@@ -207,7 +207,7 @@ export function quickLinksFor(
 
       { icon: Users, label: "Company Directory", href: "/directory" },
 
-      { icon: CalendarIcon, label: "Apply Leave", href: "/leave/new" },
+      { icon: CalendarIcon, label: "Apply Leave", href: "/attendance?apply=1" },
 
     ];
 
@@ -281,7 +281,7 @@ export function quickLinksFor(
 
   return [
 
-    { icon: CalendarPlus, label: "Apply Leave", href: "/leave/new" },
+    { icon: CalendarPlus, label: "Apply Leave", href: "/attendance?apply=1" },
 
     {
 

@@ -5,13 +5,14 @@ import {
   clearanceTasks,
   clearanceTemplates,
   clearanceTemplateScope,
-  departments,
+  orgHierarchyDepartments as departments,
   designations,
   employees,
   exitDocuments,
   exitDocumentTemplates,
   exitInterviewResponses,
   exitInterviewTemplates,
+  exitInterviewTemplateScope,
   exitReasons,
   fnfLineItems,
   fnfSettlements,
@@ -647,18 +648,14 @@ export async function hrApprove(
     }
     if (taskRows.length > 0) await tx.insert(clearanceTasks).values(taskRows);
 
-    // Seed the exit-interview response from the default/first active template
-    // (Phase 3) so the employee gets a pending survey.
-    const [tmpl] = await tx
-      .select({ id: exitInterviewTemplates.id })
-      .from(exitInterviewTemplates)
-      .where(eq(exitInterviewTemplates.isActive, true))
-      .orderBy(desc(exitInterviewTemplates.isDefault), exitInterviewTemplates.id)
-      .limit(1);
-    if (tmpl) {
+    // Seed the exit-interview response from the template that best fits this
+    // employee's department / sub-department / location (falling back to the
+    // default/unscoped template) so they get the right pending survey.
+    const exitTemplateId = await resolveExitTemplateIdForEmployee(row.employeeId);
+    if (exitTemplateId != null) {
       await tx.insert(exitInterviewResponses).values({
         caseId: createdCase!.id,
-        templateId: tmpl.id,
+        templateId: exitTemplateId,
         employeeId: row.employeeId,
         status: "Pending",
       });
@@ -715,6 +712,37 @@ export async function hrHold(hrId: number, id: number, remarks: string | null, a
     auditCtx,
   );
   notify(row.employeeId, "hr", "Your resignation is on hold", remarks ?? undefined);
+  return updated!;
+}
+
+// Resume a held resignation — returns it to the HR review queue (ManagerApproved)
+// so HR can approve / reject / hold it again.
+export async function hrResume(hrId: number, id: number, auditCtx: AuditCtx) {
+  const [row] = await db.select().from(resignations).where(eq(resignations.id, id)).limit(1);
+  if (!row) throw new ApiError(404, "NOT_FOUND", "Resignation not found.");
+  if (row.status !== "OnHold") {
+    throw new ApiError(409, "NOT_ON_HOLD", "Only an on-hold resignation can be resumed.");
+  }
+  const [updated] = await db
+    .update(resignations)
+    .set({ status: "ManagerApproved", hrId })
+    .where(eq(resignations.id, id))
+    .returning();
+  writeAuditLogAsync(
+    {
+      actorEmployeeId: hrId,
+      action: "RESIGNATION_RESUMED",
+      entityType: "resignation",
+      entityId: String(id),
+    },
+    auditCtx,
+  );
+  notify(
+    row.employeeId,
+    "hr",
+    "Your resignation is back under HR review",
+    "The hold has been lifted.",
+  );
   return updated!;
 }
 
@@ -778,19 +806,36 @@ export async function hrBuyoutDecision(
     },
     auditCtx,
   );
+
+  // Reflect the decision in the Full & Final immediately if a settlement
+  // already exists (otherwise it's applied when the FnF is first opened).
+  const [cse] = await db
+    .select({ id: offboardingCases.id })
+    .from(offboardingCases)
+    .where(eq(offboardingCases.resignationId, id))
+    .limit(1);
+  if (cse) {
+    const [stl] = await db
+      .select({ id: fnfSettlements.id })
+      .from(fnfSettlements)
+      .where(eq(fnfSettlements.caseId, cse.id))
+      .limit(1);
+    if (stl) await syncNoticeRecoveryLine(stl.id, id);
+  }
+
   if (decision === "Approved") {
     notify(
       row.employeeId,
       "hr",
       "Your notice buyout was approved",
-      note ?? "The notice-period recovery has been waived from your settlement.",
+      note ?? "The notice buyout has been added to your final settlement.",
     );
   } else {
     notify(
       row.employeeId,
       "hr",
       "Your notice buyout was declined — let's discuss",
-      note ?? "HR would like to discuss your notice period before settling.",
+      note ?? "You'll serve your notice period; nothing is recovered in the settlement.",
     );
   }
   return updated!;
@@ -1261,13 +1306,118 @@ type ExitTemplateInput = {
   questions: ExitQuestion[];
   isActive: boolean;
   isDefault: boolean;
+  scope?: ExitScopeRow[];
 };
 
+// ── Exit-interview template scoping (Company | Branch | Department | SubDepartment) ──
+
+export type ExitScopeRow = {
+  scopeType: "Company" | "Branch" | "Department" | "SubDepartment";
+  scopeId: number | null;
+};
+
+async function loadExitTemplateScopes(templateIds: number[]) {
+  if (templateIds.length === 0) return new Map<number, ExitScopeRow[]>();
+  const rows = await db
+    .select()
+    .from(exitInterviewTemplateScope)
+    .where(inArray(exitInterviewTemplateScope.templateId, templateIds));
+  const byTemplate = new Map<number, ExitScopeRow[]>();
+  for (const r of rows) {
+    const arr = byTemplate.get(r.templateId) ?? [];
+    arr.push({ scopeType: r.scopeType as ExitScopeRow["scopeType"], scopeId: r.scopeId });
+    byTemplate.set(r.templateId, arr);
+  }
+  return byTemplate;
+}
+
+async function replaceExitTemplateScope(tx: Tx, templateId: number, scope: ExitScopeRow[]) {
+  await tx
+    .delete(exitInterviewTemplateScope)
+    .where(eq(exitInterviewTemplateScope.templateId, templateId));
+  const rows = scope.filter((s) => s.scopeType === "Company" || s.scopeId != null);
+  if (rows.length > 0) {
+    await tx.insert(exitInterviewTemplateScope).values(
+      rows.map((s) => ({
+        templateId,
+        scopeType: s.scopeType,
+        // Company scope has no id; store 0 as a placeholder (matches-everyone).
+        scopeId: s.scopeId ?? 0,
+      })),
+    );
+  }
+}
+
+// Pick the single exit-interview template that best fits an employee: the most
+// specific active template whose scope matches (SubDepartment > Department >
+// Branch > Company), falling back to an unscoped/default active template.
+async function resolveExitTemplateIdForEmployee(employeeId: number): Promise<number | null> {
+  const [emp] = await db
+    .select({
+      branchId: employees.branchId,
+      departmentId: employees.departmentId,
+      subDepartmentId: employees.subDepartmentId,
+    })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+
+  const templates = await db
+    .select()
+    .from(exitInterviewTemplates)
+    .where(eq(exitInterviewTemplates.isActive, true))
+    .orderBy(desc(exitInterviewTemplates.isDefault), exitInterviewTemplates.id);
+  if (templates.length === 0) return null;
+
+  const scopes = await loadExitTemplateScopes(templates.map((t) => t.id));
+  const SPECIFICITY: Record<string, number> = {
+    SubDepartment: 4,
+    Department: 3,
+    Branch: 2,
+    Company: 1,
+  };
+  const facet = (t: string): number | null =>
+    t === "SubDepartment"
+      ? emp?.subDepartmentId ?? null
+      : t === "Department"
+        ? emp?.departmentId ?? null
+        : t === "Branch"
+          ? emp?.branchId ?? null
+          : null;
+
+  let best: { id: number; spec: number; isDefault: boolean } | null = null;
+  let unscoped: { id: number; isDefault: boolean } | null = null;
+  for (const t of templates) {
+    const rows = scopes.get(t.id) ?? [];
+    if (rows.length === 0) {
+      // Catch-all template; remember the best (default-first ordering above).
+      if (!unscoped) unscoped = { id: t.id, isDefault: t.isDefault };
+      continue;
+    }
+    for (const r of rows) {
+      const matches = r.scopeType === "Company" || facet(r.scopeType) === r.scopeId;
+      if (!matches) continue;
+      const spec = SPECIFICITY[r.scopeType] ?? 0;
+      if (!best || spec > best.spec) best = { id: t.id, spec, isDefault: t.isDefault };
+    }
+  }
+  return best?.id ?? unscoped?.id ?? templates[0]!.id;
+}
+
 export async function listExitInterviewTemplates() {
-  return db
+  const templates = await db
     .select()
     .from(exitInterviewTemplates)
     .orderBy(desc(exitInterviewTemplates.updatedAt));
+  const scopes = await loadExitTemplateScopes(templates.map((t) => t.id));
+  return templates.map((t) => ({
+    ...t,
+    scope: (scopes.get(t.id) ?? []).map((s) => ({
+      scopeType: s.scopeType,
+      // Surface Company scope as null id for the client.
+      scopeId: s.scopeType === "Company" ? null : s.scopeId,
+    })),
+  }));
 }
 
 export async function getExitInterviewTemplate(id: number) {
@@ -1303,6 +1453,7 @@ export async function createExitInterviewTemplate(
           createdBy,
         })
         .returning();
+      if (input.scope) await replaceExitTemplateScope(tx, row!.id, input.scope);
       return row!;
     });
   } catch (e) {
@@ -1337,6 +1488,7 @@ export async function updateExitInterviewTemplate(
         .set(patch)
         .where(eq(exitInterviewTemplates.id, id))
         .returning();
+      if (input.scope) await replaceExitTemplateScope(tx, id, input.scope);
       return row!;
     });
   } catch (e) {
@@ -1513,20 +1665,83 @@ async function ensureFnfForCase(caseId: number): Promise<number> {
   if (res?.gratuityEligible) {
     lines.push({ settlementId: settlement!.id, kind: "Earning", label: "Gratuity", amount: "0", sortOrder: 2 });
   }
-  // An approved notice buyout waives the notice-period recovery, so the
-  // deduction is only seeded when the buyout was not approved.
-  const recovery = Number(res?.recoveryAmount ?? 0);
-  if (recovery > 0 && res?.buyoutStatus !== "Approved") {
-    lines.push({
-      settlementId: settlement!.id,
+  await db.insert(fnfLineItems).values(lines);
+  // The notice-recovery / buyout deduction is managed dynamically by
+  // syncNoticeRecoveryLine (called on every FnF open + on buyout decision), so
+  // it's not seeded here.
+  await syncNoticeRecoveryLine(settlement!.id, cse.resignationId);
+  return settlement!.id;
+}
+
+// Keep the auto-managed notice recovery / buyout deduction in sync with the
+// resignation's current state. Called whenever the FnF is opened and the moment
+// a buyout decision is made, so the line is always correct (dynamic). A notice
+// buyout that's approved is added to the settlement as the employee's payment
+// for the notice they bought out; a rejected buyout adds nothing (they serve
+// the notice). A plain recovery (no buyout requested) shows as "Recovery".
+async function syncNoticeRecoveryLine(settlementId: number, resignationId: number) {
+  const [s] = await db
+    .select({ status: fnfSettlements.status })
+    .from(fnfSettlements)
+    .where(eq(fnfSettlements.id, settlementId))
+    .limit(1);
+  if (!s || s.status !== "Processing") return; // never touch approved/paid settlements
+
+  const [res] = await db
+    .select({
+      recoveryAmount: resignations.recoveryAmount,
+      buyoutRequested: resignations.buyoutRequested,
+      buyoutStatus: resignations.buyoutStatus,
+    })
+    .from(resignations)
+    .where(eq(resignations.id, resignationId))
+    .limit(1);
+
+  const amount = Number(res?.recoveryAmount ?? 0);
+  // Active when there's an amount and the buyout wasn't rejected (a rejected
+  // buyout means the employee serves the notice, so nothing is recovered).
+  const active = amount > 0 && res?.buyoutStatus !== "Rejected";
+  const label = res?.buyoutRequested ? "Notice Buyout" : "Recovery";
+
+  const existing = await db
+    .select({ id: fnfLineItems.id })
+    .from(fnfLineItems)
+    .where(
+      and(
+        eq(fnfLineItems.settlementId, settlementId),
+        inArray(fnfLineItems.label, ["Recovery", "Notice Buyout"]),
+      ),
+    );
+
+  if (!active) {
+    if (existing.length > 0) {
+      await db.delete(fnfLineItems).where(
+        inArray(fnfLineItems.id, existing.map((e) => e.id)),
+      );
+    }
+    return;
+  }
+
+  if (existing.length === 0) {
+    await db.insert(fnfLineItems).values({
+      settlementId,
       kind: "Deduction",
-      label: "Recovery",
-      amount: String(recovery),
+      label,
+      amount: String(amount),
       sortOrder: 3,
     });
+  } else {
+    const [first, ...extra] = existing;
+    await db
+      .update(fnfLineItems)
+      .set({ kind: "Deduction", label, amount: String(amount) })
+      .where(eq(fnfLineItems.id, first!.id));
+    if (extra.length > 0) {
+      await db.delete(fnfLineItems).where(
+        inArray(fnfLineItems.id, extra.map((e) => e.id)),
+      );
+    }
   }
-  await db.insert(fnfLineItems).values(lines);
-  return settlement!.id;
 }
 
 function fnfTotals(lines: Array<{ kind: string; amount: string }>) {
@@ -1547,6 +1762,15 @@ function fnfTotals(lines: Array<{ kind: string; amount: string }>) {
 export async function getCaseFnf(caseId: number) {
   await getCase(caseId);
   const settlementId = await ensureFnfForCase(caseId);
+  // Re-sync the notice buyout / recovery deduction so it always reflects the
+  // current buyout decision, even if the buyout was decided after the FnF was
+  // first opened.
+  const [cse] = await db
+    .select({ resignationId: offboardingCases.resignationId })
+    .from(offboardingCases)
+    .where(eq(offboardingCases.id, caseId))
+    .limit(1);
+  if (cse) await syncNoticeRecoveryLine(settlementId, cse.resignationId);
   const [settlement] = await db
     .select()
     .from(fnfSettlements)
