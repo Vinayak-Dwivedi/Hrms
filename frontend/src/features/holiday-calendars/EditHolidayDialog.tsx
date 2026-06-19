@@ -5,6 +5,7 @@
 // PATCHes /api/admin/holidays/:id and leaves team links untouched.
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Save } from "lucide-react";
 import {
   updateGlobalHoliday,
@@ -70,7 +71,7 @@ export default function EditHolidayDialog({
     }
   }
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[1200] bg-black/45 flex items-center justify-center p-4"
       onClick={onClose}
@@ -145,6 +146,10 @@ export default function EditHolidayDialog({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : modal;
 }
 
 function Field({

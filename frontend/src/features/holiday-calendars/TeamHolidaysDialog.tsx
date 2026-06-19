@@ -11,6 +11,7 @@
 // truth); mutations call onChanged() so the parent refreshes and re-feeds us.
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, Loader2, Pencil, Unlink, X } from "lucide-react";
 import {
   updateGlobalHoliday,
@@ -84,7 +85,7 @@ export default function TeamHolidaysDialog({
     }
   }
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[1100] bg-black/45 flex items-center justify-center p-4"
       onClick={onClose}
@@ -210,6 +211,10 @@ export default function TeamHolidaysDialog({
       />
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : modal;
 }
 
 function Th({

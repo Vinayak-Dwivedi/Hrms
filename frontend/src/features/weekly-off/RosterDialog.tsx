@@ -6,6 +6,7 @@
 // resolver (so they drive leave validation etc.).
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Loader2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -123,7 +124,7 @@ export default function RosterDialog({
 
   const employees = data?.employees ?? [];
 
-  return (
+  const modal = (
     <div className="fixed inset-0 z-[1100] bg-black/45 flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl w-full max-w-[1040px] max-h-[92vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
@@ -267,4 +268,8 @@ export default function RosterDialog({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : modal;
 }
