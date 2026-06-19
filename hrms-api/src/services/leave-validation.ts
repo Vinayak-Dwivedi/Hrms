@@ -21,8 +21,7 @@ import {
 } from "@/db/schema/hrms";
 import {
   loadEmployeeDimensions,
-  resolveCalendarForEmployee,
-  holidaysInRange,
+  holidaysForEmployee,
 } from "./holiday-calendar-resolver";
 import {
   resolveWeeklyOffForEmployee,
@@ -260,21 +259,20 @@ export async function validateLeaveApplication(
   // we just don't want the employee to burn balance on a day they wouldn't
   // be working anyway. The UI surfaces these as inline notices.
   if (dims) {
-    const calendarId = await resolveCalendarForEmployee(dims);
-    if (calendarId) {
-      const holidayDates = await holidaysInRange(
-        calendarId,
-        input.fromDate,
-        input.toDate,
-      );
-      if (holidayDates.size > 0) {
-        warnings.push({
-          code: "DATES_INCLUDE_HOLIDAY",
-          field: "fromDate",
-          message: `${holidayDates.size} day(s) in this range are public holidays.`,
-          details: { dates: Array.from(holidayDates).sort() },
-        });
-      }
+    // Per-holiday scope decides which holidays apply to this employee.
+    const empHolidays = await holidaysForEmployee(
+      dims.id,
+      input.fromDate,
+      input.toDate,
+    );
+    const holidayDates = new Set(empHolidays.map((h) => h.date));
+    if (holidayDates.size > 0) {
+      warnings.push({
+        code: "DATES_INCLUDE_HOLIDAY",
+        field: "fromDate",
+        message: `${holidayDates.size} day(s) in this range are public holidays.`,
+        details: { dates: Array.from(holidayDates).sort() },
+      });
     }
 
     const woConfig = await resolveWeeklyOffForEmployee(dims);

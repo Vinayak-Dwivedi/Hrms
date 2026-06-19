@@ -1,8 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { Router } from "express";
 import { db } from "@/db/runtime";
 import {
-  designations,
+  orgHierarchyDesignations as designations,
   employees,
   leaveRequests,
   leaveTypes,
@@ -10,6 +11,9 @@ import {
 import { requirePermission } from "@/middleware/require-permission";
 
 export const leaveRequestsRouter: Router = Router();
+
+// Self-join alias to surface each employee's reporting manager (Manager column).
+const reportingMgr = alias(employees, "reporting_mgr");
 
 const leaveView = requirePermission("leave.view");
 
@@ -50,11 +54,16 @@ leaveRequestsRouter.get("/recent", leaveView, async (req, res, next) => {
         managerDecision: leaveRequests.managerDecision,
         managerDecidedAt: leaveRequests.managerDecidedAt,
         managerRemarks: leaveRequests.managerRemarks,
+        reportingManager: sql<
+          string | null
+        >`${reportingMgr.firstName} || ' ' || ${reportingMgr.lastName}`,
+        reportingManagerEmpId: reportingMgr.empId,
       })
       .from(leaveRequests)
       .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
       .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
       .leftJoin(designations, eq(employees.designationId, designations.id))
+      .leftJoin(reportingMgr, eq(reportingMgr.id, employees.reportingManagerId))
       .where(conds.length > 0 ? and(...conds) : undefined)
       .orderBy(desc(leaveRequests.appliedOn))
       .limit(limit);

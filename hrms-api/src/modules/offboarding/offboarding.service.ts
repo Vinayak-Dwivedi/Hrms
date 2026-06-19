@@ -6,7 +6,7 @@ import {
   clearanceTemplates,
   clearanceTemplateScope,
   orgHierarchyDepartments as departments,
-  designations,
+  orgHierarchyDesignations as designations,
   employees,
   exitDocuments,
   exitDocumentTemplates,
@@ -21,7 +21,7 @@ import {
   resignationFlowScope,
   resignationFlows,
   resignations,
-  subDepartments,
+  orgHierarchySubDepartments as subDepartments,
 } from "@/db/schema/hrms";
 import { alias } from "drizzle-orm/pg-core";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";

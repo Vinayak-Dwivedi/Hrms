@@ -877,6 +877,8 @@ export interface ApprovalLeaveRequest {
   managerDecision: string | null;
   managerDecidedAt: string | null;
   managerRemarks: string | null;
+  reportingManager: string | null;
+  reportingManagerEmpId?: string | null;
 }
 
 export async function fetchOrgLeaveRequests(args?: {

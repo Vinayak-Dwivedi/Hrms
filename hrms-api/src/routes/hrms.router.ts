@@ -3,9 +3,8 @@ import { Router } from "express";
 import { db } from "@/db/runtime";
 import {
   branches,
-  broadcasts,
   orgHierarchyDepartments as departments,
-  designations,
+  orgHierarchyDesignations as designations,
   employees,
   employmentTypes,
   grades,
@@ -16,7 +15,7 @@ import {
   permissions,
   regularisationRequests,
   roles,
-  subDepartments,
+  orgHierarchySubDepartments as subDepartments,
 } from "@/db/schema/hrms";
 import { createCrudRouter } from "@/lib/crud-factory";
 import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
@@ -82,7 +81,6 @@ hrmsRouter.use("/leave-types",               createCrudRouter("leave type", leav
 hrmsRouter.use("/leave-requests",            leaveRequestsRouter);
 hrmsRouter.use("/leave-requests",            createCrudRouter("leave request", leaveRequests));
 hrmsRouter.use("/notifications",             createCrudRouter("notification", notifications));
-hrmsRouter.use("/broadcasts",                createCrudRouter("broadcast", broadcasts));
 hrmsRouter.use("/permissions",               adminPermissionsAccess, createCrudRouter("permission", permissions));
 hrmsRouter.use("/roles",                     adminRolesAccess, rolesRouter);
 hrmsRouter.use("/roles",                     adminRolesAccess, createCrudRouter("role", roles));

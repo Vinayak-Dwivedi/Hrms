@@ -12,7 +12,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
-import { createGlobalHoliday } from "./api/holiday-calendars.client";
+import { toast } from "sonner";
+import {
+  createGlobalHoliday,
+  type GlobalHoliday,
+} from "./api/holiday-calendars.client";
 import {
   employeeBtnClass,
   employeeErrorBannerClass,
@@ -27,6 +31,7 @@ import {
 interface Row {
   date: string;
   name: string;
+  isHalfDay: boolean;
 }
 
 const DAY_NAMES = [
@@ -40,7 +45,7 @@ const DAY_NAMES = [
 ];
 
 function blankRow(): Row {
-  return { date: "", name: "" };
+  return { date: "", name: "", isHalfDay: false };
 }
 
 function dayOfWeek(ymd: string): string {
@@ -54,10 +59,16 @@ export default function AddHolidayDialog({
   open,
   onClose,
   onSaved,
+  existingHolidays = [],
+  onEditExisting,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Already-saved holidays, used to warn on a duplicate date. */
+  existingHolidays?: GlobalHoliday[];
+  /** Open the editor for the holiday that already occupies a clashing date. */
+  onEditExisting?: (holiday: GlobalHoliday) => void;
 }) {
   const [rows, setRows] = useState<Row[]>([blankRow()]);
   const [saving, setSaving] = useState(false);
@@ -97,20 +108,43 @@ export default function AddHolidayDialog({
     setSaving(true);
     setError(null);
     try {
+      // A date that already has a holiday isn't duplicated — the admin combines
+      // names on the existing one instead (e.g. "Diwali / Chhath Puja").
+      const existingByDate = new Map(existingHolidays.map((h) => [h.date, h]));
+      const clashes: GlobalHoliday[] = [];
+      const seen = new Set<string>();
+      let created = 0;
       // Sequential to keep error reporting precise (we report which row failed).
-      for (let i = 0; i < valid.length; i++) {
-        const r = valid[i]!;
+      for (const r of valid) {
+        const clash = existingByDate.get(r.date);
+        if (clash) {
+          clashes.push(clash);
+          continue;
+        }
+        if (seen.has(r.date)) continue; // duplicate date within this batch
+        seen.add(r.date);
         await createGlobalHoliday({
           date: r.date,
           name: r.name.trim(),
           type: "National",
-          isHalfDay: false,
+          isHalfDay: r.isHalfDay,
           description: null,
           scope: [],
           teamIds: [],
         });
+        created++;
       }
-      onSaved();
+
+      for (const clash of clashes) {
+        toast.error(
+          `A holiday already exists on ${clash.date}: “${clash.name}”. Edit it to add another name (e.g. “Diwali / Chhath Puja”).`,
+          onEditExisting
+            ? { action: { label: "Edit", onClick: () => onEditExisting(clash) } }
+            : undefined,
+        );
+      }
+
+      if (created > 0) onSaved();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -128,7 +162,7 @@ export default function AddHolidayDialog({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-[620px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
+        className="bg-white rounded-2xl w-full max-w-[440px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -138,8 +172,7 @@ export default function AddHolidayDialog({
               Add Holiday
             </h2>
             <p className="text-[12.5px] text-gray-500 mt-0.5">
-              Add one or more holidays. Assign to teams afterwards via the
-              Team dialog.
+              Set scope per holiday in the table afterwards.
             </p>
           </div>
           {/* Clear button — top right */}
@@ -159,39 +192,40 @@ export default function AddHolidayDialog({
           {rows.map((row, idx) => (
             <div
               key={idx}
-              className="bg-gray-50 border border-gray-200 rounded-lg p-3 grid grid-cols-[150px_100px_1fr_auto] gap-2 items-center"
+              className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col gap-2"
             >
-              <input
-                type="date"
-                value={row.date}
-                onChange={(e) => updateRow(idx, { date: e.target.value })}
-                className={employeeInputClass}
-              />
-              <span
-                className={[
-                  "text-[12px] font-semibold text-center px-2 py-1.5 rounded",
-                  row.date
-                    ? holidayDayBadgeClass
-                    : holidayDayBadgeEmptyClass,
-                ].join(" ")}
-              >
-                {row.date ? dayOfWeek(row.date) : "Day"}
-              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={row.date}
+                  onChange={(e) => updateRow(idx, { date: e.target.value })}
+                  className={`${employeeInputClass} flex-1`}
+                />
+                <span
+                  className={[
+                    "text-[12px] font-semibold text-center px-2 py-1.5 rounded w-[58px] shrink-0",
+                    row.date ? holidayDayBadgeClass : holidayDayBadgeEmptyClass,
+                  ].join(" ")}
+                >
+                  {row.date ? dayOfWeek(row.date) : "Day"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeRow(idx)}
+                  disabled={saving}
+                  className="text-gray-400 hover:text-rose-600 p-1 disabled:opacity-50 shrink-0"
+                  title="Remove row"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
               <input
                 value={row.name}
                 onChange={(e) => updateRow(idx, { name: e.target.value })}
                 placeholder="Holiday name (e.g. Republic Day)"
                 className={employeeInputClass}
               />
-              <button
-                type="button"
-                onClick={() => removeRow(idx)}
-                disabled={saving}
-                className="text-gray-400 hover:text-rose-600 p-1 disabled:opacity-50"
-                title="Remove row"
-              >
-                <Trash2 size={13} />
-              </button>
+           
             </div>
           ))}
 

@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@/db/runtime";
@@ -6,7 +7,7 @@ import {
   attendanceRecords,
   branches,
   orgHierarchyDepartments as departments,
-  designations,
+  orgHierarchyDesignations as designations,
   employees,
   grades,
   leaveBalances,
@@ -35,6 +36,9 @@ import {
 import { fetchEmployeeLeaveBalances } from "@/services/leave-request-validation";
 
 export const managerRouter: Router = Router();
+
+// Self-join alias to surface each report's reporting manager (Manager column).
+const reportingMgr = alias(employees, "reporting_mgr");
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -388,11 +392,16 @@ managerRouter.get("/leave-approvals", async (req, res, next) => {
         managerDecision: leaveRequests.managerDecision,
         managerDecidedAt: leaveRequests.managerDecidedAt,
         managerRemarks: leaveRequests.managerRemarks,
+        reportingManager: sql<
+          string | null
+        >`${reportingMgr.firstName} || ' ' || ${reportingMgr.lastName}`,
+        reportingManagerEmpId: reportingMgr.empId,
       })
       .from(leaveRequests)
       .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
       .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
       .leftJoin(designations, eq(employees.designationId, designations.id))
+      .leftJoin(reportingMgr, eq(reportingMgr.id, employees.reportingManagerId))
       .where(and(...conds))
       .orderBy(desc(leaveRequests.appliedOn));
     res.json({ requests: rows });

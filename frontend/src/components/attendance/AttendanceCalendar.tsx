@@ -219,6 +219,10 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       setSubmitError("Reason is required.");
       return;
     }
+    if (reason.trim().split(/\s+/).filter(Boolean).length > 200) {
+      setSubmitError("Reason must be 200 words or fewer.");
+      return;
+    }
     const code = leaveOptions[leaveTypeIdx]?.code;
     if (!code) {
       setSubmitError("Pick a leave type.");
@@ -336,6 +340,19 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
               placeholder="Required — please share context with your manager..."
               style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 14, color: "#111827", background: "#fff", outline: "none", resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
             />
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: 11.5,
+                textAlign: "right",
+                color:
+                  reason.trim().split(/\s+/).filter(Boolean).length > 200
+                    ? "#dc2626"
+                    : "#9ca3af",
+              }}
+            >
+              {reason.trim() ? reason.trim().split(/\s+/).filter(Boolean).length : 0} / 200 words
+            </p>
           </div>
 
           {/* Duration */}

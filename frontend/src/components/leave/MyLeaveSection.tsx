@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import LeaveTable from "@/components/leave/LeaveTable";
@@ -15,8 +16,6 @@ import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-availa
 import {
   enterpriseCardClass,
   enterpriseCardTitleClass,
-  enterpriseLinkClass,
-  enterpriseLoadingClass,
 } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -32,10 +31,10 @@ function fetchOwnLeaveRequests(
 
 export default function MyLeaveSection({
   role,
-  leadingToolbar,
+  title = "My Leave",
 }: {
   role: Role;
-  leadingToolbar?: React.ReactNode;
+  title?: string;
 }) {
   const { available: reportingManager, loading: managerProbeLoading } =
     useReportingManagerAvailable();
@@ -99,22 +98,14 @@ export default function MyLeaveSection({
             enterpriseCardClass,
             "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
           )}
-          style={leadingToolbar ? undefined : { height: "calc(100vh - 7rem)" }}
         >
-          <div
-            className={cn(
-              "flex items-center shrink-0 mb-2 gap-3",
-              leadingToolbar ? "justify-between" : "justify-between",
-            )}
-          >
-            {leadingToolbar ?? (
-              <h3 className={enterpriseCardTitleClass}>My Leave</h3>
-            )}
+          <div className="flex items-center justify-between shrink-0 mb-2 gap-3">
+            <h3 className={enterpriseCardTitleClass}>{title}</h3>
             <Link
               href="/attendance?apply=1"
-              className={cn(enterpriseLinkClass, "text-[12px] hover:underline shrink-0")}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12.5px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] shadow-sm hover:shadow-md transition-shadow shrink-0"
             >
-              Apply Leave →
+              <Plus size={14} /> Apply Leave
             </Link>
           </div>
           <LeaveTable

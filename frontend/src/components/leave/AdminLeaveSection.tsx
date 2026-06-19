@@ -54,9 +54,8 @@ export default function AdminLeaveSection() {
       <div
         className={cn(
           enterpriseCardClass,
-          "p-3 overflow-hidden flex flex-col",
+          "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
         )}
-        style={{ height: "calc(100vh - 7rem)" }}
       >
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
           <div className="flex items-center gap-2">

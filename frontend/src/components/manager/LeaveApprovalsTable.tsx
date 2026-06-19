@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import { ArrowUpRight, Check, XCircle } from "lucide-react";
+import { ArrowUpRight, Check, MessageSquareText, X, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   enterpriseCardClass,
   enterpriseLeaveTypeBadgeClass,
@@ -49,6 +50,10 @@ export default function LeaveApprovalsTable({
   onOpenReject,
 }: Props) {
   const [page, setPage] = useState(1);
+  const [reasonView, setReasonView] = useState<{
+    name: string;
+    reason: string;
+  } | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(requests.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -64,6 +69,7 @@ export default function LeaveApprovalsTable({
   const headers = readOnly
     ? [
         "Employee",
+     
         "Emp ID",
         "Code",
         "Period",
@@ -71,9 +77,11 @@ export default function LeaveApprovalsTable({
         "Reason",
         "Applied",
         "Status",
+           "Manager",
       ]
     : [
         "Employee",
+       
         "Emp ID",
         "Code",
         "Period",
@@ -81,6 +89,7 @@ export default function LeaveApprovalsTable({
         "Reason",
         "Applied",
         "Status",
+         "Manager",
         "Action",
       ];
 
@@ -132,6 +141,7 @@ export default function LeaveApprovalsTable({
                       </div>
                     </div>
                   </td>
+                 
                   <td className={tableBodyCellClass}>{req.empId}</td>
                   <td className={tableBodyCellClass}>
                     <span className={enterpriseLeaveTypeBadgeClass} title={req.leaveTypeName}>
@@ -143,12 +153,24 @@ export default function LeaveApprovalsTable({
                   </td>
                   <td className={tableBodyCellClass}>{fmtDaysCount(req.days)}</td>
                   <td className={tableBodyCellClass}>
-                    <span
-                      className="block max-w-[200px] truncate"
-                      title={req.reason}
-                    >
-                      {req.reason}
-                    </span>
+                    {req.reason ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setReasonView({
+                            name: `${req.firstName} ${req.lastName}`,
+                            reason: req.reason,
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 max-w-[200px] text-blue-600 hover:text-blue-800"
+                        title="View reason"
+                      >
+                        <MessageSquareText className="w-4 h-4 shrink-0" />
+                        <span className="truncate text-sm">{req.reason}</span>
+                      </button>
+                    ) : (
+                      <span className="text-sm text-gray-400">—</span>
+                    )}
                   </td>
                   <td className={`${tableBodyCellClass} whitespace-nowrap`}>
                     {fmtAppliedOn(req.appliedOn)}
@@ -162,6 +184,11 @@ export default function LeaveApprovalsTable({
                       )}
                     >
                       {req.status}
+                    </span>
+                  </td>
+                   <td className={tableBodyCellClass}>
+                    <span className="text-sm text-gray-600">
+                      {req.reportingManager ?? "—"}
                     </span>
                   </td>
                   {!readOnly && (
@@ -254,6 +281,45 @@ export default function LeaveApprovalsTable({
           </div>
         </div>
       )}
+
+      {reasonView &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[1100] bg-black/45 flex items-center justify-center p-4"
+            onClick={() => setReasonView(null)}
+          >
+            <div
+              className="bg-white rounded-2xl w-full max-w-[440px] max-h-[80vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
+                <div>
+                  <h2 className="text-[16px] font-bold text-gray-900 leading-tight">
+                    Leave reason
+                  </h2>
+                  <p className="text-[12.5px] text-gray-500 mt-0.5">
+                    {reasonView.name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReasonView(null)}
+                  className="text-gray-400 hover:text-gray-700 p-1"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="overflow-y-auto px-6 py-4">
+                <p className="text-[13.5px] text-gray-700 whitespace-pre-wrap break-words">
+                  {reasonView.reason}
+                </p>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

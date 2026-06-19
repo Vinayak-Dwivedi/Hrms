@@ -24,7 +24,6 @@ import { attendanceRouter } from "@/routes/attendance.router";
 import { adminLeaveTypesRouter } from "@/routes/admin-leave-types.router";
 import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
 import { adminLeavePlansRouter } from "@/routes/admin-leave-plans.router";
-import { adminHolidayCalendarsRouter } from "@/routes/admin-holiday-calendars.router";
 import { adminHolidaysRouter } from "@/routes/admin-holidays.router";
 import { adminWeeklyOffConfigsRouter } from "@/routes/admin-weekly-off-configs.router";
 import { adminLeaveCreditsRouter } from "@/routes/admin-leave-credits.router";
@@ -123,7 +122,6 @@ export function createApp() {
   app.use("/api/admin/leave-types", requireAuth, adminLeaveTypesRouter);
   app.use("/api/admin/leave-policies", requireAuth, adminLeavePoliciesRouter);
   app.use("/api/admin/leave-plans", requireAuth, adminLeavePlansRouter);
-  app.use("/api/admin/holiday-calendars", requireAuth, adminHolidayCalendarsRouter);
   app.use("/api/admin/holidays", requireAuth, adminHolidaysRouter);
   app.use("/api/admin/weekly-off-configs", requireAuth, adminWeeklyOffConfigsRouter);
   app.use("/api/admin/leave-credits", requireAuth, adminLeaveCreditsRouter);

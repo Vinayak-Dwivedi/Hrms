@@ -7,7 +7,6 @@ import { db } from "@/db/runtime";
 import {
   attendanceRecords,
   branches,
-  designations,
   employees,
   employmentTypes,
   grades,
@@ -123,8 +122,8 @@ meRouter.get("/", async (req, res, next) => {
     const emp = await loadCurrentEmployee(req.user!.id);
 
     const [designation] = emp.designationId
-      ? await db.select({ name: designations.name }).from(designations)
-          .where(eq(designations.id, emp.designationId)).limit(1)
+      ? await db.select({ name: orgHierarchyDesignations.name }).from(orgHierarchyDesignations)
+          .where(eq(orgHierarchyDesignations.id, emp.designationId)).limit(1)
       : [];
     const [department] = emp.departmentId
       ? await db.select({ name: orgHierarchyDepartments.name }).from(orgHierarchyDepartments)
@@ -802,7 +801,14 @@ const createLeaveSchema = z.object({
   toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   days: z.union([z.string(), z.number()]),
   durationType: z.enum(["Full Day", "First Half", "Second Half"]),
-  reason: z.string().min(1).max(2000),
+  reason: z
+    .string()
+    .min(1)
+    .max(2000)
+    .refine(
+      (r) => r.trim().split(/\s+/).filter(Boolean).length <= 200,
+      "Reason must be 200 words or fewer.",
+    ),
 }).refine((d) => d.leaveTypeCode || d.leaveTypeId, {
   message: "leaveTypeCode or leaveTypeId required",
 });
@@ -971,7 +977,14 @@ const createRegSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   requestedPunchIn: z.string().min(5),
   requestedPunchOut: z.string().min(5),
-  reason: z.string().min(1).max(2000),
+  reason: z
+    .string()
+    .min(1)
+    .max(2000)
+    .refine(
+      (r) => r.trim().split(/\s+/).filter(Boolean).length <= 200,
+      "Reason must be 200 words or fewer.",
+    ),
   originalIssue: z.string().max(255).optional(),
 });
 

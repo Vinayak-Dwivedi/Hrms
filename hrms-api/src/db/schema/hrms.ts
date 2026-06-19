@@ -376,56 +376,13 @@ export const employmentTypes = pgTable(
   ],
 );
 
-export const designations = pgTable(
-  "designations",
-  {
-    id: serial("id").primaryKey(),
-    name: varchar("name", { length: 150 }).notNull().unique(),
-    // short code shown in Org Setup → Designation (e.g. MGR, CEO). Nullable so
-    // pre-existing rows remain valid; unique when present.
-    code: varchar("code", { length: 20 }).unique(),
-    departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
-      onDelete: "set null",
-    }),
-    gradeMinId: integer("grade_min_id").references(() => grades.id, {
-      onDelete: "set null",
-    }),
-    gradeMaxId: integer("grade_max_id").references(() => grades.id, {
-      onDelete: "set null",
-    }),
-    employeeCount: integer("employee_count").notNull().default(0),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .defaultNow()
-      .$onUpdate(() => new Date())
-      .notNull(),
-  },
-  (table) => [
-    check("designation_emp_count_chk", sql`${table.employeeCount} >= 0`),
-  ],
-);
+// NOTE: the flat `designations` table has been unified into
+// `orgHierarchyDesignations` (the single source of truth). All designation FKs
+// / lookups now reference that table.
 
-// Sub-departments (a.k.a. processes / campaigns in a BPO) — e.g. Beetel,
-// Credit B — sitting under a Department. Distinct from designations (job
-// titles). Currently used for holiday-team scoping; employees aren't linked
-// to a sub-department yet.
-export const subDepartments = pgTable("sub_departments", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 150 }).notNull().unique(),
-  code: varchar("code", { length: 20 }).unique(),
-  departmentId: integer("department_id").references(() => orgHierarchyDepartments.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+// NOTE: the flat `sub_departments` table has been unified into
+// `orgHierarchySubDepartments` (the single source of truth). All sub-department
+// FKs / lookups now reference that table.
 
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 1b — ORG HIERARCHY (parallel to flat org setup tables)
@@ -692,10 +649,10 @@ export const employees = pgTable(
     // Optional sub-department (process/campaign) the employee belongs to.
     // Enables sub-department scoping for policies / approval workflows.
     subDepartmentId: integer("sub_department_id").references(
-      () => subDepartments.id,
+      () => orgHierarchySubDepartments.id,
       { onDelete: "set null" },
     ),
-    designationId: integer("designation_id").references(() => designations.id, {
+    designationId: integer("designation_id").references(() => orgHierarchyDesignations.id, {
       onDelete: "set null",
     }),
     gradeId: integer("grade_id").references(() => grades.id, {
@@ -807,37 +764,8 @@ export const employees = pgTable(
   ],
 );
 
-export const bankAccounts = pgTable(
-  "bank_accounts",
-  {
-    employeeId: integer("employee_id")
-      .notNull()
-      .references(() => employees.id, { onDelete: "cascade" }),
-    accountNumber: varchar("account_number", { length: 25 }).notNull(),
-    accountName: varchar("account_name", { length: 100 }).notNull(),
-    bankName: varchar("bank_name", { length: 100 }).notNull(),
-    branchName: varchar("branch_name", { length: 100 }).notNull(),
-    ifscCode: varchar("ifsc_code", { length: 11 }).notNull(),
-    passbookUrl: varchar("passbook_url", { length: 500 }),
-    isPrimary: boolean("is_primary").notNull().default(false),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    primaryKey({
-      name: "bank_accounts_pkey",
-      columns: [table.employeeId, table.accountNumber],
-    }),
-    uniqueIndex("uq_one_primary_bank_account")
-      .on(table.employeeId)
-      .where(sql`${table.isPrimary} = TRUE`),
-    check(
-      "bank_ifsc_chk",
-      sql`${table.ifscCode} ~ '^[A-Z]{4}0[A-Z0-9]{6}$'`,
-    ),
-  ],
-);
+// `bank_accounts` table removed — it was unused dead code (zero queries),
+// superseded by `employee_bank_details` + the onboarding bank flow.
 
 export const employeeAcademicDetails = pgTable("employee_academic_details", {
   id: serial("id").primaryKey(),
@@ -2014,44 +1942,8 @@ export const notifications = pgTable(
   ],
 );
 
-export const broadcasts = pgTable(
-  "broadcasts",
-  {
-    id: serial("id").primaryKey(),
-    senderId: integer("sender_id")
-      .notNull()
-      .references(() => employees.id, { onDelete: "restrict" }),
-    targetType: broadcastTargetEnum("target_type").notNull(),
-    message: text("message").notNull(),
-    targetDeptIds: integer("target_dept_ids")
-      .array()
-      .notNull()
-      .default(sql`'{}'::int[]`),
-    targetEmpIds: integer("target_emp_ids")
-      .array()
-      .notNull()
-      .default(sql`'{}'::int[]`),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table: any) => [
-    index("idx_bc_dept_ids").using("gin", table.targetDeptIds),
-    index("idx_bc_emp_ids").using("gin", table.targetEmpIds),
-    check(
-      "bc_dept_ids_when_dept_chk",
-      sql`${table.targetType} <> 'department' OR array_length(${table.targetDeptIds}, 1) > 0`,
-    ),
-    check(
-      "bc_emp_ids_when_individual_chk",
-      sql`${table.targetType} <> 'individual' OR array_length(${table.targetEmpIds}, 1) > 0`,
-    ),
-    check(
-      "bc_all_no_ids_chk",
-      sql`${table.targetType} <> 'all' OR (array_length(${table.targetDeptIds}, 1) IS NULL AND array_length(${table.targetEmpIds}, 1) IS NULL)`,
-    ),
-  ],
-);
+// `broadcasts` table removed — unused stub (only a generic CRUD mount, no
+// feature/UI ever built on it).
 
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 8 — HOLIDAY CALENDAR
@@ -2062,23 +1954,8 @@ export const broadcasts = pgTable(
 // regional holidays, a branch-specific row overrides / supplements the null
 // row for that branch on that date.
 
-export const holidayCalendars = pgTable("holiday_calendars", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 150 }).notNull().unique(),
-  description: text("description"),
-  // 'Draft' | 'Published' | 'Archived'
-  status: varchar("status", { length: 20 }).notNull().default("Draft"),
-  createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
-    onDelete: "set null",
-  }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+// `holiday_calendars` (+ `holiday_team_links`, `holiday_calendar_scope`) were
+// retired — holidays are scoped per-holiday via `holidays.scope`.
 
 export const holidays = pgTable(
   "holidays",
@@ -2090,17 +1967,10 @@ export const holidays = pgTable(
     branchId: integer("branch_id").references(() => branches.id, {
       onDelete: "cascade",
     }),
-    // Nullable for legacy rows that were attached only to a branch. New rows
-    // are always associated with a holiday_calendar.
-    calendarId: integer("calendar_id").references(() => holidayCalendars.id, {
-      onDelete: "cascade",
-    }),
     isHalfDay: boolean("is_half_day").notNull().default(false),
     description: text("description"),
-    // Per-holiday scope: optional array of { scopeType, scopeId } rows
-    // that narrow which employees this holiday applies to *within* the
-    // calendar's broader scope. Empty array = applies to everyone the
-    // calendar applies to.
+    // Per-holiday scope: optional array of { scopeType, scopeId } rows deciding
+    // which employees this holiday applies to. Empty array = whole organisation.
     scope: jsonb("scope").notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
@@ -2108,49 +1978,8 @@ export const holidays = pgTable(
   },
   (table: any) => [
     index("idx_holidays_date").on(table.date),
-    index("idx_holidays_calendar").on(table.calendarId, table.date),
   ],
 );
-
-// Many-to-many: one holiday can apply to many calendars (teams). The legacy
-// holidays.calendar_id is still around but the link table is the canonical
-// source going forward.
-export const holidayTeamLinks = pgTable(
-  "holiday_team_links",
-  {
-    holidayId: integer("holiday_id")
-      .notNull()
-      .references(() => holidays.id, { onDelete: "cascade" }),
-    calendarId: integer("calendar_id")
-      .notNull()
-      .references(() => holidayCalendars.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    primaryKey({
-      name: "holiday_team_links_pkey",
-      columns: [table.holidayId, table.calendarId],
-    }),
-    index("idx_holiday_team_links_calendar").on(table.calendarId),
-  ],
-);
-
-export const holidayCalendarScope = pgTable("holiday_calendar_scope", {
-  id: serial("id").primaryKey(),
-  calendarId: integer("calendar_id")
-    .notNull()
-    .references(() => holidayCalendars.id, { onDelete: "cascade" }),
-  // 'Company' | 'Branch' | 'Location' | 'Department' | 'Designation' | 'Grade'
-  // | 'EmploymentType' | 'Employee'
-  scopeType: varchar("scope_type", { length: 30 }).notNull(),
-  scopeId: integer("scope_id"),
-  priority: integer("priority").notNull().default(100),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
 
 // ───── Weekly Off Configurations ──────────────────────────────────────────
 
@@ -2306,8 +2135,8 @@ export type Grade = typeof grades.$inferSelect;
 export type NewGrade = typeof grades.$inferInsert;
 export type EmploymentType = typeof employmentTypes.$inferSelect;
 export type NewEmploymentType = typeof employmentTypes.$inferInsert;
-export type Designation = typeof designations.$inferSelect;
-export type NewDesignation = typeof designations.$inferInsert;
+export type Designation = typeof orgHierarchyDesignations.$inferSelect;
+export type NewDesignation = typeof orgHierarchyDesignations.$inferInsert;
 export type OrgHierarchyDepartment = typeof orgHierarchyDepartments.$inferSelect;
 export type NewOrgHierarchyDepartment =
   typeof orgHierarchyDepartments.$inferInsert;
@@ -2325,8 +2154,6 @@ export type OrgHierarchyStructure = typeof orgHierarchyStructure.$inferSelect;
 export type NewOrgHierarchyStructure = typeof orgHierarchyStructure.$inferInsert;
 export type Employee = typeof employees.$inferSelect;
 export type NewEmployee = typeof employees.$inferInsert;
-export type BankAccount = typeof bankAccounts.$inferSelect;
-export type NewBankAccount = typeof bankAccounts.$inferInsert;
 export type EmployeeAcademicDetail = typeof employeeAcademicDetails.$inferSelect;
 export type NewEmployeeAcademicDetail =
   typeof employeeAcademicDetails.$inferInsert;
@@ -2357,10 +2184,8 @@ export type LeaveRequest = typeof leaveRequests.$inferSelect;
 export type NewLeaveRequest = typeof leaveRequests.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
-export type Broadcast = typeof broadcasts.$inferSelect;
 export type Holiday = typeof holidays.$inferSelect;
 export type NewHoliday = typeof holidays.$inferInsert;
-export type NewBroadcast = typeof broadcasts.$inferInsert;
 export type Permission = typeof permissions.$inferSelect;
 export type NewPermission = typeof permissions.$inferInsert;
 export type Role = typeof roles.$inferSelect;
