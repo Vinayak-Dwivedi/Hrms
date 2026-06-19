@@ -10,6 +10,7 @@
 // receive each holiday later.
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react";
 import { createGlobalHoliday } from "./api/holiday-calendars.client";
 import {
@@ -121,7 +122,7 @@ export default function AddHolidayDialog({
     (r) => r.date.match(/^\d{4}-\d{2}-\d{2}$/) && r.name.trim().length > 0,
   ).length;
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[1100] bg-black/45 flex items-center justify-center p-4"
       onClick={onClose}
@@ -242,6 +243,10 @@ export default function AddHolidayDialog({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : modal;
 }
 
 // Quell unused import warnings.

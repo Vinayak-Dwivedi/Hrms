@@ -13,6 +13,7 @@
 // them — and links the selected holidays via holiday_team_links.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Save, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -239,13 +240,13 @@ export default function AddTeamDialog({
     }
   }
 
-  return (
+  const modal = (
     <div
       className="fixed inset-0 z-[1100] bg-black/45 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-[620px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
+        className="bg-white rounded-2xl w-full max-w-[680px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -277,34 +278,40 @@ export default function AddTeamDialog({
             />
           </Field>
 
-          <p className="text-[11px] text-gray-400 -mt-1">
-            Leave Location, Department and Sub-Department empty to apply to the{" "}
-            <strong>entire organisation</strong>.
-          </p>
-
-          <ScopeDropdown
-            label="Location"
-            options={branches}
-            selected={branchIds}
-            onChange={setBranchIds}
-            placeholder="Pick locations…"
-          />
-          <ScopeDropdown
-            label="Department"
-            options={visibleDepartments}
-            selected={departmentIds}
-            onChange={setDepartmentIds}
-            placeholder="Pick departments…"
-          />
-          <ScopeDropdown
-            label="Sub-Department"
-            options={departmentIds.size === 0 ? null : filteredSubDepartments}
-            selected={subDepartmentIds}
-            onChange={setSubDepartmentIds}
-            placeholder="Pick sub-departments…"
-            disabled={departmentIds.size === 0}
-            disabledHint="Pick department(s) first"
-          />
+          <div className="border-t border-gray-100 pt-3 flex flex-col gap-2">
+            <p className="text-[12px] font-semibold text-gray-700">Applies To</p>
+            <p className="text-[11px] text-gray-400 -mt-1">
+              Leave Location, Department and Sub-Department empty to apply to the{" "}
+              <strong>entire organisation</strong>.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <ScopeDropdown
+                label="Location"
+                options={branches}
+                selected={branchIds}
+                onChange={setBranchIds}
+                placeholder="Pick locations…"
+              />
+              <ScopeDropdown
+                label="Department"
+                options={visibleDepartments}
+                selected={departmentIds}
+                onChange={setDepartmentIds}
+                placeholder="Pick departments…"
+              />
+              <div className="md:col-span-2">
+                <ScopeDropdown
+                  label="Sub-Department"
+                  options={departmentIds.size === 0 ? null : filteredSubDepartments}
+                  selected={subDepartmentIds}
+                  onChange={setSubDepartmentIds}
+                  placeholder="Pick sub-departments…"
+                  disabled={departmentIds.size === 0}
+                  disabledHint="Pick department(s) first"
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="border-t border-gray-100 pt-4">
             <HolidayChecklist
@@ -344,6 +351,10 @@ export default function AddTeamDialog({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : modal;
 }
 
 // ─── checklist dropdown for holidays ───────────────────────────────────────

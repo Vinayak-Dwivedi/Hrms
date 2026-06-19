@@ -20,9 +20,12 @@ const EMPTY_LOOKUPS: ScopeLabelLookups = {
 export function useHierarchyScopeLookups() {
   const [lookups, setLookups] = useState<ScopeLabelLookups>(EMPTY_LOOKUPS);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         const [branches, departments, subDepartments] = await Promise.all([
@@ -31,11 +34,9 @@ export function useHierarchyScopeLookups() {
           fetchOrgSubDepartments(),
         ]);
         if (cancelled) return;
-        setLookups(
-          scopeLabelsFromLists(branches, departments, subDepartments),
-        );
-      } catch {
-        if (!cancelled) setLookups(EMPTY_LOOKUPS);
+        setLookups(scopeLabelsFromLists(branches, departments, subDepartments));
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -45,5 +46,5 @@ export function useHierarchyScopeLookups() {
     };
   }, []);
 
-  return { lookups, loading };
+  return { lookups, loading, error };
 }

@@ -19,9 +19,14 @@ type Lookup = { id: number; name: string; departmentId?: number | null };
 export default function OrgScopePicker({
   initial,
   onChange,
+  layout = "stack",
+  showHint = true,
 }: {
   initial: OrgScopeRow[];
   onChange: (rows: OrgScopeRow[]) => void;
+  layout?: "stack" | "grid";
+  /** When false, the org-wide hint is omitted (e.g. shown by the parent). */
+  showHint?: boolean;
 }) {
   const [branchIds, setBranchIds] = useState<Set<number>>(new Set());
   const [departmentIds, setDepartmentIds] = useState<Set<number>>(new Set());
@@ -120,28 +125,50 @@ export default function OrgScopePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchIds, departmentIds, subDepartmentIds]);
 
+  const locationDropdown = (
+    <Dropdown label="Location" options={branches} selected={branchIds} onChange={setBranchIds} />
+  );
+  const departmentDropdown = (
+    <Dropdown
+      label="Department"
+      options={visibleDepartments}
+      selected={departmentIds}
+      onChange={setDepartmentIds}
+    />
+  );
+  const subDepartmentDropdown = (
+    <Dropdown
+      label="Sub-Department"
+      options={departmentIds.size === 0 ? null : visibleSubDepartments}
+      selected={subDepartmentIds}
+      onChange={setSubDepartmentIds}
+      labelFor={(id) => subDeptLabel.get(id)}
+      disabled={departmentIds.size === 0}
+      disabledHint="Pick department(s) first"
+    />
+  );
+
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-gray-400">
-        Leave Location, Department and Sub-Department empty to apply to the{" "}
-        <strong>entire organisation</strong>.
-      </p>
-      <Dropdown label="Location" options={branches} selected={branchIds} onChange={setBranchIds} />
-      <Dropdown
-        label="Department"
-        options={visibleDepartments}
-        selected={departmentIds}
-        onChange={setDepartmentIds}
-      />
-      <Dropdown
-        label="Sub-Department"
-        options={departmentIds.size === 0 ? null : visibleSubDepartments}
-        selected={subDepartmentIds}
-        onChange={setSubDepartmentIds}
-        labelFor={(id) => subDeptLabel.get(id)}
-        disabled={departmentIds.size === 0}
-        disabledHint="Pick department(s) first"
-      />
+      {showHint && (
+        <p className="text-[11px] text-gray-400">
+          Leave Location, Department and Sub-Department empty to apply to the{" "}
+          <strong>entire organisation</strong>.
+        </p>
+      )}
+      {layout === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {locationDropdown}
+          {departmentDropdown}
+          <div className="md:col-span-2">{subDepartmentDropdown}</div>
+        </div>
+      ) : (
+        <>
+          {locationDropdown}
+          {departmentDropdown}
+          {subDepartmentDropdown}
+        </>
+      )}
     </div>
   );
 }

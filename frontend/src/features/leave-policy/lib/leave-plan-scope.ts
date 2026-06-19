@@ -38,6 +38,15 @@ export const emptyHierarchyScopeState = (): HierarchyScopeState => ({
   subDepartmentIds: new Set(),
 });
 
+export const emptyWorkflowCascadeState = (): CascadeScopeState => ({
+  companyWide: false,
+  locationId: null,
+  allDepartments: true,
+  departmentId: null,
+  allSubDepartments: true,
+  subDepartmentId: null,
+});
+
 export const emptyCascadeScopeState = (): CascadeScopeState => ({
   companyWide: true,
   locationId: null,
@@ -46,6 +55,34 @@ export const emptyCascadeScopeState = (): CascadeScopeState => ({
   allSubDepartments: true,
   subDepartmentId: null,
 });
+
+export function hydrateCascadeForWorkflow(
+  scope: HierarchyScopeRow[],
+): CascadeScopeState {
+  if (scope.some((s) => s.scopeType === "Company") || scope.length === 0) {
+    return emptyWorkflowCascadeState();
+  }
+  return {
+    ...hierarchyToCascade(hydrateScopeFromRows(scope)),
+    companyWide: false,
+  };
+}
+
+export function savedWorkflowScope(scope: HierarchyScopeRow[]): HierarchyScopeRow[] {
+  if (scope.some((s) => s.scopeType === "Company")) return [];
+  return scope;
+}
+
+export function isWorkflowLocationDeptScopeValid(
+  scope: HierarchyScopeRow[],
+): boolean {
+  const cascade = hydrateCascadeForWorkflow(scope);
+  return (
+    cascade.locationId != null &&
+    !cascade.allDepartments &&
+    cascade.departmentId != null
+  );
+}
 
 export function cascadeToHierarchyState(
   cascade: CascadeScopeState,

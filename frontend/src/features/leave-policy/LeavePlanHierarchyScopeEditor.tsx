@@ -23,6 +23,7 @@ import {
   buildScopePayloadFromCascade,
   emptyCascadeScopeState,
   formatScopeSummary,
+  hydrateCascadeForWorkflow,
   hydrateCascadeFromRows,
   type CascadeScopeState,
 } from "./lib/leave-plan-scope";
@@ -34,6 +35,10 @@ type Props = {
   onChange: (rows: HierarchyScopeRow[]) => void;
   /** Hide outer card chrome when nested inside another field. */
   embedded?: boolean;
+  /** Workflows always require a specific org unit (no company-wide). */
+  variant?: "policy" | "workflow";
+  /** Workflow picker depth; defaults to location + department only. */
+  workflowLevels?: "location-department" | "full";
 };
 
 const ALL_DEPARTMENTS = "__all_departments__";
@@ -43,10 +48,14 @@ export default function LeavePlanHierarchyScopeEditor({
   scope,
   onChange,
   embedded = false,
+  variant = "policy",
+  workflowLevels = "location-department",
 }: Props) {
+  const isWorkflow = variant === "workflow";
+  const locationDeptOnly = isWorkflow && workflowLevels === "location-department";
   const skipScopeSync = useRef(false);
   const [cascade, setCascade] = useState<CascadeScopeState>(() =>
-    hydrateCascadeFromRows(scope),
+    isWorkflow ? hydrateCascadeForWorkflow(scope) : hydrateCascadeFromRows(scope),
   );
 
   const [branches, setBranches] = useState<LookupItem[]>([]);
@@ -64,7 +73,7 @@ export default function LeavePlanHierarchyScopeEditor({
         const [brs, depts, subs] = await Promise.all([
           fetchBranches(),
           fetchOrgDepartments(),
-          fetchOrgSubDepartments(),
+          locationDeptOnly ? Promise.resolve([]) : fetchOrgSubDepartments(),
         ]);
         if (cancelled) return;
         setBranches(brs);
@@ -81,15 +90,17 @@ export default function LeavePlanHierarchyScopeEditor({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locationDeptOnly]);
 
   useEffect(() => {
     if (skipScopeSync.current) {
       skipScopeSync.current = false;
       return;
     }
-    setCascade(hydrateCascadeFromRows(scope));
-  }, [scope]);
+    setCascade(
+      isWorkflow ? hydrateCascadeForWorkflow(scope) : hydrateCascadeFromRows(scope),
+    );
+  }, [scope, isWorkflow]);
 
   const parsedLocationId = cascade.locationId;
 
@@ -133,12 +144,16 @@ export default function LeavePlanHierarchyScopeEditor({
   });
 
   function apply(next: CascadeScopeState) {
+    const payload = isWorkflow
+      ? { ...next, companyWide: false }
+      : next;
     skipScopeSync.current = true;
-    setCascade(next);
-    onChange(buildScopePayloadFromCascade(next));
+    setCascade(payload);
+    onChange(buildScopePayloadFromCascade(payload));
   }
 
   function setCompanyWide(companyWide: boolean) {
+    if (isWorkflow) return;
     if (companyWide) {
       apply(emptyCascadeScopeState());
       return;
@@ -169,6 +184,18 @@ export default function LeavePlanHierarchyScopeEditor({
   }
 
   function onDepartmentChange(value: string) {
+    if (locationDeptOnly) {
+      const departmentId = value === "" ? null : Number(value);
+      apply({
+        ...cascade,
+        companyWide: false,
+        allDepartments: false,
+        departmentId: Number.isFinite(departmentId) ? departmentId : null,
+        allSubDepartments: true,
+        subDepartmentId: null,
+      });
+      return;
+    }
     if (value === ALL_DEPARTMENTS) {
       apply({
         ...cascade,
@@ -212,11 +239,15 @@ export default function LeavePlanHierarchyScopeEditor({
     });
   }
 
-  const departmentValue = cascade.allDepartments
-    ? ALL_DEPARTMENTS
-    : cascade.departmentId != null
+  const departmentValue = locationDeptOnly
+    ? cascade.departmentId != null
       ? String(cascade.departmentId)
-      : "";
+      : ""
+    : cascade.allDepartments
+      ? ALL_DEPARTMENTS
+      : cascade.departmentId != null
+        ? String(cascade.departmentId)
+        : "";
 
   const subDepartmentValue = cascade.allSubDepartments
     ? ALL_SUB_DEPARTMENTS
@@ -224,7 +255,7 @@ export default function LeavePlanHierarchyScopeEditor({
       ? String(cascade.subDepartmentId)
       : "";
 
-  const hierarchyDisabled = cascade.companyWide;
+  const hierarchyDisabled = !isWorkflow && cascade.companyWide;
   const departmentDisabled = hierarchyDisabled || cascade.locationId == null;
   const subDepartmentDisabled =
     departmentDisabled ||
@@ -233,15 +264,17 @@ export default function LeavePlanHierarchyScopeEditor({
 
   const body = (
     <div className="flex flex-col gap-4">
-      <label className="inline-flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[13px] text-gray-800 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={cascade.companyWide}
-          onChange={(e) => setCompanyWide(e.target.checked)}
-          className="h-4 w-4 accent-[lab(36.9089%_35.0961_-85.6872)]"
-        />
-        <span className="font-medium">Apply to entire organization</span>
-      </label>
+      {!isWorkflow && (
+        <label className="inline-flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[13px] text-gray-800 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={cascade.companyWide}
+            onChange={(e) => setCompanyWide(e.target.checked)}
+            className="h-4 w-4 accent-[lab(36.9089%_35.0961_-85.6872)]"
+          />
+          <span className="font-medium">Apply to entire organization</span>
+        </label>
+      )}
 
       {loadError && (
         <div className={employeeErrorBannerClass}>{loadError}</div>
@@ -301,10 +334,17 @@ export default function LeavePlanHierarchyScopeEditor({
                   ? "Select department"
                   : "Select location first"
               }
-              options={[
-                { id: ALL_DEPARTMENTS, name: "All departments" },
-                ...visibleDepartments.map((d) => ({ id: d.id, name: d.name })),
-              ]}
+              options={
+                locationDeptOnly
+                  ? visibleDepartments.map((d) => ({ id: d.id, name: d.name }))
+                  : [
+                      { id: ALL_DEPARTMENTS, name: "All departments" },
+                      ...visibleDepartments.map((d) => ({
+                        id: d.id,
+                        name: d.name,
+                      })),
+                    ]
+              }
               emptyMessage={
                 cascade.locationId &&
                 !loading &&
@@ -314,47 +354,59 @@ export default function LeavePlanHierarchyScopeEditor({
               }
             />
 
-            <ScopeSelect
-              step={3}
-              icon={<Network size={14} className="text-emerald-600" />}
-              label="Sub-department"
-              hint={
-                cascade.departmentId && !cascade.allDepartments
-                  ? `Under ${departmentName ?? "selected department"}`
-                  : "Select a department first"
-              }
-              disabled={subDepartmentDisabled || loading}
-              value={subDepartmentValue}
-              onChange={onSubDepartmentChange}
-              placeholder={
-                cascade.departmentId && !cascade.allDepartments
-                  ? "Select sub-department"
-                  : "Select department first"
-              }
-              options={[
-                { id: ALL_SUB_DEPARTMENTS, name: "All sub-departments" },
-                ...visibleSubDepartments.map((s) => ({
-                  id: s.id,
-                  name: s.name,
-                })),
-              ]}
-              emptyMessage={
-                cascade.departmentId &&
-                !cascade.allDepartments &&
-                !loading &&
-                visibleSubDepartments.length === 0
-                  ? "No sub-departments mapped to this department."
-                  : undefined
-              }
-            />
+            {!locationDeptOnly && (
+              <ScopeSelect
+                step={3}
+                icon={<Network size={14} className="text-emerald-600" />}
+                label="Sub-department"
+                hint={
+                  cascade.departmentId && !cascade.allDepartments
+                    ? `Under ${departmentName ?? "selected department"}`
+                    : "Select a department first"
+                }
+                disabled={subDepartmentDisabled || loading}
+                value={subDepartmentValue}
+                onChange={onSubDepartmentChange}
+                placeholder={
+                  cascade.departmentId && !cascade.allDepartments
+                    ? "Select sub-department"
+                    : "Select department first"
+                }
+                options={[
+                  { id: ALL_SUB_DEPARTMENTS, name: "All sub-departments" },
+                  ...visibleSubDepartments.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                  })),
+                ]}
+                emptyMessage={
+                  cascade.departmentId &&
+                  !cascade.allDepartments &&
+                  !loading &&
+                  visibleSubDepartments.length === 0
+                    ? "No sub-departments mapped to this department."
+                    : undefined
+                }
+              />
+            )}
           </div>
         </div>
 
-        {!cascade.companyWide && cascade.locationId != null && (
+        {(isWorkflow || !cascade.companyWide) && cascade.locationId != null && (
           <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-gray-600 px-1">
             <span className="font-medium text-gray-500">Coverage path:</span>
             <PathChip icon={<MapPin size={12} />} label={locationName ?? "—"} />
-            {cascade.allDepartments ? (
+            {locationDeptOnly ? (
+              departmentName ? (
+                <>
+                  <ChevronRight size={12} className="text-gray-300" />
+                  <PathChip
+                    icon={<Building2 size={12} />}
+                    label={departmentName}
+                  />
+                </>
+              ) : null
+            ) : cascade.allDepartments ? (
               <>
                 <ChevronRight size={12} className="text-gray-300" />
                 <PathChip label="All departments" />
@@ -366,12 +418,12 @@ export default function LeavePlanHierarchyScopeEditor({
                   icon={<Building2 size={12} />}
                   label={departmentName}
                 />
-                {cascade.allSubDepartments ? (
+                {!locationDeptOnly && cascade.allSubDepartments ? (
                   <>
                     <ChevronRight size={12} className="text-gray-300" />
                     <PathChip label="All sub-departments" />
                   </>
-                ) : subDepartmentName ? (
+                ) : !locationDeptOnly && subDepartmentName ? (
                   <>
                     <ChevronRight size={12} className="text-gray-300" />
                     <PathChip
@@ -386,9 +438,13 @@ export default function LeavePlanHierarchyScopeEditor({
         )}
 
         <p className="text-[11.5px] text-gray-400 leading-snug px-0.5">
-          {embedded
-            ? "Uncheck “entire organization”, then pick location, department, and sub-department in order."
-            : "Uncheck “entire organization”, then pick location, department, and sub-department. Active policies seed balances for employees in that path."}
+          {isWorkflow
+            ? locationDeptOnly
+              ? "Select a location, then pick the department for that location."
+              : "Pick location, department, and sub-department in order."
+            : embedded
+              ? "Uncheck “entire organization”, then pick location, department, and sub-department in order."
+              : "Uncheck “entire organization”, then pick location, department, and sub-department. Active policies seed balances for employees in that path."}
         </p>
     </div>
   );
