@@ -5,11 +5,13 @@ import {
   employeeCardClass,
 } from "@/features/employees/employee-theme";
 import CompOffSection from "./CompOffSection";
-import ApprovalSection from "./ApprovalSection";
+// Approval tab disabled for now — kept for later re-enable.
+// import ApprovalSection from "./ApprovalSection";
 import MasterLeaveTypesSection from "./MasterLeaveTypesSection";
 import LeavePoliciesSection from "./LeavePoliciesSection";
 import WeeklyOffPage from "@/features/weekly-off/WeeklyOffPage";
-import HolidayPolicyPage from "@/features/holiday-calendars/HolidayPolicyPage";
+// Holiday Policy now lives in the sidebar (Settings → Holiday Policy).
+// import HolidayPolicyPage from "@/features/holiday-calendars/HolidayPolicyPage";
 
 // Leave Policy is a tabbed settings page. The tab indicator slides under the
 // active label, and the panel content slides + cross-fades when switching.
@@ -20,28 +22,15 @@ import HolidayPolicyPage from "@/features/holiday-calendars/HolidayPolicyPage";
 // Theme: matches the employee-portal pages — white card with slate border,
 // brand lab accent for active states.
 
-type Tab =
-  | "master"
-  | "policies"
-  | "comp-off"
-  | "approval"
-  | "weekly-off"
-  | "holiday";
-const TAB_ORDER: Tab[] = [
-  "master",
-  "policies",
-  "comp-off",
-  "approval",
-  "weekly-off",
-  "holiday",
-];
+// Order: Leave Types → Weekly Off → Leave Policies → Comp Off.
+// Approval is disabled; Holiday Policy moved to the sidebar (Settings).
+type Tab = "master" | "weekly-off" | "policies" | "comp-off";
+const TAB_ORDER: Tab[] = ["master", "weekly-off", "policies", "comp-off"];
 const TAB_LABEL: Record<Tab, string> = {
   master: "Leave Types",
+  "weekly-off": "Weekly Off",
   policies: "Leave Policies",
   "comp-off": "Compensatory Off",
-  approval: "Approval",
-  "weekly-off": "Weekly Off",
-  holiday: "Holiday Policy",
 };
 
 export default function LeavePolicyPage() {
@@ -68,11 +57,11 @@ export default function LeavePolicyPage() {
       <div className="relative">
         <div key={tab} className="animate-fade-in">
           {tab === "master" && <MasterLeaveTypesSection />}
+          {tab === "weekly-off" && <WeeklyOffPage />}
           {tab === "policies" && <LeavePoliciesSection />}
           {tab === "comp-off" && <CompOffSection />}
-          {tab === "approval" && <ApprovalSection />}
-          {tab === "weekly-off" && <WeeklyOffPage />}
-          {tab === "holiday" && <HolidayPolicyPage />}
+          {/* Approval disabled: {tab === "approval" && <ApprovalSection />} */}
+          {/* Holiday Policy moved to the sidebar (Settings → Holiday Policy). */}
         </div>
       </div>
 

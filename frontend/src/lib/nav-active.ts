@@ -25,7 +25,12 @@ export const USER_MGMT_HREFS = [
   "/user-roles",
 ];
 
-export const SETTINGS_HREFS = ["/locations"];
+export const SETTINGS_HREFS = [
+  "/locations",
+  "/leave-policy",
+  "/holiday-calendars",
+  "/offboarding",
+];
 
 export function formatEntryId(sectionTitle: string, label: string): string {
   return `${sectionTitle}::${label}`;

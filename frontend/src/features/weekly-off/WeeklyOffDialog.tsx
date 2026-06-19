@@ -13,11 +13,11 @@ import {
   createWeeklyOff,
   deleteWeeklyOff,
   getWeeklyOff,
+  listWeeklyOff,
   updateWeeklyOff,
   type AlternateDayRule,
   type DayName,
   type FixedSettings,
-  type RosterSettings,
   type RotationalSettings,
   type WeeklyOffMode,
   type WeeklyOffSettings,
@@ -25,7 +25,6 @@ import {
   type WeeklyOffSummary,
   type WeeklyOffUpsert,
 } from "./api/weekly-off.client";
-import OrgScopePicker, { type OrgScopeRow } from "@/components/scope/OrgScopePicker";
 
 type Target = WeeklyOffSummary | "new";
 type Preset = "sun" | "satsun" | "altsatsun" | "custom";
@@ -56,6 +55,27 @@ const PRESETS: { key: Preset; label: string; hint: string }[] = [
   { key: "altsatsun", label: "Alternate Sat + Sun", hint: "Sun + 2nd & 4th Sat" },
   { key: "custom", label: "Custom", hint: "Full control" },
 ];
+
+// Default config name per preset — used as the saved name when creating a
+// non-custom plan (Custom uses the admin-typed name instead).
+const PRESET_DEFAULT_NAME: Record<Exclude<Preset, "custom">, string> = {
+  sun: "Sunday Off",
+  satsun: "Saturday & Sunday Off",
+  altsatsun: "Alternate Sat + Sun",
+};
+
+// Config names are unique and presets save under a fixed default name, so a
+// preset can only exist once. Returns true if a config with this name already
+// exists (case-insensitive) — used to block duplicate preset entries.
+async function configNameExists(name: string): Promise<boolean> {
+  try {
+    const list = await listWeeklyOff();
+    const wanted = name.trim().toLowerCase();
+    return list.some((c) => c.name.trim().toLowerCase() === wanted);
+  } catch {
+    return false; // best effort — the backend unique constraint is the backstop
+  }
+}
 
 function presetSettings(p: Exclude<Preset, "custom">): { mode: WeeklyOffMode; settings: WeeklyOffSettings } {
   if (p === "sun") return { mode: "Fixed", settings: { days: ["Sunday"] } };
@@ -91,8 +111,9 @@ export default function WeeklyOffDialog({
   const editing = target !== "new";
   const [loadedId, setLoadedId] = useState<number | null>(null);
 
+  // `name` is auto-derived from the preset on create; for Custom it's the
+  // admin-typed name. On edit we preserve the existing name.
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
   // New configs default to Published; publish/unpublish is managed from the
   // list's action button, so there's no status control inside the dialog. On
   // edit we preserve whatever status the config already had.
@@ -100,8 +121,6 @@ export default function WeeklyOffDialog({
   const [preset, setPreset] = useState<Preset>("sun");
   const [mode, setMode] = useState<WeeklyOffMode>("Fixed");
   const [settings, setSettings] = useState<WeeklyOffSettings>({ days: ["Sunday"] });
-  const [scope, setScope] = useState<OrgScopeRow[]>([{ scopeType: "Company", scopeId: null }]);
-  const [initialScope, setInitialScope] = useState<OrgScopeRow[]>([]);
 
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
@@ -119,18 +138,17 @@ export default function WeeklyOffDialog({
         if (cancelled) return;
         setLoadedId(full.id);
         setName(full.name);
-        setDescription(full.description ?? "");
         setStatus(full.status);
-        setMode(full.mode);
-        setSettings(full.settings);
-        setPreset(detectPreset(full.mode, full.settings));
-        setInitialScope(
-          full.scope
-            .filter((s) =>
-              ["Company", "Branch", "Department", "SubDepartment"].includes(s.scopeType),
-            )
-            .map((s) => ({ scopeType: s.scopeType as OrgScopeRow["scopeType"], scopeId: s.scopeId })),
-        );
+        const detected = detectPreset(full.mode, full.settings);
+        setPreset(detected);
+        if (detected === "custom" && full.mode !== "Fixed") {
+          // Rotational/Roster modes were removed — fall back to a Fixed pattern.
+          setMode("Fixed");
+          setSettings({ days: ["Sunday"] });
+        } else {
+          setMode(full.mode);
+          setSettings(full.settings);
+        }
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -148,6 +166,13 @@ export default function WeeklyOffDialog({
       const { mode: m, settings: s } = presetSettings(p);
       setMode(m);
       setSettings(s);
+    } else {
+      // Custom is Fixed-only now (Rotational/Roster were removed). Keep the
+      // current days if already a Fixed pattern, else start from Sunday.
+      setMode("Fixed");
+      setSettings((prev) =>
+        prev && "days" in (prev as FixedSettings) ? prev : { days: ["Sunday"] },
+      );
     }
   }
 
@@ -155,13 +180,38 @@ export default function WeeklyOffDialog({
     setSaving(true);
     setError(null);
     try {
+      // Resolve the name: Custom uses the typed name; a preset uses its fixed
+      // default name (kept as-is on edit). A preset can only exist once, so
+      // block re-creating one that already exists instead of duplicating it.
+      let finalName: string;
+      if (preset === "custom") {
+        finalName = name.trim();
+        if (!finalName) {
+          setError("Please name this custom plan.");
+          setSaving(false);
+          return;
+        }
+      } else if (editing) {
+        finalName = name.trim() || PRESET_DEFAULT_NAME[preset];
+      } else {
+        finalName = PRESET_DEFAULT_NAME[preset];
+        if (await configNameExists(finalName)) {
+          setError(
+            `A "${finalName}" configuration already exists. Edit or delete it instead.`,
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
       const body: WeeklyOffUpsert = {
-        name: name.trim(),
-        description: description.trim() || null,
+        name: finalName,
+        description: null,
         status,
         mode,
         settings,
-        scope: scope.map((r) => ({ scopeType: r.scopeType, scopeId: r.scopeId, priority: 100 })),
+        // No scope picker — weekly-off configs now apply to the entire org.
+        scope: [{ scopeType: "Company", scopeId: null, priority: 100 }],
       };
       if (editing && loadedId != null) await updateWeeklyOff(loadedId, body);
       else await createWeeklyOff(body);
@@ -209,119 +259,34 @@ export default function WeeklyOffDialog({
             <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : (
             <>
-              <Field label="Name">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Corporate (Sunday Off)"
-                  autoFocus
-                  className={inputCls}
-                />
-              </Field>
-
-              <Field label="Description">
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional"
-                  rows={2}
-                  className={`${inputCls} resize-none`}
-                />
-              </Field>
-
-              {/* ── Applies To (scope) ───────────────────────────────── */}
-              <div className="border-t border-gray-100 pt-3 flex flex-col gap-2">
-                <p className="text-[12px] font-semibold text-gray-700">Applies To</p>
-                <p className="text-[11px] text-gray-400 -mt-1">
-                  Leave Location, Department and Sub-Department empty to apply to the{" "}
-                  <strong>entire organisation</strong>.
-                </p>
-                <OrgScopePicker
-                  initial={initialScope}
-                  onChange={setScope}
-                  layout="grid"
-                  showHint={false}
-                />
-              </div>
-
-              {/* ── Off-day plan presets ─────────────────────────────── */}
+              {/* ── Off-day plan (dropdown) ──────────────────────────── */}
               <Field label="Off-day plan">
-                <div className="grid grid-cols-2 gap-2">
-                  {PRESETS.map((p) => {
-                    const active = preset === p.key;
-                    return (
-                      <button
-                        type="button"
-                        key={p.key}
-                        onClick={() => choosePreset(p.key)}
-                        className={[
-                          "flex flex-col items-start text-left px-3 py-2 rounded-lg border transition-all",
-                          active
-                            ? "border-[lab(36.9089%_35.0961_-85.6872)] bg-blue-50"
-                            : "border-gray-200 bg-white hover:border-[lab(36.9089%_35.0961_-85.6872)]/40",
-                        ].join(" ")}
-                      >
-                        <span
-                          className={`text-[12.5px] font-semibold ${active ? "text-[lab(36.9089%_35.0961_-85.6872)]" : "text-gray-800"}`}
-                        >
-                          {p.label}
-                        </span>
-                        <span className="text-[11px] text-gray-400 leading-tight mt-0.5">{p.hint}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <select
+                  value={preset}
+                  onChange={(e) => choosePreset(e.target.value as Preset)}
+                  className={inputCls}
+                  autoFocus
+                >
+                  {PRESETS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label} — {p.hint}
+                    </option>
+                  ))}
+                </select>
               </Field>
 
-              {/* ── Custom controls ──────────────────────────────────── */}
+              {/* ── Custom controls (name + pattern) ─────────────────── */}
               {preset === "custom" && (
                 <div className="rounded-xl border border-gray-200 p-3 flex flex-col gap-3 bg-gray-50/40">
-                  <Field label="Mode">
-                    <div className="grid grid-cols-3 gap-2">
-                      {(["Fixed", "Rotational", "Roster"] as WeeklyOffMode[]).map((m) => {
-                        const active = mode === m;
-                        return (
-                          <button
-                            type="button"
-                            key={m}
-                            onClick={() => {
-                              setMode(m);
-                              if (m === "Fixed") setSettings({ days: ["Sunday"] });
-                              else if (m === "Rotational")
-                                setSettings({ offsPerWeek: 1, cycleWeeks: 2, pattern: [["Sunday"], ["Saturday"]] });
-                              else setSettings({ description: "" });
-                            }}
-                            className={[
-                              "px-3 py-2 rounded-lg border text-[12.5px] font-semibold transition-all",
-                              active
-                                ? "border-[lab(36.9089%_35.0961_-85.6872)] bg-blue-50 text-[lab(36.9089%_35.0961_-85.6872)]"
-                                : "border-gray-200 bg-white text-gray-700 hover:border-[lab(36.9089%_35.0961_-85.6872)]/40",
-                            ].join(" ")}
-                          >
-                            {m}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  <Field label="Name">
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Night Shift"
+                      className={inputCls}
+                    />
                   </Field>
-
-                  {mode === "Fixed" && (
-                    <FixedEditor settings={settings as FixedSettings} onChange={setSettings} />
-                  )}
-                  {mode === "Rotational" && (
-                    <RotationalEditor settings={settings as RotationalSettings} onChange={setSettings} />
-                  )}
-                  {mode === "Roster" && (
-                    <Field label="Roster notes">
-                      <textarea
-                        value={(settings as RosterSettings).description}
-                        onChange={(e) => setSettings({ description: e.target.value })}
-                        rows={3}
-                        placeholder="Describe the roster (e.g. WX-A: Sun,Wed off; WX-B: Sat,Thu off…)"
-                        className={`${inputCls} resize-none`}
-                      />
-                    </Field>
-                  )}
+                  <FixedEditor settings={settings as FixedSettings} onChange={setSettings} />
                 </div>
               )}
 
@@ -358,7 +323,7 @@ export default function WeeklyOffDialog({
           <button
             type="button"
             onClick={save}
-            disabled={saving || loading || !name.trim()}
+            disabled={saving || loading || (preset === "custom" && !name.trim())}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-bold text-white bg-gradient-to-r from-[lab(36.9089%_35.0961_-85.6872)] to-[lab(30%_38_-90)] hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -439,66 +404,6 @@ function FixedEditor({
           ))}
         </div>
       </Field>
-    </div>
-  );
-}
-
-function RotationalEditor({
-  settings,
-  onChange,
-}: {
-  settings: RotationalSettings;
-  onChange: (s: RotationalSettings) => void;
-}) {
-  const pattern = settings.pattern ?? [];
-  function setCycle(n: number) {
-    const len = Math.min(12, Math.max(1, n || 1));
-    const next = Array.from({ length: len }, (_, i) => pattern[i] ?? []);
-    emit(next);
-  }
-  function toggle(week: number, day: DayName) {
-    const next = pattern.map((w, i) => {
-      if (i !== week) return w;
-      return w.includes(day) ? w.filter((d) => d !== day) : [...w, day];
-    });
-    emit(next);
-  }
-  function emit(next: DayName[][]) {
-    onChange({
-      offsPerWeek: Math.max(1, ...next.map((w) => w.length), 1),
-      cycleWeeks: next.length,
-      pattern: next,
-    });
-  }
-  return (
-    <div className="flex flex-col gap-2.5">
-      <Field label="Cycle length (weeks)">
-        <input
-          type="number"
-          min={1}
-          max={12}
-          value={pattern.length || 1}
-          onChange={(e) => setCycle(Number(e.target.value))}
-          className={`${inputCls} w-28`}
-        />
-      </Field>
-      <p className="text-[11px] text-gray-400 -mt-1">
-        Tick the off day(s) for each week of the cycle — it repeats indefinitely from a fixed anchor.
-      </p>
-      <div className="flex flex-col gap-1.5">
-        {pattern.map((week, wi) => (
-          <div key={wi} className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold text-gray-500 w-14 shrink-0">Week {wi + 1}</span>
-            <div className="grid grid-cols-7 gap-1 flex-1">
-              {GRID_DAYS.map((d) => (
-                <DayBtn key={d} active={week.includes(d)} onClick={() => toggle(wi, d)} small>
-                  {d.slice(0, 2)}
-                </DayBtn>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

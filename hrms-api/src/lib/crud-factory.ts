@@ -184,10 +184,30 @@ export function createCrudRouter(
   router.delete("/:id", async (req, res, next) => {
     try {
       const id = req.params.id;
-      const rows = (await db
-        .delete(table)
-        .where(sql`${sql.identifier(idCol.name)} = ${id}`)
-        .returning(selectShape as never)) as Array<Record<string, unknown>>;
+      let rows: Array<Record<string, unknown>>;
+      try {
+        rows = (await db
+          .delete(table)
+          .where(sql`${sql.identifier(idCol.name)} = ${id}`)
+          .returning(selectShape as never)) as Array<Record<string, unknown>>;
+      } catch (e) {
+        // Foreign-key violation — the row is still referenced elsewhere.
+        const err = e as {
+          code?: string;
+          message?: string;
+          cause?: { code?: string; message?: string };
+        };
+        const code = err?.code ?? err?.cause?.code;
+        const msg = `${err?.message ?? ""} ${err?.cause?.message ?? ""}`;
+        if (code === "23503" || /foreign key/i.test(msg)) {
+          throw new ApiError(
+            409,
+            "IN_USE",
+            `This ${tableName} is still in use (it has linked records) and can't be deleted. Remove or reassign those first.`,
+          );
+        }
+        throw e;
+      }
       const [row] = rows;
       if (!row) {
         throw new ApiError(404, "NOT_FOUND", `${tableName} not found.`);

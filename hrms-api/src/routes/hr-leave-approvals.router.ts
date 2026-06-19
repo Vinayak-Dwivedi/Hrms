@@ -18,6 +18,7 @@ import {
   notifyEmployeeOnApproval,
   notifyEmployeeOnRejection,
 } from "@/services/leave-notifications";
+import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
 
 export const hrLeaveApprovalsRouter: Router = Router();
 
@@ -89,17 +90,34 @@ hrLeaveApprovalsRouter.post("/:id/approve", async (req, res, next) => {
     if (!ctx) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }
-    const [row] = await db
-      .update(leaveRequests)
-      .set({
-        hrId: hrUser.id,
-        hrDecision: "Approved",
-        hrDecidedAt: new Date(),
-        hrRemarks: body.remarks ?? null,
-        status: "Approved",
-      })
-      .where(eq(leaveRequests.id, idNum))
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [prev] = await tx
+        .select({ status: leaveRequests.status })
+        .from(leaveRequests)
+        .where(eq(leaveRequests.id, idNum))
+        .limit(1);
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({
+          hrId: hrUser.id,
+          hrDecision: "Approved",
+          hrDecidedAt: new Date(),
+          hrRemarks: body.remarks ?? null,
+          status: "Approved",
+        })
+        .where(eq(leaveRequests.id, idNum))
+        .returning();
+      if (updated) {
+        // HR is the final approver — deduct from the employee's balance.
+        await syncLeaveUsageOnTransition(
+          tx,
+          updated,
+          prev?.status,
+          updated.status,
+        );
+      }
+      return updated;
+    });
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }
@@ -132,17 +150,34 @@ hrLeaveApprovalsRouter.post("/:id/reject", async (req, res, next) => {
     if (!ctx) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }
-    const [row] = await db
-      .update(leaveRequests)
-      .set({
-        hrId: hrUser.id,
-        hrDecision: "Rejected",
-        hrDecidedAt: new Date(),
-        hrRemarks: body.remarks ?? null,
-        status: "Rejected",
-      })
-      .where(eq(leaveRequests.id, idNum))
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [prev] = await tx
+        .select({ status: leaveRequests.status })
+        .from(leaveRequests)
+        .where(eq(leaveRequests.id, idNum))
+        .limit(1);
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({
+          hrId: hrUser.id,
+          hrDecision: "Rejected",
+          hrDecidedAt: new Date(),
+          hrRemarks: body.remarks ?? null,
+          status: "Rejected",
+        })
+        .where(eq(leaveRequests.id, idNum))
+        .returning();
+      if (updated) {
+        // Restore balance if this leave had already been deducted (Approved).
+        await syncLeaveUsageOnTransition(
+          tx,
+          updated,
+          prev?.status,
+          updated.status,
+        );
+      }
+      return updated;
+    });
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }

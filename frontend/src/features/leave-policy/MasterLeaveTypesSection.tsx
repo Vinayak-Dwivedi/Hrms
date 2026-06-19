@@ -4,17 +4,23 @@
 // "Create Leave Type" opens a modal dialog; rows have a Configure (edit) and a
 // deactivate action. No accent colour — the catalog is purely functional.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Ban,
+  Check,
+  CheckCircle2,
+  ChevronDown,
   Loader2,
   Pencil,
+  Plus,
   PlusCircle,
   RotateCcw,
   Save,
   Trash2,
   X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   employeeBtnClass,
   employeeBtnOutlineSmClass,
@@ -31,12 +37,30 @@ import {
 } from "@/features/employees/employee-theme";
 import {
   createLeaveType,
-  deactivateLeaveType,
+  deleteLeaveType,
   listLeaveTypes,
+  setLeaveTypeActive,
   updateLeaveType,
   type LeaveType,
   type LeaveTypeUpsert,
 } from "./api/leave-types.client";
+
+// Standard leave-type presets shown in the dialog's dropdown. Selecting one
+// fills the name + code; "custom" reveals editable name/code inputs (like the
+// Weekly-Off dialog's plan dropdown).
+type LeavePresetKey = "annual" | "sick" | "earned" | "casual" | "custom";
+const LEAVE_PRESETS: {
+  key: LeavePresetKey;
+  label: string;
+  name: string;
+  code: string;
+}[] = [
+  { key: "annual", label: "Annual Leave", name: "Annual Leave", code: "AL" },
+  { key: "sick", label: "Sick Leave", name: "Sick Leave", code: "SL" },
+  { key: "earned", label: "Earned Leave", name: "Earned Leave", code: "EL" },
+  { key: "casual", label: "Casual Leave", name: "Casual Leave", code: "CL" },
+  { key: "custom", label: "Custom", name: "", code: "" },
+];
 
 const BLANK_FORM: LeaveTypeUpsert = {
   name: "",
@@ -79,12 +103,32 @@ export default function MasterLeaveTypesSection() {
     refresh();
   }, [refresh]);
 
-  async function handleDeactivate(item: LeaveType) {
-    if (!confirm(`Deactivate "${item.name}"? It will be hidden from new requests.`)) {
+  async function handleToggleActive(item: LeaveType) {
+    const next = !item.isActive;
+    if (
+      item.isActive &&
+      !confirm(`Deactivate "${item.name}"? It will be hidden from new requests.`)
+    ) {
       return;
     }
     try {
-      await deactivateLeaveType(item.id);
+      await setLeaveTypeActive(item.id, next);
+      await refresh();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  async function handleDelete(item: LeaveType) {
+    if (
+      !confirm(
+        `Permanently delete "${item.name}"? This removes it from the database and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteLeaveType(item.id);
       await refresh();
     } catch (e) {
       alert((e as Error).message);
@@ -197,7 +241,7 @@ export default function MasterLeaveTypesSection() {
                     </Badge>
                   </Td>
                   <Td className="text-right pr-6">
-                    <div className="inline-flex items-center gap-2">
+                    <div className="inline-flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => setDialog(it)}
@@ -206,16 +250,30 @@ export default function MasterLeaveTypesSection() {
                       >
                         <Pencil className={employeeIconPen} />
                       </button>
-                      {it.isActive && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeactivate(it)}
-                          title="Deactivate"
-                          className="text-rose-500 hover:text-rose-700"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(it)}
+                        title={it.isActive ? "Deactivate" : "Activate"}
+                        className={
+                          it.isActive
+                            ? "text-amber-500 hover:text-amber-700"
+                            : "text-emerald-500 hover:text-emerald-700"
+                        }
+                      >
+                        {it.isActive ? (
+                          <Ban size={15} />
+                        ) : (
+                          <CheckCircle2 size={15} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(it)}
+                        title="Delete permanently"
+                        className="text-rose-500 hover:text-rose-700"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </Td>
                 </tr>
@@ -255,6 +313,11 @@ function LeaveTypeDialog({
   onSaved: () => void;
 }) {
   const editing = target !== null && target !== "new";
+  // Editing an existing type → show its name/code (Custom). Creating new →
+  // default to the Annual Leave preset.
+  const [preset, setPreset] = useState<LeavePresetKey>(
+    editing ? "custom" : "annual",
+  );
   const [form, setForm] = useState<LeaveTypeUpsert>(
     editing
       ? {
@@ -272,10 +335,18 @@ function LeaveTypeDialog({
           encashmentAllowed: target.encashmentAllowed,
           allowedInProbation: target.allowedInProbation,
         }
-      : BLANK_FORM,
+      : { ...BLANK_FORM, name: "Annual Leave", code: "AL" },
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function choosePreset(key: LeavePresetKey) {
+    setPreset(key);
+    if (key !== "custom") {
+      const p = LEAVE_PRESETS.find((x) => x.key === key)!;
+      setForm((f) => ({ ...f, name: p.name, code: p.code }));
+    }
+  }
 
   if (target === null) return null;
 
@@ -322,35 +393,31 @@ function LeaveTypeDialog({
 
         {/* Body */}
         <div className="overflow-y-auto px-6 py-4 flex flex-col gap-4">
-          <div className="grid grid-cols-[1fr_100px] gap-3">
-            <Field label="Display Name">
-              <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Parental Sabbatical"
-                autoFocus
-              />
-            </Field>
-            <Field label="Code">
-              <Input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                placeholder="PS"
-                maxLength={5}
-                className="text-center font-bold tracking-wider"
-              />
-            </Field>
-          </div>
-
-          <Field label="Description">
-            <textarea
-              value={form.description ?? ""}
-              onChange={(e) => setForm({ ...form, description: e.target.value || null })}
-              placeholder="Short description explaining eligibility and conditions…"
-              rows={2}
-              className="px-3 py-2 rounded-sm border border-slate-200 bg-white text-[12.5px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:border-transparent resize-none"
-            />
+          <Field label="Leave Type">
+            <LeaveTypeSelect value={preset} onChange={choosePreset} />
           </Field>
+
+          {preset === "custom" && (
+            <div className="grid grid-cols-[1fr_100px] gap-3">
+              <Field label="Display Name">
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Parental Sabbatical"
+                  autoFocus
+                />
+              </Field>
+              <Field label="Code">
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  placeholder="PS"
+                  maxLength={5}
+                  className="text-center font-bold tracking-wider"
+                />
+              </Field>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <FlagToggle label="Active Status" sub="Deployable in policies" checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} />
@@ -431,6 +498,150 @@ function LeaveTypeDialog({
   return typeof document !== "undefined"
     ? createPortal(modal, document.body)
     : modal;
+}
+
+// ─── premium leave-type dropdown (portaled to escape the modal overflow) ──────
+
+function LeaveTypeSelect({
+  value,
+  onChange,
+}: {
+  value: LeavePresetKey;
+  onChange: (k: LeavePresetKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggleOpen() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.left, width: r.width });
+    }
+    setOpen((o) => !o);
+  }
+
+  const current = LEAVE_PRESETS.find((p) => p.key === value) ?? LEAVE_PRESETS[0]!;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggleOpen}
+        className={cn(
+          "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border bg-white text-[13px] text-gray-800 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#bfdbfe]",
+          open ? "border-[#bfdbfe]" : "border-gray-200 hover:border-[#bfdbfe]",
+        )}
+      >
+        <span className="flex items-center gap-2.5 min-w-0">
+          {current.key === "custom" ? (
+            <span className="inline-flex items-center justify-center w-8 h-6 rounded-md border border-dashed border-gray-300 text-gray-400 shrink-0">
+              <Plus size={13} />
+            </span>
+          ) : (
+            <span className="inline-flex items-center justify-center w-8 h-6 rounded-md bg-[lab(36.9089%_35.0961_-85.6872)] text-white font-bold text-[10.5px] tracking-wide shrink-0">
+              {current.code}
+            </span>
+          )}
+          <span className="font-medium truncate">
+            {current.key === "custom" ? "Custom" : current.label}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          className={cn(
+            "text-gray-400 transition-transform shrink-0",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open &&
+        pos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[1200] rounded-xl border border-gray-200 bg-white shadow-[0_16px_44px_rgba(0,0,0,0.18)] p-1.5"
+            style={{ top: pos.top, left: pos.left, width: pos.width }}
+          >
+            {LEAVE_PRESETS.map((p) => {
+              const active = p.key === value;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => {
+                    onChange(p.key);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-left transition-colors",
+                    active ? "bg-blue-50" : "hover:bg-gray-50",
+                  )}
+                >
+                  {p.key === "custom" ? (
+                    <span className="inline-flex items-center justify-center w-8 h-6 rounded-md border border-dashed border-gray-300 text-gray-400 shrink-0">
+                      <Plus size={13} />
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center w-8 h-6 rounded-md font-bold text-[10.5px] tracking-wide shrink-0",
+                        active
+                          ? "bg-[lab(36.9089%_35.0961_-85.6872)] text-white"
+                          : "bg-gray-100 text-gray-600",
+                      )}
+                    >
+                      {p.code}
+                    </span>
+                  )}
+                  <span
+                    className={cn(
+                      "flex-1 text-[13px]",
+                      active
+                        ? "font-semibold text-[lab(36.9089%_35.0961_-85.6872)]"
+                        : "text-gray-700",
+                    )}
+                  >
+                    {p.key === "custom" ? "Custom" : p.label}
+                  </span>
+                  {active && (
+                    <Check
+                      size={15}
+                      className="text-[lab(36.9089%_35.0961_-85.6872)]"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 // ─── tiny primitives ─────────────────────────────────────────────────────────

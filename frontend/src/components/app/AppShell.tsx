@@ -3,6 +3,7 @@
 import {
   Briefcase,
   Calendar as CalendarIcon,
+  CalendarDays,
   CheckSquare,
   ClipboardCheck,
   ChevronDown,
@@ -11,7 +12,6 @@ import {
   LogOut,
   MapPin,
   Network,
-  Receipt,
   Settings,
   Shield,
   ShieldPlus,
@@ -134,14 +134,20 @@ const SETTINGS_SECTION: NavSection = {
       href: "/locations",
       requiredPermission: "admin.roles",
     },
-    // Holiday Policy and Weekly Off now live as tabs inside Leave Policy.
+    // Weekly Off lives as a tab inside Leave Policy; Holiday Policy is here.
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
     {
-      icon: Receipt,
-      label: "Leave Credits",
-      href: "/leave-credits",
-      requiredPermission: "admin.roles",
+      icon: CalendarDays,
+      label: "Holiday Policy",
+      href: "/holiday-calendars",
     },
+    // Leave Credits hidden for now — kept for later re-enable.
+    // {
+    //   icon: Receipt,
+    //   label: "Leave Credits",
+    //   href: "/leave-credits",
+    //   requiredPermission: "admin.roles",
+    // },
     {
       icon: LogOut,
       label: "Offboarding",
@@ -276,6 +282,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/user-roles": "User Roles",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
+  "/holiday-calendars": "Holiday Policy",
   "/employees": "Employees",
   "/employees/bulk-upload": "Bulk Upload",
 };

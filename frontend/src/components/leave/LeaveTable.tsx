@@ -304,7 +304,7 @@ export default function LeaveTable({
                           title={busyId === req.id ? "Cancelling…" : "Cancel leave"}
                           type="button"
                         >
-                          <XCircle className={employeeIconMd} />
+                          <XCircle className="w-5 h-5" />
                         </button>
                       </div>
                     )}

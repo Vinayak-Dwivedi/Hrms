@@ -1750,6 +1750,10 @@ export const leavePlans = pgTable("leave_plans", {
   createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
     onDelete: "set null",
   }),
+  // Set when this plan is managed by the scope-first Leave Policy grid. Encodes
+  // the composite org-leaf it owns, e.g. "B2:D3:S5" / "B2:D3". NULL = a
+  // hand-authored named plan (not surfaced as a grid cell). Partial-unique.
+  gridScopeKey: varchar("grid_scope_key", { length: 40 }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

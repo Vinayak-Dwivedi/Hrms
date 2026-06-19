@@ -166,23 +166,39 @@ adminLeaveTypesRouter.patch("/:id", async (req, res, next) => {
   }
 });
 
-// Soft delete — flips is_active=false rather than DELETE, because there are
-// foreign-key references from leave_balances and leave_requests.
+// Hard delete — removes the row from the DB. Dependent leave_policies,
+// leave_plan_allocations, leave_balances and leave_credit_transactions cascade
+// away, but leave_requests reference it with ON DELETE RESTRICT, so a type that
+// has ever been requested can't be removed — deactivate it instead.
 adminLeaveTypesRouter.delete("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {
       throw new ApiError(400, "BAD_ID", "Numeric id required.");
     }
-    const [row] = await db
-      .update(leaveTypes)
-      .set({ isActive: false })
-      .where(eq(leaveTypes.id, id))
-      .returning();
+    let row;
+    try {
+      [row] = await db
+        .delete(leaveTypes)
+        .where(eq(leaveTypes.id, id))
+        .returning();
+    } catch (e) {
+      const err = e as { code?: string; message?: string; cause?: { code?: string; message?: string } };
+      const code = err?.code ?? err?.cause?.code;
+      const msg = `${err?.message ?? ""} ${err?.cause?.message ?? ""}`;
+      if (code === "23503" || /foreign key|leave_requests/i.test(msg)) {
+        throw new ApiError(
+          409,
+          "IN_USE",
+          "This leave type is used by existing leave requests and can't be deleted. Deactivate it instead.",
+        );
+      }
+      throw e;
+    }
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave type not found.");
     }
-    res.json({ data: shape(row) });
+    res.json({ data: shape(row), deleted: true });
   } catch (e) {
     next(e);
   }

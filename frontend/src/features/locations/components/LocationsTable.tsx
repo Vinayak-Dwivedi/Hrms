@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { LocationListItem } from "../api/locations.client";
 import {
@@ -15,6 +15,7 @@ interface Props {
   locations: LocationListItem[];
   onView: (id: number) => void;
   onEdit: (id: number) => void;
+  onDelete: (location: LocationListItem) => void;
 }
 
 const PAGE_SIZE = 10;
@@ -23,6 +24,7 @@ export default function LocationsTable({
   locations,
   onView,
   onEdit,
+  onDelete,
 }: Props) {
   const [page, setPage] = useState(1);
 
@@ -95,6 +97,15 @@ export default function LocationsTable({
                         type="button"
                       >
                         <Pencil className={employeeIconPen} />
+                      </button>
+                      <button
+                        aria-label={`Delete ${location.name}`}
+                        className="text-rose-500 hover:text-rose-700"
+                        onClick={() => onDelete(location)}
+                        title="Delete"
+                        type="button"
+                      >
+                        <Trash2 className={employeeIconPen} />
                       </button>
                     </div>
                   </td>

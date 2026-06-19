@@ -9,15 +9,19 @@
 // Plan metadata + allocations + scope all save in one transaction.
 
 import { Router } from "express";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import {
+  branches,
   leaveBalances,
   leavePlanAllocations,
   leavePlans,
   leavePlanScope,
   leaveTypes,
+  orgHierarchyDepartmentBranches,
+  orgHierarchyDepartments,
+  orgHierarchySubDepartments,
   weeklyOffConfigs,
 } from "@/db/schema/hrms";
 import { ApiError } from "@/middleware/error";
@@ -293,6 +297,295 @@ adminLeavePlansRouter.get("/", async (req, res, next) => {
       })),
     });
   } catch (e) {
+    next(e);
+  }
+});
+
+// ───── Leave Policy grid (scope-first allocation matrix) ───────────────────
+//
+// The grid presents the Location → Department → Sub-department tree and lets
+// the admin set per-leave-type annual allocations + a weekly-off pattern inline
+// for each org leaf. Each leaf maps to a single leave_plan tagged with a
+// `grid_scope_key` ("B2:D3:S5" / "B2:D3") whose composite scope (Branch ∧
+// Department ∧ SubDepartment) matches exactly the employees in that unit.
+// Filling a cell upserts the plan (Active) and reflows leave_balances.
+
+function buildScopeKey(
+  branchId: number,
+  departmentId: number,
+  subDepartmentId: number | null,
+): string {
+  return subDepartmentId != null
+    ? `B${branchId}:D${departmentId}:S${subDepartmentId}`
+    : `B${branchId}:D${departmentId}`;
+}
+
+adminLeavePlansRouter.get("/grid", async (_req, res, next) => {
+  try {
+    const [types, weeklyOffs, branchRows, deptRows, subRows, deptBranchRows] =
+      await Promise.all([
+        db
+          .select({ id: leaveTypes.id, code: leaveTypes.code, name: leaveTypes.name })
+          .from(leaveTypes)
+          .where(eq(leaveTypes.isActive, true))
+          .orderBy(asc(leaveTypes.name)),
+        db
+          .select({ id: weeklyOffConfigs.id, name: weeklyOffConfigs.name })
+          .from(weeklyOffConfigs)
+          .orderBy(asc(weeklyOffConfigs.name)),
+        db
+          .select({ id: branches.id, name: branches.name })
+          .from(branches)
+          .orderBy(asc(branches.name)),
+        db
+          .select({
+            id: orgHierarchyDepartments.id,
+            name: orgHierarchyDepartments.name,
+            status: orgHierarchyDepartments.status,
+          })
+          .from(orgHierarchyDepartments),
+        db
+          .select({
+            id: orgHierarchySubDepartments.id,
+            name: orgHierarchySubDepartments.name,
+            departmentId: orgHierarchySubDepartments.departmentId,
+            status: orgHierarchySubDepartments.status,
+          })
+          .from(orgHierarchySubDepartments),
+        db.select().from(orgHierarchyDepartmentBranches),
+      ]);
+
+    const deptById = new Map(deptRows.map((d) => [d.id, d]));
+    const subsByDept = new Map<number, { id: number; name: string }[]>();
+    for (const s of subRows) {
+      if (s.status !== "Active") continue;
+      const list = subsByDept.get(s.departmentId) ?? [];
+      list.push({ id: s.id, name: s.name });
+      subsByDept.set(s.departmentId, list);
+    }
+    const deptIdsByBranch = new Map<number, number[]>();
+    for (const link of deptBranchRows) {
+      const list = deptIdsByBranch.get(link.branchId) ?? [];
+      list.push(link.departmentId);
+      deptIdsByBranch.set(link.branchId, list);
+    }
+
+    // Departments are independent of branches in this schema; the
+    // department↔branch bridge maps a department to specific locations. A
+    // department with NO bridge rows means "All Locations" (the org-hierarchy
+    // convention) and is allocatable at every branch. So each branch shows its
+    // explicitly-bridged departments PLUS every all-locations department.
+    const allActiveDeptIds = deptRows
+      .filter((d) => d.status === "Active")
+      .map((d) => d.id);
+    const deptIdsWithAnyBridge = new Set(
+      deptBranchRows.map((r) => r.departmentId),
+    );
+    const allLocationsDeptIds = allActiveDeptIds.filter(
+      (id) => !deptIdsWithAnyBridge.has(id),
+    );
+
+    const tree = branchRows
+      .map((b) => {
+        const deptIds = [
+          ...new Set([
+            ...(deptIdsByBranch.get(b.id) ?? []),
+            ...allLocationsDeptIds,
+          ]),
+        ];
+        const departments = deptIds
+          .map((id) => deptById.get(id))
+          .filter((d): d is NonNullable<typeof d> => !!d && d.status === "Active")
+          .sort((a, c) => a.name.localeCompare(c.name))
+          .map((d) => ({
+            departmentId: d.id,
+            departmentName: d.name,
+            subDepartments: (subsByDept.get(d.id) ?? []).sort((a, c) =>
+              a.name.localeCompare(c.name),
+            ),
+          }));
+        return { branchId: b.id, branchName: b.name, departments };
+      })
+      .filter((b) => b.departments.length > 0);
+
+    // Existing grid-managed plans → cells keyed by scope key.
+    const gridPlans = await db
+      .select({
+        id: leavePlans.id,
+        key: leavePlans.gridScopeKey,
+        status: leavePlans.status,
+        weeklyOffConfigId: leavePlans.weeklyOffConfigId,
+      })
+      .from(leavePlans)
+      .where(isNotNull(leavePlans.gridScopeKey));
+
+    const planIds = gridPlans.map((p) => p.id);
+    const allocRows = planIds.length
+      ? await db
+          .select({
+            planId: leavePlanAllocations.planId,
+            leaveTypeId: leavePlanAllocations.leaveTypeId,
+            annualQuota: leavePlanAllocations.annualQuota,
+          })
+          .from(leavePlanAllocations)
+          .where(inArray(leavePlanAllocations.planId, planIds))
+      : [];
+    const allocByPlan = new Map<number, Record<number, number>>();
+    for (const a of allocRows) {
+      const m = allocByPlan.get(a.planId) ?? {};
+      m[a.leaveTypeId] = Number(a.annualQuota);
+      allocByPlan.set(a.planId, m);
+    }
+
+    const cells: Record<
+      string,
+      {
+        planId: number;
+        weeklyOffConfigId: number | null;
+        status: string;
+        allocations: Record<number, number>;
+      }
+    > = {};
+    for (const p of gridPlans) {
+      if (!p.key) continue;
+      cells[p.key] = {
+        planId: p.id,
+        weeklyOffConfigId: p.weeklyOffConfigId,
+        status: p.status,
+        allocations: allocByPlan.get(p.id) ?? {},
+      };
+    }
+
+    res.json({ data: { leaveTypes: types, weeklyOffs, tree, cells } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const gridUpsertSchema = z.object({
+  branchId: z.number().int().positive(),
+  departmentId: z.number().int().positive(),
+  subDepartmentId: z.number().int().positive().nullable().optional(),
+  weeklyOffConfigId: z.number().int().positive().nullable().optional(),
+  allocations: z.array(allocationSchema).default([]),
+});
+
+adminLeavePlansRouter.put("/grid", async (req, res, next) => {
+  try {
+    const body = gridUpsertSchema.parse(req.body);
+    const subId = body.subDepartmentId ?? null;
+    const key = buildScopeKey(body.branchId, body.departmentId, subId);
+    const woId = body.weeklyOffConfigId ?? null;
+    const filled =
+      body.allocations.some((a) => a.annualQuota > 0) || woId != null;
+
+    const [existing] = await db
+      .select({ id: leavePlans.id })
+      .from(leavePlans)
+      .where(eq(leavePlans.gridScopeKey, key))
+      .limit(1);
+
+    // A brand-new, empty cell: nothing to persist.
+    if (!existing && !filled) {
+      res.json({
+        data: { scopeKey: key, planId: null, filled: false },
+        meta: { balancesSeeded: 0 },
+      });
+      return;
+    }
+
+    // Human-readable name (the grid keys by scope, so the name is for the DB
+    // only — suffixed with the key to satisfy the unique-name constraint).
+    const [br] = await db
+      .select({ name: branches.name })
+      .from(branches)
+      .where(eq(branches.id, body.branchId))
+      .limit(1);
+    const [dp] = await db
+      .select({ name: orgHierarchyDepartments.name })
+      .from(orgHierarchyDepartments)
+      .where(eq(orgHierarchyDepartments.id, body.departmentId))
+      .limit(1);
+    let subName: string | null = null;
+    if (subId != null) {
+      const [sb] = await db
+        .select({ name: orgHierarchySubDepartments.name })
+        .from(orgHierarchySubDepartments)
+        .where(eq(orgHierarchySubDepartments.id, subId))
+        .limit(1);
+      subName = sb?.name ?? null;
+    }
+    const label = [br?.name, dp?.name, subName].filter(Boolean).join(" · ");
+    const planName = `${label} (${key})`;
+
+    const scopeRows = [
+      { scopeType: "Branch" as const, scopeId: body.branchId, priority: 10 },
+      { scopeType: "Department" as const, scopeId: body.departmentId, priority: 10 },
+      ...(subId != null
+        ? [{ scopeType: "SubDepartment" as const, scopeId: subId, priority: 10 }]
+        : []),
+    ];
+
+    const planId = await db.transaction(async (tx) => {
+      let id: number;
+      if (existing) {
+        id = existing.id;
+        await tx
+          .update(leavePlans)
+          .set({ name: planName, status: "Active", weeklyOffConfigId: woId })
+          .where(eq(leavePlans.id, id));
+        await tx
+          .delete(leavePlanAllocations)
+          .where(eq(leavePlanAllocations.planId, id));
+        await tx.delete(leavePlanScope).where(eq(leavePlanScope.planId, id));
+      } else {
+        const [created] = await tx
+          .insert(leavePlans)
+          .values({
+            name: planName,
+            status: "Active",
+            isDefault: false,
+            weeklyOffConfigId: woId,
+            compOffEnabled: false,
+            accrualMethod: "Annual",
+            gridScopeKey: key,
+          })
+          .returning({ id: leavePlans.id });
+        id = created!.id;
+      }
+      // Store every allocation the grid sent (including zeros) so reducing a
+      // quota reflows balances downward, mirroring the plan editor.
+      if (body.allocations.length > 0) {
+        await tx.insert(leavePlanAllocations).values(
+          body.allocations.map((a) => ({
+            planId: id,
+            leaveTypeId: a.leaveTypeId,
+            annualQuota: String(a.annualQuota),
+          })),
+        );
+      }
+      await tx.insert(leavePlanScope).values(
+        scopeRows.map((s) => ({
+          planId: id,
+          scopeType: s.scopeType,
+          scopeId: s.scopeId,
+          priority: s.priority,
+        })),
+      );
+      return id;
+    });
+
+    const seeded = await seedBalancesForPlan(planId);
+    res.json({
+      data: { scopeKey: key, planId, filled },
+      meta: { balancesSeeded: seeded },
+    });
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    if (/leave_plans_name_unique|leave_plans_name_key/i.test(msg)) {
+      next(new ApiError(409, "DUPLICATE", "A plan with this name already exists."));
+      return;
+    }
     next(e);
   }
 });

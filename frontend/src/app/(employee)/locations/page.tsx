@@ -7,6 +7,7 @@ import EditLocationModal from "@/features/locations/components/EditLocationModal
 import LocationsTable from "@/features/locations/components/LocationsTable";
 import ViewLocationModal from "@/features/locations/components/ViewLocationModal";
 import {
+  deleteLocation,
   fetchLocationsList,
   type LocationListItem,
 } from "@/features/locations/api/locations.client";
@@ -107,6 +108,22 @@ export default function LocationsPage() {
     setEditId(id);
   }
 
+  async function handleDelete(location: LocationListItem) {
+    if (
+      !confirm(
+        `Permanently delete "${location.name}"? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteLocation(location.id);
+      await loadLocations();
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
@@ -178,6 +195,7 @@ export default function LocationsPage() {
         <LocationsTable
           key={`${search}-${addressFilter}`}
           locations={filteredLocations}
+          onDelete={handleDelete}
           onEdit={openEdit}
           onView={openView}
         />

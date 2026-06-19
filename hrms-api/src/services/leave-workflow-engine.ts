@@ -29,6 +29,7 @@ import {
   notifyEmployeeOnApproval,
   notifyEmployeeOnRejection,
 } from "@/services/leave-notifications";
+import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
 
 interface Criterion {
   field: string;
@@ -151,15 +152,28 @@ export async function runWorkflowOnNewRequest(args: {
   }
 
   if (winner.outcome === "AutoApprove") {
-    await db
-      .update(leaveRequests)
-      .set({
-        status: "Approved",
-        managerDecision: "Approved",
-        managerDecidedAt: new Date(),
-        managerRemarks: `Auto-approved by workflow "${winner.name}".`,
-      })
-      .where(eq(leaveRequests.id, args.requestId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(leaveRequests)
+        .set({
+          status: "Approved",
+          managerDecision: "Approved",
+          managerDecidedAt: new Date(),
+          managerRemarks: `Auto-approved by workflow "${winner.name}".`,
+        })
+        .where(eq(leaveRequests.id, args.requestId));
+      // Auto-approved on submission — deduct from the employee's balance.
+      await syncLeaveUsageOnTransition(
+        tx,
+        {
+          employeeId: args.employeeId,
+          leaveTypeId: args.leaveTypeId,
+          days: args.days,
+        },
+        "Pending",
+        "Approved",
+      );
+    });
     writeAuditLogAsync({
       actorUserId: args.actorUserId,
       actorEmployeeId: args.employeeId,

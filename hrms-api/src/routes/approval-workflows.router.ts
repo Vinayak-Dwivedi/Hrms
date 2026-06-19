@@ -22,6 +22,7 @@ import {
 } from "@/db/schema/hrms";
 import { loadCurrentEmployee } from "@/lib/employee";
 import { ApiError } from "@/middleware/error";
+import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
 
 const STAGES = ["Manager", "DeptHead", "HR"] as const;
 type Stage = (typeof STAGES)[number];
@@ -345,10 +346,14 @@ workflowApprovalsRouter.post("/:id/approve", async (req, res, next) => {
     const isFinal = row.currentStage >= stages.length - 1;
 
     if (isFinal) {
-      await db
-        .update(leaveRequests)
-        .set({ status: "Approved" })
-        .where(eq(leaveRequests.id, id));
+      await db.transaction(async (tx) => {
+        await tx
+          .update(leaveRequests)
+          .set({ status: "Approved" })
+          .where(eq(leaveRequests.id, id));
+        // Final stage cleared — deduct from the employee's balance.
+        await syncLeaveUsageOnTransition(tx, row, row.status, "Approved");
+      });
       res.json({ data: { id, status: "Approved", final: true } });
     } else {
       const nextStage = row.currentStage + 1;

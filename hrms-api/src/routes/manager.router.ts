@@ -34,6 +34,7 @@ import {
   requiresHRApprovalForEmployee,
 } from "@/services/leave-routing";
 import { fetchEmployeeLeaveBalances } from "@/services/leave-request-validation";
+import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
 
 export const managerRouter: Router = Router();
 
@@ -440,16 +441,33 @@ managerRouter.post("/leave-approvals/:id/approve", async (req, res, next) => {
       : false;
 
     const nextStatus = hrRequired ? "Forwarded" : "Approved";
-    const [row] = await db
-      .update(leaveRequests)
-      .set({
-        managerId: mgr.id,
-        managerDecision: "Approved",
-        managerDecidedAt: new Date(),
-        status: nextStatus,
-      })
-      .where(eq(leaveRequests.id, idNum))
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [prev] = await tx
+        .select({ status: leaveRequests.status })
+        .from(leaveRequests)
+        .where(eq(leaveRequests.id, idNum))
+        .limit(1);
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({
+          managerId: mgr.id,
+          managerDecision: "Approved",
+          managerDecidedAt: new Date(),
+          status: nextStatus,
+        })
+        .where(eq(leaveRequests.id, idNum))
+        .returning();
+      if (updated) {
+        // Deduct from the employee's balance when this becomes Approved.
+        await syncLeaveUsageOnTransition(
+          tx,
+          updated,
+          prev?.status,
+          updated.status,
+        );
+      }
+      return updated;
+    });
 
     writeAuditLogAsync({
       actorUserId: req.user!.id,
@@ -489,17 +507,34 @@ managerRouter.post("/leave-approvals/:id/reject", async (req, res, next) => {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
     }
     const ctx = await loadLeaveRequestParticipants(idNum);
-    const [row] = await db
-      .update(leaveRequests)
-      .set({
-        managerId: mgr.id,
-        managerDecision: "Rejected",
-        managerDecidedAt: new Date(),
-        managerRemarks: body.remarks ?? null,
-        status: "Rejected",
-      })
-      .where(eq(leaveRequests.id, idNum))
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [prev] = await tx
+        .select({ status: leaveRequests.status })
+        .from(leaveRequests)
+        .where(eq(leaveRequests.id, idNum))
+        .limit(1);
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({
+          managerId: mgr.id,
+          managerDecision: "Rejected",
+          managerDecidedAt: new Date(),
+          managerRemarks: body.remarks ?? null,
+          status: "Rejected",
+        })
+        .where(eq(leaveRequests.id, idNum))
+        .returning();
+      if (updated) {
+        // Restore balance if this leave had already been deducted (Approved).
+        await syncLeaveUsageOnTransition(
+          tx,
+          updated,
+          prev?.status,
+          updated.status,
+        );
+      }
+      return updated;
+    });
 
     writeAuditLogAsync({
       actorUserId: req.user!.id,

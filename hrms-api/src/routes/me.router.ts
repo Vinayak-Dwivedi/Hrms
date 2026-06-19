@@ -55,6 +55,7 @@ import { holidaysForEmployee } from "@/services/holiday-calendar-resolver";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { loadLeaveRequestParticipants } from "@/services/leave-routing";
 import { notifyManagerOnSubmission } from "@/services/leave-notifications";
+import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
 import {
   listMyNotifications,
   markAllNotificationsRead,
@@ -937,11 +938,38 @@ meRouter.post("/leave-requests/:id/cancel", async (req, res, next) => {
     if (!Number.isFinite(idNum)) {
       throw new ApiError(400, "BAD_ID", "Numeric id required.");
     }
-    const [row] = await db
-      .update(leaveRequests)
-      .set({ status: "Cancelled" })
-      .where(and(eq(leaveRequests.id, idNum), eq(leaveRequests.employeeId, emp.id)))
-      .returning();
+    const row = await db.transaction(async (tx) => {
+      const [prev] = await tx
+        .select({ status: leaveRequests.status })
+        .from(leaveRequests)
+        .where(
+          and(
+            eq(leaveRequests.id, idNum),
+            eq(leaveRequests.employeeId, emp.id),
+          ),
+        )
+        .limit(1);
+      const [updated] = await tx
+        .update(leaveRequests)
+        .set({ status: "Cancelled" })
+        .where(
+          and(
+            eq(leaveRequests.id, idNum),
+            eq(leaveRequests.employeeId, emp.id),
+          ),
+        )
+        .returning();
+      if (updated) {
+        // Restore balance if cancelling an already-approved (deducted) leave.
+        await syncLeaveUsageOnTransition(
+          tx,
+          updated,
+          prev?.status,
+          updated.status,
+        );
+      }
+      return updated;
+    });
     if (!row) {
       throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
     }

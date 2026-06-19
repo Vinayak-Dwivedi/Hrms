@@ -89,12 +89,20 @@ export async function updateLeaveType(
   return data.data;
 }
 
-export async function deactivateLeaveType(id: number): Promise<LeaveType> {
+/** Permanently delete a leave type from the DB. Throws (409 IN_USE) if it's
+ *  referenced by existing leave requests — deactivate it instead. */
+export async function deleteLeaveType(id: number): Promise<void> {
   const res = await fetch(buildUrl(`/${id}`), {
     method: "DELETE",
     credentials: "include",
   });
   if (!res.ok) throw await parseErr(res);
-  const data = (await res.json()) as { data: LeaveType };
-  return data.data;
+}
+
+/** Toggle a leave type's active status without deleting it. */
+export async function setLeaveTypeActive(
+  id: number,
+  isActive: boolean,
+): Promise<LeaveType> {
+  return updateLeaveType(id, { isActive });
 }

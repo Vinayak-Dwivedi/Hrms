@@ -129,3 +129,9 @@ export async function updateLocation(
   });
   return toListItem(res.data);
 }
+
+/** Permanently delete a location. Throws (409 IN_USE) if it still has linked
+ *  records (departments, sub-departments or employees). */
+export async function deleteLocation(id: number): Promise<void> {
+  await jsonFetch<{ deleted: true }>(`/branches/${id}`, { method: "DELETE" });
+}
