@@ -21,6 +21,7 @@ import {
   workflowApprovalsRouter,
 } from "@/routes/approval-workflows.router";
 import { attendanceRouter } from "@/routes/attendance.router";
+import { iclockRouter } from "@/routes/iclock.router";
 import { adminLeaveTypesRouter } from "@/routes/admin-leave-types.router";
 import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
 import { adminLeavePlansRouter } from "@/routes/admin-leave-plans.router";
@@ -86,6 +87,9 @@ export function createApp() {
   app.use(auditContext);
 
   app.use("/api/health", healthRouter);
+
+  // ESSL biometric device push — no auth, device cannot authenticate.
+  app.use("/iclock", iclockRouter);
 
   app.use("/api/auth", buildAuthRateLimiter(), authRouter);
   app.use("/api/onboarding", buildAuthRateLimiter(), onboardingRouter);
