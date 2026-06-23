@@ -45,6 +45,10 @@ export const employeeCardClass = enterpriseCardClass;
 
 export const employeeFilterLabelClass = `${enterpriseFilterLabelClass} mb-1.5`;
 
+/** Profile page field labels — title case (no uppercase transform). */
+export const employeeProfileLabelClass =
+  "block text-[11px] font-semibold text-slate-500 tracking-wide mb-1.5";
+
 /** List-page filter controls (employees, departments, roles, permissions). */
 export const employeeListFilterLabelClass = employeeFilterLabelClass;
 

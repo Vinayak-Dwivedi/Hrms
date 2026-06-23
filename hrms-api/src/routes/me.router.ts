@@ -41,6 +41,7 @@ import {
   PROFILE_PIC_SUBDIR,
   profilePhotoUpload,
 } from "@/middleware/profile-photo.middleware";
+import { documentUpload } from "@/middleware/upload.middleware";
 import { meOnboardingRouter } from "@/routes/me-onboarding.router";
 import { resolveWorkflowStages } from "@/routes/approval-workflows.router";
 import { resolvePolicyForEmployee } from "@/services/leave-policy-resolver";
@@ -61,6 +62,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/services/notifications";
+import { saveLeaveRequestDocument } from "@/lib/leave-document-storage";
+import {
+  mapLeaveDocumentUrls,
+  mimeTypeForLeaveDocument,
+} from "@/lib/leave-document-urls";
+import { openPrivateFileStream } from "@/infrastructure/storage/private-file-storage";
 
 function resolveProfilePhotoDiskPath(
   profilePhotoUrl: string | null | undefined,
@@ -737,12 +744,18 @@ meRouter.get("/leave-requests", async (req, res, next) => {
         createdAt: leaveRequests.createdAt,
         leaveTypeName: leaveTypes.name,
         leaveTypeCode: leaveTypes.code,
+        documentUrls: leaveRequests.documentUrls,
       })
       .from(leaveRequests)
       .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
       .where(eq(leaveRequests.employeeId, emp.id))
       .orderBy(desc(leaveRequests.appliedOn));
-    res.json({ requests: rows });
+    res.json({
+      requests: rows.map(({ documentUrls, ...row }) => ({
+        ...row,
+        documents: mapLeaveDocumentUrls(row.id, documentUrls),
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -814,7 +827,47 @@ const createLeaveSchema = z.object({
   message: "leaveTypeCode or leaveTypeId required",
 });
 
-meRouter.post("/leave-requests", async (req, res, next) => {
+meRouter.get("/leave-requests/:id/documents/:index", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const idNum = Number(req.params.id);
+    const index = Number(req.params.index);
+    if (!Number.isFinite(idNum) || !Number.isFinite(index) || index < 0) {
+      throw new ApiError(400, "BAD_ID", "Invalid document reference.");
+    }
+    const [row] = await db
+      .select({
+        documentUrls: leaveRequests.documentUrls,
+        employeeId: leaveRequests.employeeId,
+      })
+      .from(leaveRequests)
+      .where(
+        and(
+          eq(leaveRequests.id, idNum),
+          eq(leaveRequests.employeeId, emp.id),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
+    }
+    const storagePath = row.documentUrls?.[index];
+    if (!storagePath) {
+      throw new ApiError(404, "NOT_FOUND", "Document not found.");
+    }
+    const filename = path.basename(storagePath);
+    res.setHeader("Content-Type", mimeTypeForLeaveDocument(storagePath));
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${filename.replace(/"/g, "")}"`,
+    );
+    openPrivateFileStream(storagePath).pipe(res);
+  } catch (e) {
+    next(e);
+  }
+});
+
+meRouter.post("/leave-requests", documentUpload.single("document"), async (req, res, next) => {
   try {
     const emp = await loadCurrentEmployee(req.user!.id);
     const body = createLeaveSchema.parse(req.body);
@@ -849,7 +902,15 @@ meRouter.post("/leave-requests", async (req, res, next) => {
       fromDate: body.fromDate,
       toDate: body.durationType === "Full Day" ? body.toDate : body.fromDate,
       days: validated.days,
+      hasAttachment: Boolean(req.file),
     });
+
+    const attachmentError = application.errors.find(
+      (issue) => issue.code === "ATTACHMENT_MISSING",
+    );
+    if (attachmentError) {
+      throw new ApiError(400, attachmentError.code, attachmentError.message);
+    }
 
     // Snapshot the approval workflow stages onto the request at creation time
     // (the workflow engine below advances `currentStage` through them).
@@ -871,6 +932,18 @@ meRouter.post("/leave-requests", async (req, res, next) => {
         currentStage: 0,
       })
       .returning();
+
+    if (req.file) {
+      const storagePath = await saveLeaveRequestDocument({
+        employeeId: emp.id,
+        requestId: row!.id,
+        file: req.file,
+      });
+      await db
+        .update(leaveRequests)
+        .set({ documentUrls: [storagePath] })
+        .where(eq(leaveRequests.id, row!.id));
+    }
 
     // Run the policy's approval workflow. AutoApprove / AutoReject flip the
     // status inline; Route leaves it Pending for the manager to handle.

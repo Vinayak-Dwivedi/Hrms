@@ -457,6 +457,7 @@ interface RawLeaveRequest {
   createdAt: string;
   leaveTypeName: string;
   leaveTypeCode: string;
+  documents?: Array<{ url: string; name: string; kind: "image" | "pdf" }>;
 }
 
 function mapLeaveStatus(s: string): LeaveStatus {
@@ -485,6 +486,11 @@ export async function fetchMyLeaveRequests(): Promise<UILeaveRequest[]> {
       reason: r.reason,
       status: mapLeaveStatus(r.status),
       approvedOn: decidedAt,
+      documents: (r.documents ?? []).map((doc) => ({
+        url: resolveApiAssetUrl(doc.url) ?? doc.url,
+        name: doc.name,
+        kind: doc.kind,
+      })),
     };
   });
 }
@@ -500,9 +506,42 @@ export interface SubmitLeaveInput {
   days: number;
   durationType: "Full Day" | "First Half" | "Second Half";
   reason: string;
+  document?: File;
 }
 
 export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void> {
+  if (input.document) {
+    const form = new FormData();
+    form.append("leaveTypeCode", input.leaveTypeCode);
+    form.append("fromDate", input.fromDate);
+    form.append("toDate", input.toDate);
+    form.append("days", String(input.days));
+    form.append("durationType", input.durationType);
+    form.append("reason", input.reason);
+    form.append("document", input.document);
+
+    const res = await fetch(buildUrl("/me/leave-requests"), {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      if (res.status === 401 && typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      let message = text || `Request failed (${res.status})`;
+      try {
+        const body = JSON.parse(text) as { message?: string };
+        if (body.message) message = body.message;
+      } catch {
+        // keep raw text
+      }
+      throw new Error(message);
+    }
+    return;
+  }
+
   await jsonFetch("/me/leave-requests", {
     method: "POST",
     body: JSON.stringify({

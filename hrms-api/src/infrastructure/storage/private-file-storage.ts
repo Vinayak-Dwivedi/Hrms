@@ -45,6 +45,8 @@ export async function validateAndSavePrivateFile(params: {
   originalName: string;
   buffer: Buffer;
   declaredMime: string;
+  /** When set, file is stored under this posix path prefix (e.g. private/leave-requests/42). */
+  storageSubdir?: string;
 }): Promise<SavedPrivateFile> {
   if (params.buffer.length > env.UPLOAD_MAX_BYTES) {
     throw new ApiError(
@@ -85,9 +87,8 @@ export async function validateAndSavePrivateFile(params: {
 
   const storedFilename = `${randomUUID()}${ext}`;
   const storagePath = path.posix.join(
-    "private",
-    "employees",
-    String(params.employeeId),
+    params.storageSubdir ??
+      path.posix.join("private", "employees", String(params.employeeId)),
     storedFilename,
   );
   const absolutePath = resolvePrivateFileAbsolutePath(storagePath);
