@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, PlusCircle, Trash2 } from "lucide-react";
+import { Pencil, PlusCircle, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import BranchMultiSelect from "@/components/branch-multi-select/BranchMultiSelect";
@@ -51,9 +51,7 @@ import {
   type SubDepartmentFormValues,
 } from "@/features/org-hierarchy/schemas/org-hierarchy.schema";
 import {
-  filterDepartmentsByLocation,
   filterDepartmentsByLocations,
-  orgRecordMatchesLocation,
 } from "@/features/org-hierarchy/lib/org-hierarchy-location";
 import {
   employeeBtnClass,
@@ -113,44 +111,53 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   const [subForm, setSubForm] = useState<SubDepartmentFormValues>(emptySubDepartmentForm);
   const [levelForm, setLevelForm] = useState<LevelFormValues>(emptyLevelForm);
   const [desigForm, setDesigForm] = useState<DesignationFormValues>(emptyDesignationForm);
-  const [subDeptFilterLocationId, setSubDeptFilterLocationId] = useState("");
-  const [subDeptFilterDepartmentId, setSubDeptFilterDepartmentId] = useState("");
-
-  const parsedSubDeptFilterLocationId = useMemo(() => {
-    if (!subDeptFilterLocationId.trim()) return null;
-    const id = Number(subDeptFilterLocationId);
-    return Number.isFinite(id) && id > 0 ? id : null;
-  }, [subDeptFilterLocationId]);
+  const [search, setSearch] = useState("");
 
   const departmentsForSubDeptForm = useMemo(
     () => filterDepartmentsByLocations(departments, subForm.branchIds),
     [departments, subForm.branchIds],
   );
 
-  const filteredSubDepartments = useMemo(() => {
-    let rows = subDepartments;
-    if (parsedSubDeptFilterLocationId != null) {
-      rows = rows.filter((row) =>
-        orgRecordMatchesLocation(row.branchIds, parsedSubDeptFilterLocationId),
-      );
-    }
-    if (subDeptFilterDepartmentId) {
-      rows = rows.filter(
-        (row) => row.departmentId === Number(subDeptFilterDepartmentId),
-      );
-    }
-    return rows;
-  }, [
-    subDepartments,
-    parsedSubDeptFilterLocationId,
-    subDeptFilterDepartmentId,
-  ]);
+  const filteredLocations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return locations;
+    return locations.filter((l) =>
+      l.name.toLowerCase().includes(q) || (l.address ?? "").toLowerCase().includes(q),
+    );
+  }, [locations, search]);
 
-  const departmentsForSubDeptListFilter = useMemo(
-    () =>
-      filterDepartmentsByLocation(departments, parsedSubDeptFilterLocationId),
-    [departments, parsedSubDeptFilterLocationId],
-  );
+  const filteredDepartments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return departments;
+    return departments.filter((d) =>
+      d.name.toLowerCase().includes(q) || (d.code ?? "").toLowerCase().includes(q),
+    );
+  }, [departments, search]);
+
+  const filteredSubDepartments = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return subDepartments;
+    return subDepartments.filter((s) => {
+      const deptName = departments.find((d) => d.id === s.departmentId)?.name ?? "";
+      return s.name.toLowerCase().includes(q) || deptName.toLowerCase().includes(q);
+    });
+  }, [subDepartments, departments, search]);
+
+  const filteredLevels = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return levels;
+    return levels.filter((l) =>
+      l.code.toLowerCase().includes(q) || l.name.toLowerCase().includes(q),
+    );
+  }, [levels, search]);
+
+  const filteredDesignations = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return designations;
+    return designations.filter((d) =>
+      d.name.toLowerCase().includes(q) || (d.code ?? "").toLowerCase().includes(q),
+    );
+  }, [designations, search]);
 
   const reload = useCallback(async () => {
     try {
@@ -331,11 +338,23 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <MasterTabBar active={tab} onChange={setTab} />
-          <button className={employeeBtnSmClass} onClick={openAdd} type="button">
-            <PlusCircle className={employeeIconXs} />
-            {addLabel}
-          </button>
+          <MasterTabBar active={tab} onChange={(t) => { setTab(t); setSearch(""); }} />
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${tab.replace("-", " ")}…`}
+                className={`${employeeInputClass} pl-9 w-48`}
+              />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+            </div>
+            <button className={employeeBtnSmClass} onClick={openAdd} type="button">
+              <PlusCircle className={employeeIconXs} />
+              {addLabel}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -343,7 +362,7 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
         <MasterTable
           emptyMessage="No locations found."
           headers={["Name", "Address", "Headcount", "Action"]}
-          rows={locations.map((l) => ({
+          rows={filteredLocations.map((l) => ({
             id: l.id,
             cells: [l.name, l.address ?? "—", l.headcount === 0 ? "—" : l.headcount],
           }))}
@@ -371,7 +390,7 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
             "Status",
             "Action",
           ]}
-          rows={departments.map((d) => ({
+          rows={filteredDepartments.map((d) => ({
             id: d.id,
             cells: [
               d.name,
@@ -406,38 +425,6 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
 
       {tab === "sub-departments" && (
         <>
-          <div className={`${employeeCardClass} p-4 mb-4`}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SelectField
-                label="Location"
-                value={subDeptFilterLocationId}
-                options={branches.map((b) => ({
-                  value: String(b.id),
-                  label: b.name,
-                }))}
-                placeholder="Select location"
-                onChange={(v) => {
-                  setSubDeptFilterLocationId(v);
-                  setSubDeptFilterDepartmentId("");
-                }}
-              />
-              <SelectField
-                label="Department"
-                value={subDeptFilterDepartmentId}
-                options={departmentsForSubDeptListFilter.map((d) => ({
-                  value: String(d.id),
-                  label: d.name,
-                }))}
-                placeholder={
-                  subDeptFilterLocationId
-                    ? "Select department"
-                    : "Select location first"
-                }
-                disabled={!subDeptFilterLocationId}
-                onChange={setSubDeptFilterDepartmentId}
-              />
-            </div>
-          </div>
           <MasterTable
             emptyMessage="No sub-departments found."
             headers={[
@@ -486,7 +473,7 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
         <MasterTable
           emptyMessage="No designations found."
           headers={["Designation Name", "Designation Code", "Level / Grade", "Location", "Status", "Action"]}
-          rows={designations.map((d) => ({
+          rows={filteredDesignations.map((d) => ({
             id: d.id,
             cells: [
               d.name,
@@ -524,7 +511,7 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
         <MasterTable
           emptyMessage="No levels found."
           headers={["Levels / Grades", "Name", "Sort", "Action"]}
-          rows={levels.map((l) => ({
+          rows={filteredLevels.map((l) => ({
             id: l.id,
             cells: [l.code, l.name, l.sortOrder],
           }))}

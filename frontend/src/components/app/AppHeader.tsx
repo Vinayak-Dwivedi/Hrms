@@ -35,8 +35,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/leave-policy": "Leave Policy",
   "/holiday-calendars": "Holiday Policy",
   "/weekly-off": "Weekly Off",
-  "/hierarchy": "Hierarchy",
-  "/departments/hierarchy": "Department Hierarchy",
+  "/hierarchy": "Department Hierarchy",
+  "/departments/hierarchy": "Org Config",
 };
 
 function breadcrumbFor(pathname: string): string {
