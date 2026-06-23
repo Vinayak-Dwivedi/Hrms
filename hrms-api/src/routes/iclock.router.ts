@@ -11,7 +11,7 @@
  *   3. Device polls      → GET /iclock/getrequest (pending commands)
  */
 import express, { Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { attendanceRecords, biometricRawLogs, employees } from "@/db/schema/hrms";
 
@@ -188,7 +188,7 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
       const [employee] = await db
         .select({ id: employees.id })
         .from(employees)
-        .where(eq(employees.empId, rawUserId));
+        .where(or(eq(employees.empId, rawUserId), eq(employees.empId, `IASPL${rawUserId}`)));
 
       // Store raw log — UNIQUE on (device_sn, raw_user_id, punch_time) so
       // duplicate pushes from device retries are silently ignored.
