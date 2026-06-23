@@ -41,6 +41,7 @@
     "db:migrate-employee-sub-department": "node scripts/apply-employee-sub-department-schema.mjs",
     "db:migrate-weekly-off": "node scripts/apply-weekly-off-schema.mjs",
     "db:migrate-leave-credit": "node scripts/apply-leave-credit-schema.mjs",
+    "db:migrate-attendance-upload": "node scripts/apply-attendance-upload-schema.mjs",
     "seed:org-hierarchy": "node scripts/seed-org-hierarchy.mjs",
     "migrate:encrypt-sensitive": "node scripts/apply-sensitive-schema.mjs && node scripts/migrate-encrypt-sensitive-fields.mjs",
     "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/employee-auth.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts"
@@ -57,10 +58,10 @@
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "swagger-ui-express": "^5.0.1",
-    "nodemailer": "^8.0.10",
+    "nodemailer": "^9.0.1",
     "postgres": "^3.4.5",
     "rate-limit-redis": "^5.0.0",
+    "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },

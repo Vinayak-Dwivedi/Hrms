@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   ShieldPlus,
+  Upload,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -82,7 +83,7 @@ const USER_MGMT_SECTION: NavSection = {
     },
     {
       icon: GitBranch,
-      label: "Hierarchy",
+      label: "Org Config",
       href: "/departments/hierarchy",
       requiredPermission: "employees.view",
     },
@@ -114,7 +115,6 @@ const USER_MGMT_SECTION: NavSection = {
 };
 
 const SETTINGS_HREFS = [
-  "/locations",
   "/leave-policy",
   "/holiday-calendars",
   "/weekly-off",
@@ -128,12 +128,6 @@ const SETTINGS_SECTION: NavSection = {
   collapsible: true,
   collapsedIcon: Settings,
   entries: [
-    {
-      icon: MapPin,
-      label: "Location",
-      href: "/locations",
-      requiredPermission: "admin.roles",
-    },
     // Weekly Off lives as a tab inside Leave Policy; Holiday Policy is here.
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
     {
@@ -191,6 +185,12 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         label: "Attendance",
         href: "/attendance",
         requiredPermission: "attendance.view",
+      },
+      {
+        icon: Upload,
+        label: "Upload Attendance",
+        href: "/attendance/upload",
+        requiredPermission: "attendance.upload",
       },
       {
         icon: CalendarIcon,
@@ -285,6 +285,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/holiday-calendars": "Holiday Policy",
   "/employees": "Employees",
   "/employees/bulk-upload": "Bulk Upload",
+  "/attendance/upload": "Upload Attendance",
 };
 
 function breadcrumbFor(pathname: string): string {

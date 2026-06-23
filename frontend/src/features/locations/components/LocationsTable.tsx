@@ -1,19 +1,16 @@
-﻿"use client";
+"use client";
 
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { LocationListItem } from "../api/locations.client";
 import {
   employeeCardClass,
   employeeEditIconBtnClass,
-  employeeIconMd,
   employeeIconPen,
-  employeeViewIconBtnClass,
 } from "@/features/employees/employee-theme";
 
 interface Props {
   locations: LocationListItem[];
-  onView: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (location: LocationListItem) => void;
 }
@@ -22,7 +19,6 @@ const PAGE_SIZE = 10;
 
 export default function LocationsTable({
   locations,
-  onView,
   onEdit,
   onDelete,
 }: Props) {
@@ -42,7 +38,7 @@ export default function LocationsTable({
   return (
     <div className={`${employeeCardClass} overflow-hidden`}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[700px]">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-nowrap">
               {["Name", "Address", "Headcount", "Action"].map((h) => (
@@ -59,7 +55,7 @@ export default function LocationsTable({
             {pageRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={3}
                   className="px-6 py-10 text-center text-sm text-gray-400"
                 >
                   No locations found.
@@ -80,15 +76,6 @@ export default function LocationsTable({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
-                      <button
-                        aria-label={`View ${location.name}`}
-                        className={employeeViewIconBtnClass}
-                        onClick={() => onView(location.id)}
-                        title="View"
-                        type="button"
-                      >
-                        <Eye className={employeeIconMd} />
-                      </button>
                       <button
                         aria-label={`Edit ${location.name}`}
                         className={employeeEditIconBtnClass}

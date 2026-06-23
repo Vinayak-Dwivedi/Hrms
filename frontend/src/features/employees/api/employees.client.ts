@@ -516,14 +516,9 @@ export function fetchGrades(): Promise<LookupItem[]> {
   );
 }
 
-type RoleRow = { id: number; name: string; code: string; isActive: boolean };
-type RoleListResponse = { data: RoleRow[] };
-
 export async function fetchRoleOptions(): Promise<LookupItem[]> {
-  const res = await jsonFetch<RoleListResponse>("/roles?limit=500");
-  return res.data
-    .filter((row) => row.isActive)
-    .map((row) => ({ id: row.id, name: row.name }));
+  const res = await jsonFetch<{ data: LookupItem[] }>("/employees/role-options");
+  return res.data;
 }
 
 export async function fetchManagerOptions(): Promise<ManagerOption[]> {

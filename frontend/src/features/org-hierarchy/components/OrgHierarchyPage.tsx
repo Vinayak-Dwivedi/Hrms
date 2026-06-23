@@ -1,6 +1,5 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -21,11 +20,8 @@ import HierarchyTreeView from "@/features/org-hierarchy/components/HierarchyTree
 import OrgHierarchyMasters from "@/features/org-hierarchy/components/OrgHierarchyMasters";
 import StructureMappingPanel from "@/features/org-hierarchy/components/StructureMappingPanel";
 import {
-  employeeCardClass,
-  employeeIconXs,
   employeeListErrorBannerClass,
   employeeListLoadingClass,
-  employeeListResetBtnClass,
 } from "@/features/employees/employee-theme";
 
 export type OrgHierarchyScope = "employee" | "department";
@@ -48,7 +44,7 @@ export default function OrgHierarchyPage({
   const [levels, setLevels] = useState<OrgLevel[]>([]);
   const [editStructureId, setEditStructureId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeTab, setActiveTab] = useState<DepartmentHierarchyTabId>("tree");
+  const [activeTab, setActiveTab] = useState<DepartmentHierarchyTabId>("masters");
 
   const loadTree = useCallback(async () => {
     try {
@@ -110,40 +106,18 @@ export default function OrgHierarchyPage({
 
   return (
     <>
-      <div className={`${employeeCardClass} p-5 mb-6`}>
+      <div className="mb-6">
         {scope === "department" && (
           <DepartmentHierarchyTabBar
             active={activeTab}
             onChange={setActiveTab}
           />
         )}
-        <div
-          className={[
-            "flex items-center justify-between",
-            scope === "department" ? "mt-4 pt-4 border-t border-gray-100" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          {scope === "employee" && (
-            <p className="text-[13px] font-semibold text-gray-900 m-0">
-              Employee reporting hierarchy
-            </p>
-          )}
-          <button
-            className={[
-              employeeListResetBtnClass,
-              scope === "employee" ? "ml-auto" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            onClick={handleRefresh}
-            type="button"
-          >
-            <RotateCcw className={employeeIconXs} />
-            Refresh
-          </button>
-        </div>
+        {scope === "employee" && (
+          <p className="text-[13px] font-semibold text-gray-900 m-0">
+            Employee reporting hierarchy
+          </p>
+        )}
       </div>
 
       {error && (

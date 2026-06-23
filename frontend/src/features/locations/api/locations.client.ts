@@ -14,7 +14,6 @@ export type LocationDetail = LocationListItem;
 export type CreateLocationPayload = {
   name: string;
   address?: string | null;
-  headcount?: number;
 };
 
 export type UpdateLocationPayload = CreateLocationPayload;

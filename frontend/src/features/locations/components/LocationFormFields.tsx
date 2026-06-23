@@ -25,7 +25,7 @@ export default function LocationFormFields({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-4">
       <div>
         <label className={employeeFilterLabelClass} htmlFor="loc-name">
           Name
@@ -41,21 +41,6 @@ export default function LocationFormFields({
         />
       </div>
       <div>
-        <label className={employeeFilterLabelClass} htmlFor="loc-headcount">
-          Headcount
-        </label>
-        <input
-          className={employeeInputClass}
-          disabled={disabled}
-          id="loc-headcount"
-          inputMode="numeric"
-          onChange={(e) => set("headcount", e.target.value)}
-          placeholder="Optional"
-          type="text"
-          value={values.headcount}
-        />
-      </div>
-      <div className="md:col-span-2">
         <label className={employeeFilterLabelClass} htmlFor="loc-address">
           Address
         </label>

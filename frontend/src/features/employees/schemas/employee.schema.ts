@@ -442,7 +442,10 @@ export const optionalDesignationFieldSchema =
 export const optionalGradeFieldSchema = optionalSelectFieldSchema("grade");
 export const optionalBranchFieldSchema = optionalSelectFieldSchema("branch");
 
-export function createUpdateEmployeeFieldValidators(validRoleIds: number[] = []) {
+export function createUpdateEmployeeFieldValidators(
+  validRoleIds: number[] = [],
+  _hasLoginAccount = true,
+) {
   return {
     empId: fieldValidators(empIdFieldSchema),
     firstName: fieldValidators(firstNameFieldSchema),
@@ -468,7 +471,10 @@ export function createUpdateEmployeeFieldValidators(validRoleIds: number[] = [])
   };
 }
 
-export function createUpdateEmployeeFormSchema(validRoleIds: number[] = []) {
+export function createUpdateEmployeeFormSchema(
+  validRoleIds: number[] = [],
+  hasLoginAccount = true,
+) {
   return z
     .object({
       empId: empIdFieldSchema,
@@ -512,6 +518,14 @@ export function createUpdateEmployeeFormSchema(validRoleIds: number[] = []) {
           code: "custom",
           message: "Spouse name is required when marital status is Married.",
           path: ["spouseName"],
+        });
+      }
+
+      if (!hasLoginAccount && data.roleId?.trim() && !data.password?.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Password is required to create a login account.",
+          path: ["password"],
         });
       }
 

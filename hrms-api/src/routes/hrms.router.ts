@@ -1,4 +1,4 @@
-import { isNotNull } from "drizzle-orm";
+import { count, eq, isNotNull, sql } from "drizzle-orm";
 import { Router } from "express";
 import { db } from "@/db/runtime";
 import {
@@ -18,6 +18,7 @@ import {
   orgHierarchySubDepartments as subDepartments,
 } from "@/db/schema/hrms";
 import { createCrudRouter } from "@/lib/crud-factory";
+import { ApiError } from "@/middleware/error";
 import { EMPLOYEE_CRUD_EXCLUDED_COLUMNS } from "@/lib/sensitive-employee-fields";
 import { requirePermission } from "@/middleware/require-permission";
 import { hrOnboardingRoutes } from "@/modules/hr-onboarding/routes/onboarding.routes";
@@ -59,6 +60,57 @@ hrmsRouter.get("/org-allocation", orgSetupAccess, async (_req, res, next) => {
     res.json({
       data: rows.filter((r) => r.branchId != null && r.departmentId != null),
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Dynamic headcount: count employees assigned to each branch instead of using the stored column.
+hrmsRouter.get("/branches", orgSetupAccess, async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 100) || 100, 500);
+    const offset = Number(req.query.offset ?? 0) || 0;
+    const rows = await db
+      .select({
+        id: branches.id,
+        name: branches.name,
+        address: branches.address,
+        headcount: sql<number>`count(${employees.id})::int`,
+        createdAt: branches.createdAt,
+        updatedAt: branches.updatedAt,
+      })
+      .from(branches)
+      .leftJoin(employees, eq(employees.branchId, branches.id))
+      .groupBy(
+        branches.id,
+        branches.name,
+        branches.address,
+        branches.createdAt,
+        branches.updatedAt,
+      )
+      .limit(limit)
+      .offset(offset);
+    res.json({ data: rows, limit, offset, count: rows.length });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Duplicate-name guard: reject before hitting the DB unique constraint.
+hrmsRouter.post("/branches", orgSetupAccess, async (req, res, next) => {
+  try {
+    const name = (req.body?.name as string | undefined)?.trim();
+    if (name) {
+      const [existing] = await db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(sql`lower(${branches.name}) = lower(${name})`)
+        .limit(1);
+      if (existing) {
+        return next(new ApiError(409, "DUPLICATE_NAME", `A location named "${name}" already exists.`));
+      }
+    }
+    next();
   } catch (e) {
     next(e);
   }

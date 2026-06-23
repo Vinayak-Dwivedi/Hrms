@@ -127,12 +127,15 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (pg?.code === "42P01") {
     const pgMessage = extractDbErrorMessage(err);
     const isOrgHierarchy = /org_hierarchy/i.test(pgMessage);
+    const isAttendance = /attendance_uploads|attendance\b/i.test(pgMessage);
     res.status(503).json({
       error: {
         code: "SCHEMA_NOT_READY",
         message: isOrgHierarchy
           ? "Org hierarchy tables are missing. Run: npm run db:migrate-org-hierarchy"
-          : "Required database tables are missing. Contact your administrator.",
+          : isAttendance
+            ? "Attendance upload tables are missing. Run: npm run db:migrate-attendance-upload"
+            : "Required database tables are missing. Contact your administrator.",
         requestId: req.requestId,
         ...(env.NODE_ENV !== "production"
           ? { details: { postgresMessage: pgMessage } }

@@ -411,6 +411,27 @@
     {
       "idx": 58,
       "version": "7",
+      "when": 1782050400000,
+      "tag": "20260622100000_attendance_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1782054000000,
+      "tag": "20260622110000_attendance_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1782057600000,
+      "tag": "20260622120000_attendance_uploads_global_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
       "when": 1782086400000,
       "tag": "20260622100000_biometric_raw_logs",
       "breakpoints": true

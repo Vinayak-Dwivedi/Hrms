@@ -8,6 +8,13 @@ import EmployeeModalShell from "@/features/employees/components/EmployeeModalShe
 import { fetchBranches } from "@/features/employees/api/employees.client";
 import { MasterTabBar, type MasterTabId } from "@/features/org-hierarchy/components/HierarchyTabBar";
 import {
+  createLocation,
+  deleteLocation,
+  fetchLocationsList,
+  updateLocation,
+  type LocationListItem,
+} from "@/features/locations/api/locations.client";
+import {
   createOrgDepartment,
   createOrgDesignation,
   createOrgLevel,
@@ -77,7 +84,9 @@ type Props = {
 };
 
 export default function OrgHierarchyMasters({ onChanged }: Props) {
-  const [tab, setTab] = useState<MasterTabId>("departments");
+  const [tab, setTab] = useState<MasterTabId>("locations");
+  const [locations, setLocations] = useState<LocationListItem[]>([]);
+  const [locationForm, setLocationForm] = useState<{ name: string; address: string }>({ name: "", address: "" });
   const [departments, setDepartments] = useState<OrgDepartment[]>([]);
   const [subDepartments, setSubDepartments] = useState<OrgSubDepartment[]>([]);
   const [levels, setLevels] = useState<OrgLevel[]>([]);
@@ -94,6 +103,11 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   const [editId, setEditId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    kind: MasterTabId;
+    id: number;
+    label: string;
+  } | null>(null);
 
   const [deptForm, setDeptForm] = useState<DepartmentFormValues>(emptyDepartmentForm);
   const [subForm, setSubForm] = useState<SubDepartmentFormValues>(emptySubDepartmentForm);
@@ -140,18 +154,20 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
 
   const reload = useCallback(async () => {
     try {
-      const [d, sub, lvl, des, brs] = await Promise.all([
+      const [d, sub, lvl, des, brs, locs] = await Promise.all([
         fetchOrgDepartments(),
         fetchOrgSubDepartments(),
         fetchOrgLevels(),
         fetchOrgDesignations(),
         fetchBranches(),
+        fetchLocationsList(),
       ]);
       setDepartments(d);
       setSubDepartments(sub);
       setLevels(lvl);
       setDesignations(des);
       setBranches(brs);
+      setLocations(locs);
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -170,16 +186,21 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   function closeModal() {
     setModalOpen(false);
     setEditId(null);
+    setLocationForm({ name: "", address: "" });
     setDeptForm(emptyDepartmentForm);
     setSubForm(emptySubDepartmentForm);
     setLevelForm(emptyLevelForm);
     setDesigForm(emptyDesignationForm);
   }
 
+  function requestDelete(kind: MasterTabId, id: number, label: string) {
+    setConfirmDelete({ kind, id, label });
+  }
+
   async function handleDelete(kind: MasterTabId, id: number) {
-    if (!window.confirm("Delete this record?")) return;
     try {
-      if (kind === "departments") await deleteOrgDepartment(id);
+      if (kind === "locations") await deleteLocation(id);
+      else if (kind === "departments") await deleteOrgDepartment(id);
       else if (kind === "sub-departments") await deleteOrgSubDepartment(id);
       else if (kind === "levels") await deleteOrgLevel(id);
       else await deleteOrgDesignation(id);
@@ -196,7 +217,13 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      if (tab === "departments") {
+      if (tab === "locations") {
+        const name = locationForm.name.trim();
+        if (!name) throw new Error("Name is required.");
+        const payload = { name, address: locationForm.address.trim() || null };
+        if (editId != null) await updateLocation(editId, payload);
+        else await createLocation(payload);
+      } else if (tab === "departments") {
         const parsed = departmentFormSchema.safeParse(deptForm);
         if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(" "));
         const allBranchIds = branches.map((b) => b.id);
@@ -213,11 +240,8 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
           status: parsed.data.status,
           branchIds,
         };
-        if (editId != null) {
-          await updateOrgDepartment(editId, payload);
-        } else {
-          await createOrgDepartment(payload);
-        }
+        if (editId != null) await updateOrgDepartment(editId, payload);
+        else await createOrgDepartment(payload);
       } else if (tab === "sub-departments") {
         const parsed = subDepartmentFormSchema.safeParse(subForm);
         if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join(" "));
@@ -282,42 +306,60 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
   }
 
   const modalTitle =
-    tab === "departments"
-      ? editId != null
-        ? "Edit Department"
-        : "Add Department"
-      : tab === "sub-departments"
-        ? editId != null
-          ? "Edit Sub Department"
-          : "Add Sub Department"
-        : tab === "levels"
-          ? editId != null
-            ? "Edit Level / Grade"
-            : "Add Level / Grade"
-          : editId != null
-            ? "Edit Designation"
-            : "Add Designation";
+    tab === "locations"
+      ? editId != null ? "Edit Location" : "Add Location"
+      : tab === "departments"
+        ? editId != null ? "Edit Department" : "Add Department"
+        : tab === "sub-departments"
+          ? editId != null ? "Edit Sub Department" : "Add Sub Department"
+          : tab === "levels"
+            ? editId != null ? "Edit Level / Grade" : "Add Level / Grade"
+            : editId != null ? "Edit Designation" : "Add Designation";
 
   const addLabel =
-    tab === "departments"
-      ? "Add Department"
-      : tab === "sub-departments"
-        ? "Add Sub Department"
-        : tab === "designations"
-          ? "Add Designation"
-          : "Add Level / Grade";
+    tab === "locations"
+      ? "Add Location"
+      : tab === "departments"
+        ? "Add Department"
+        : tab === "sub-departments"
+          ? "Add Sub Department"
+          : tab === "designations"
+            ? "Add Designation"
+            : "Add Level / Grade";
 
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
-        <MasterTabBar active={tab} onChange={setTab} />
-        <div className="flex items-center justify-end mt-4 pt-4 border-t border-gray-100">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <MasterTabBar active={tab} onChange={setTab} />
           <button className={employeeBtnSmClass} onClick={openAdd} type="button">
             <PlusCircle className={employeeIconXs} />
             {addLabel}
           </button>
         </div>
       </div>
+
+      {tab === "locations" && (
+        <MasterTable
+          emptyMessage="No locations found."
+          headers={["Name", "Address", "Headcount", "Action"]}
+          rows={locations.map((l) => ({
+            id: l.id,
+            cells: [l.name, l.address ?? "—", l.headcount === 0 ? "—" : l.headcount],
+          }))}
+          onDelete={(id) => {
+            const row = locations.find((l) => l.id === id);
+            requestDelete("locations", id, row?.name ?? "this location");
+          }}
+          onEdit={(id) => {
+            const row = locations.find((l) => l.id === id);
+            if (!row) return;
+            setEditId(id);
+            setLocationForm({ name: row.name, address: row.address ?? "" });
+            setModalOpen(true);
+          }}
+        />
+      )}
 
       {tab === "departments" && (
         <MasterTable
@@ -338,7 +380,10 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
               d.status,
             ],
           }))}
-          onDelete={(id) => void handleDelete("departments", id)}
+          onDelete={(id) => {
+            const row = departments.find((d) => d.id === id);
+            requestDelete("departments", id, row?.name ?? "this department");
+          }}
           onEdit={(id) => {
             const row = departments.find((d) => d.id === id);
             if (!row) return;
@@ -412,7 +457,10 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
               s.status,
             ],
           }))}
-          onDelete={(id) => void handleDelete("sub-departments", id)}
+          onDelete={(id) => {
+            const row = subDepartments.find((s) => s.id === id);
+            requestDelete("sub-departments", id, row?.name ?? "this sub-department");
+          }}
           onEdit={(id) => {
             const row = subDepartments.find((s) => s.id === id);
             if (!row) return;
@@ -448,7 +496,10 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
               d.status,
             ],
           }))}
-          onDelete={(id) => void handleDelete("designations", id)}
+          onDelete={(id) => {
+            const row = designations.find((d) => d.id === id);
+            requestDelete("designations", id, row?.name ?? "this designation");
+          }}
           onEdit={(id) => {
             const row = designations.find((d) => d.id === id);
             if (!row) return;
@@ -477,7 +528,10 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
             id: l.id,
             cells: [l.code, l.name, l.sortOrder],
           }))}
-          onDelete={(id) => void handleDelete("levels", id)}
+          onDelete={(id) => {
+            const row = levels.find((l) => l.id === id);
+            requestDelete("levels", id, row?.name ?? "this level");
+          }}
           onEdit={(id) => {
             const row = levels.find((l) => l.id === id);
             if (!row) return;
@@ -492,11 +546,69 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
         />
       )}
 
+      <EmployeeModalShell
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete Confirmation"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete{" "}
+            <strong className="text-gray-900">{confirmDelete?.label}</strong>?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              className={employeeBtnOutlineSmClass}
+              onClick={() => setConfirmDelete(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-semibold rounded-lg hover:bg-rose-700 transition-colors"
+              onClick={() => {
+                if (confirmDelete) {
+                  void handleDelete(confirmDelete.kind, confirmDelete.id);
+                  setConfirmDelete(null);
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </EmployeeModalShell>
+
       <EmployeeModalShell open={modalOpen} onClose={closeModal} title={modalTitle}>
         <form className="space-y-4 p-6" onSubmit={handleSubmit}>
           {error && <div className={employeeErrorBannerClass}>{error}</div>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {tab === "locations" && (
+              <>
+                <div className="md:col-span-2">
+                  <Field
+                    label="Name"
+                    value={locationForm.name}
+                    onChange={(v) => setLocationForm((f) => ({ ...f, name: v }))}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className={employeeFilterLabelClass}>Address</label>
+                  <textarea
+                    className={`${employeeInputClass} min-h-[80px] resize-y`}
+                    placeholder="Optional address"
+                    value={locationForm.address}
+                    onChange={(e) =>
+                      setLocationForm((f) => ({ ...f, address: e.target.value }))
+                    }
+                  />
+                </div>
+              </>
+            )}
+
             {tab === "departments" && (
               <>
                 <div className="md:col-span-2">
