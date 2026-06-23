@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { AlertCircle, XCircle } from "lucide-react";
+import { AlertCircle, FileText, XCircle } from "lucide-react";
 import {
   enterpriseBtnOutlineSmClass,
   enterpriseFilterLabelClass,
@@ -11,7 +11,7 @@ import {
   enterprisePaginationInactiveClass,
   enterpriseSelectClass,
 } from "@/lib/branding";
-import type { LeaveRequest, LeaveStatus } from "@/lib/dashboard";
+import type { LeaveDocument, LeaveRequest, LeaveStatus } from "@/lib/dashboard";
 import { formatDayCount } from "@/lib/format-day-count";
 import { cn } from "@/lib/utils";
 import {
@@ -89,6 +89,48 @@ function StatusCell({ req }: { req: LeaveRequest }) {
     >
       {req.status}
     </span>
+  );
+}
+
+function LeaveDocumentsCell({ documents }: { documents?: LeaveDocument[] }) {
+  if (!documents?.length) {
+    return <span className="text-sm text-gray-400">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {documents.map((doc) =>
+        doc.kind === "image" ? (
+          <a
+            key={doc.url}
+            href={doc.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={doc.name}
+            className="block shrink-0 rounded-md border border-slate-200 overflow-hidden hover:ring-2 hover:ring-pink-300 transition-shadow"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              alt={doc.name}
+              className="h-10 w-10 object-cover bg-slate-50"
+              src={doc.url}
+            />
+          </a>
+        ) : (
+          <a
+            key={doc.url}
+            href={doc.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={doc.name}
+            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <span className="max-w-[88px] truncate">PDF</span>
+          </a>
+        ),
+      )}
+    </div>
   );
 }
 
@@ -218,7 +260,7 @@ export default function LeaveTable({
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto border border-slate-200 rounded-md">
-        <table className="w-full min-w-[900px] border-collapse">
+        <table className="w-full min-w-[1020px] border-collapse">
           <thead className="sticky top-0 bg-slate-50">
             <tr className="border-b border-slate-200">
               {[
@@ -227,6 +269,7 @@ export default function LeaveTable({
                 "Leave Period",
                 "Duration",
                 "Reason",
+                "Documents",
                 "Status",
                 "Approved On",
                 "Action",
@@ -241,7 +284,7 @@ export default function LeaveTable({
             {pageRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-6 py-8 text-center text-sm text-gray-400"
                 >
                   No records found
@@ -259,6 +302,9 @@ export default function LeaveTable({
                   </td>
                   <td className={tableBodyCellClass}>{durationLabel(req)}</td>
                   <td className={tableBodyCellClass}>{req.reason}</td>
+                  <td className={tableBodyCellClass}>
+                    <LeaveDocumentsCell documents={req.documents} />
+                  </td>
                   <td className={tableBodyCellClass}>
                     <StatusCell req={req} />
                   </td>

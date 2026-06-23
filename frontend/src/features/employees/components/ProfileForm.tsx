@@ -43,7 +43,7 @@ import {
   employeeCardClass,
   employeeErrorBannerClass,
   employeeFieldLabelClass,
-  employeeFilterLabelClass,
+  employeeProfileLabelClass,
   employeeIconMd,
   employeeInputClass,
   employeeLoadingClass,
@@ -138,6 +138,13 @@ const TAB_META: Record<
   },
 };
 
+function newLocalId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
 const editableInputClass = `${employeeInputClass} bg-white`;
 const readonlyInputClass = `${employeeInputClass} border-gray-200 text-gray-700 bg-gray-50/80 cursor-default select-none focus:ring-0`;
 
@@ -163,6 +170,23 @@ function ProfileBadge({
         "Editable"
       )}
     </span>
+  );
+}
+
+function ProfileIdentityRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null | undefined;
+}) {
+  return (
+    <div className="grid grid-cols-[10.5rem_minmax(0,1fr)] items-center gap-x-4">
+      <span className="text-xs font-medium text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-gray-900 leading-snug">
+        {value?.trim() ? value : "—"}
+      </span>
+    </div>
   );
 }
 
@@ -198,7 +222,7 @@ function ReadOnlyField({
 }) {
   return (
     <div>
-      <label className={employeeFilterLabelClass}>
+      <label className={employeeProfileLabelClass}>
         <span className="inline-flex items-center gap-1">
           {label}
           <Lock className="w-3 h-3 text-gray-400" />
@@ -234,7 +258,7 @@ function VerifiedReadOnlyField({
 
   return (
     <div>
-      <label className={employeeFilterLabelClass}>
+      <label className={employeeProfileLabelClass}>
         <span className="inline-flex items-center gap-2">
           {label}
           {isVerified ? <EmailVerifiedBadge /> : <EmailUnverifiedBadge />}
@@ -272,7 +296,7 @@ function EditableField({
 }) {
   return (
     <div>
-      <label className={employeeFilterLabelClass}>{label}</label>
+      <label className={employeeProfileLabelClass}>{label}</label>
       <input
         className={editableInputClass}
         onChange={(e) => onChange(e.target.value)}
@@ -304,7 +328,7 @@ function EditableTextArea({
 }) {
   return (
     <div className={span2 ? FORM_GRID_FULL_ROW_CLASS : undefined}>
-      <label className={employeeFilterLabelClass}>{label}</label>
+      <label className={employeeProfileLabelClass}>{label}</label>
       <textarea
         className={`${editableInputClass} min-h-[96px] resize-y`}
         onChange={(e) => onChange(e.target.value)}
@@ -534,7 +558,7 @@ export default function ProfileForm() {
             academics: [
               ...prev.academics,
               {
-                id: crypto.randomUUID(),
+                id: newLocalId(),
                 qualification: "",
                 institution: "",
                 boardUniversity: "",
@@ -688,11 +712,11 @@ export default function ProfileForm() {
 
               {activeTab === "profile" && (
                 <div className={FORM_PANEL_CLASS}>
-                  <div className="rounded-lg border border-gray-100 bg-gradient-to-br from-gray-50/80 to-[#fff1f2]/40 p-4 mb-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="rounded-lg border border-gray-100 bg-gradient-to-br from-gray-50/80 to-[#fff1f2]/40 p-5 mb-5">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-5">
                       <button
                         aria-label="Upload profile photo"
-                        className="relative w-24 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-xl font-semibold shrink-0 ring-2 ring-white shadow-md group cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffb9ce] focus-visible:ring-offset-2"
+                        className="relative w-24 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-[#ec4899] to-[#be185d] flex items-center justify-center text-white text-xl font-semibold shrink-0 ring-2 ring-white shadow-md group cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ffb9ce] focus-visible:ring-offset-2 self-center sm:self-start"
                         onClick={() => fileRef.current?.click()}
                         type="button"
                       >
@@ -713,23 +737,19 @@ export default function ProfileForm() {
                           <Camera className="w-3.5 h-3.5" />
                         </span>
                       </button>
-                      <div className="flex-1 min-w-0 space-y-3">
-                        <div>
-                          <p className={`${employeeFilterLabelClass} mb-1`}>
-                            Employee ID
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900 m-0">
-                            {profile.empId ?? "—"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className={`${employeeFilterLabelClass} mb-1`}>
-                            Full Name
-                          </p>
-                          <p className="text-sm font-semibold text-gray-900 m-0">
-                            {profile.fullName ?? "—"}
-                          </p>
-                        </div>
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-2.5 sm:pt-1">
+                        <ProfileIdentityRow
+                          label="Full Name"
+                          value={profile.fullName}
+                        />
+                        <ProfileIdentityRow
+                          label="Employee ID"
+                          value={profile.empId}
+                        />
+                        <ProfileIdentityRow
+                          label="Reporting Manager"
+                          value={profile.reportingManager}
+                        />
                         <input
                           accept="image/png,image/jpeg,image/jpg"
                           className="hidden"
@@ -841,12 +861,6 @@ export default function ProfileForm() {
                     />
                     <ReadOnlyField label="Grade" value={profile.grade} />
                     <ReadOnlyField label="Branch" value={profile.branch} />
-                    <div className={FORM_GRID_FULL_ROW_CLASS}>
-                      <ReadOnlyField
-                        label="Reporting Manager"
-                        value={profile.reportingManager}
-                      />
-                    </div>
                   </div>
                 </div>
               )}
@@ -856,7 +870,7 @@ export default function ProfileForm() {
                   <EditableField
                     label="Contact Name"
                     onChange={(v) => set("emergencyContactName", v)}
-                    placeholder="Full name"
+                    placeholder="Full Name"
                     value={form.emergencyContactName}
                   />
                   <EditableField
@@ -875,13 +889,13 @@ export default function ProfileForm() {
                   <EditableField
                     label="Father's Name"
                     onChange={(v) => set("fatherName", v)}
-                    placeholder="Full name"
+                    placeholder="Full Name"
                     value={form.fatherName}
                   />
                   <EditableField
                     label="Mother's Name"
                     onChange={(v) => set("motherName", v)}
-                    placeholder="Full name"
+                    placeholder="Full Name"
                     value={form.motherName}
                   />
                   <EditableField
@@ -1457,7 +1471,7 @@ function ResignationExitDialog({
           <div className="px-6 py-5 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={employeeFilterLabelClass}>
+                <label className={employeeProfileLabelClass}>
                   Last Working Day <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1468,7 +1482,7 @@ function ResignationExitDialog({
                 />
               </div>
               <div>
-                <label className={employeeFilterLabelClass}>
+                <label className={employeeProfileLabelClass}>
                   Reason <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -1487,7 +1501,7 @@ function ResignationExitDialog({
             </div>
 
             <div>
-              <label className={employeeFilterLabelClass}>
+              <label className={employeeProfileLabelClass}>
                 Detailed Remarks <span className="text-red-500">*</span>
               </label>
               <textarea
@@ -1500,7 +1514,7 @@ function ResignationExitDialog({
             </div>
 
             <div>
-              <label className={employeeFilterLabelClass}>Attachment</label>
+              <label className={employeeProfileLabelClass}>Attachment</label>
               <button
                 className="w-full flex items-center gap-3 px-4 py-3 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 text-left cursor-pointer bg-white transition-colors"
                 onClick={() => fileRef.current?.click()}
@@ -1527,7 +1541,7 @@ function ResignationExitDialog({
             </div>
 
             <div>
-              <label className={employeeFilterLabelClass}>
+              <label className={employeeProfileLabelClass}>
                 Notice Buyout Request
               </label>
               <label className="flex items-center gap-2 cursor-pointer mt-1.5">

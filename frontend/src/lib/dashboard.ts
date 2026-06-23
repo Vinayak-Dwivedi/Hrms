@@ -87,6 +87,12 @@ export interface DayAttendance {
 
 export type LeaveStatus = "Pending" | "Approved" | "Cancelled" | "Rejected";
 
+export interface LeaveDocument {
+  url: string;
+  name: string;
+  kind: "image" | "pdf";
+}
+
 export interface LeaveRequest {
   id: string;
   appliedOn: string; // ISO datetime
@@ -100,4 +106,5 @@ export interface LeaveRequest {
   status: LeaveStatus;
   statusReason?: string; // cancellation / approval note
   approvedOn: string; // ISO datetime
+  documents?: LeaveDocument[];
 }

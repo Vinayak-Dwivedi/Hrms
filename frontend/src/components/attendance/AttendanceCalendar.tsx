@@ -15,6 +15,7 @@ export interface LeaveSubmission {
   days: number;
   durationType: "Full Day" | "First Half" | "Second Half";
   reason: string;
+  document?: File;
 }
 
 export interface RegularisationSubmission {
@@ -134,6 +135,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   const [fromDate, setFromDate]         = useState(safeDefault);
   const [toDate, setToDate]             = useState(safeDefault);
   const [fileName, setFileName]         = useState<string | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -273,6 +275,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
         days,
         durationType: duration,
         reason: reason.trim(),
+        document: documentFile ?? undefined,
       });
       onClose();
     } catch (e) {
@@ -285,7 +288,16 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file) setFileName(file.name);
+    if (file) {
+      setFileName(file.name);
+      setDocumentFile(file);
+    }
+  }
+
+  function handleFilePick(file: File | undefined) {
+    if (!file) return;
+    setFileName(file.name);
+    setDocumentFile(file);
   }
 
   return (
@@ -481,7 +493,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
               <input
                 ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png"
                 style={{ display: "none" }}
-                onChange={(e) => { if (e.target.files?.[0]) setFileName(e.target.files[0].name); }}
+                onChange={(e) => handleFilePick(e.target.files?.[0])}
               />
               <Upload size={22} style={{ color: "#9ca3af", margin: "0 auto 8px" }} />
               <p style={{ fontSize: 14, fontWeight: 600, color: "#374151", margin: 0 }}>
