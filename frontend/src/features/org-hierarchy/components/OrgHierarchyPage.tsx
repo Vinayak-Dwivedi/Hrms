@@ -6,11 +6,14 @@ import {
   deleteOrgStructure,
   fetchEmployeeReportingTree,
   fetchHierarchyTree,
+  fetchOrgDepartments,
   fetchOrgLevels,
   type EmployeeReportingTreeDepartment,
   type HierarchyTreeDepartment,
+  type OrgDepartment,
   type OrgLevel,
 } from "@/features/org-hierarchy/api/org-hierarchy.client";
+import { fetchBranches } from "@/features/employees/api/employees.client";
 import {
   DepartmentHierarchyTabBar,
   type DepartmentHierarchyTabId,
@@ -42,6 +45,8 @@ export default function OrgHierarchyPage({
     EmployeeReportingTreeDepartment[]
   >([]);
   const [levels, setLevels] = useState<OrgLevel[]>([]);
+  const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
+  const [orgDepts, setOrgDepts] = useState<OrgDepartment[]>([]);
   const [editStructureId, setEditStructureId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState<DepartmentHierarchyTabId>("masters");
@@ -49,12 +54,16 @@ export default function OrgHierarchyPage({
   const loadTree = useCallback(async () => {
     try {
       if (scope === "employee") {
-        const [employeeTreeData, levelData] = await Promise.all([
+        const [employeeTreeData, levelData, branchData, orgDeptData] = await Promise.all([
           fetchEmployeeReportingTree(),
           fetchOrgLevels(),
+          fetchBranches(),
+          fetchOrgDepartments(),
         ]);
         setEmployeeTree(employeeTreeData);
         setLevels(levelData);
+        setBranches(branchData);
+        setOrgDepts(orgDeptData);
       } else {
         const [treeData, levelData] = await Promise.all([
           fetchHierarchyTree(),
@@ -106,19 +115,14 @@ export default function OrgHierarchyPage({
 
   return (
     <>
-      <div className="mb-6">
-        {scope === "department" && (
+      {scope === "department" && (
+        <div className="mb-6">
           <DepartmentHierarchyTabBar
             active={activeTab}
             onChange={setActiveTab}
           />
-        )}
-        {scope === "employee" && (
-          <p className="text-[13px] font-semibold text-gray-900 m-0">
-            Employee reporting hierarchy
-          </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
         <div className={employeeListErrorBannerClass}>
@@ -129,7 +133,7 @@ export default function OrgHierarchyPage({
       {loading ? (
         <div className={employeeListLoadingClass}>{loadingLabel}</div>
       ) : scope === "employee" ? (
-        <EmployeeHierarchyView tree={employeeTree} levels={levels} />
+        <EmployeeHierarchyView tree={employeeTree} branches={branches} orgDepts={orgDepts} />
       ) : (
         <>
           {activeTab === "tree" && (
