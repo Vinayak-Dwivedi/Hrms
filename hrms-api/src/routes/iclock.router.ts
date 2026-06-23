@@ -115,7 +115,7 @@ async function upsertAttendancePunch(
  * Device handshake — called when device boots or reconnects.
  * Responds with plain-text configuration options the device will apply.
  */
-iclockRouter.get("/cdata", (req, res) => {
+iclockRouter.get(["/cdata", "/cdata.aspx"], (req, res) => {
   const sn = req.query["SN"] as string | undefined;
   if (!sn) return res.status(400).send("ERROR");
 
@@ -147,7 +147,7 @@ iclockRouter.get("/cdata", (req, res) => {
  *
  * PunchType: 0=Check-In, 1=Check-Out, 2=Break-Out, 3=Break-In, 4=OT-In, 5=OT-Out
  */
-iclockRouter.post("/cdata", async (req, res, next) => {
+iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
   try {
     const sn = req.query["SN"] as string | undefined;
     const table = req.query["table"] as string | undefined;
@@ -237,7 +237,7 @@ iclockRouter.post("/cdata", async (req, res, next) => {
  * Device polls for pending commands (e.g. enroll user, delete user).
  * Respond "OK" when there are no commands queued.
  */
-iclockRouter.get("/getrequest", (req, res) => {
+iclockRouter.get(["/getrequest", "/getrequest.aspx"], (req, res) => {
   res.set("Content-Type", "text/plain").send("OK");
 });
 
@@ -245,6 +245,6 @@ iclockRouter.get("/getrequest", (req, res) => {
  * POST /iclock/devicecmd
  * Device acknowledges that it executed a command we sent.
  */
-iclockRouter.post("/devicecmd", (_req, res) => {
+iclockRouter.post(["/devicecmd", "/devicecmd.aspx"], (_req, res) => {
   res.set("Content-Type", "text/plain").send("OK");
 });
