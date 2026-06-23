@@ -130,7 +130,7 @@ export default function OrgHierarchyMasters({ onChanged }: Props) {
     const q = search.trim().toLowerCase();
     if (!q) return departments;
     return departments.filter((d) =>
-      d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q),
+      d.name.toLowerCase().includes(q) || (d.code ?? "").toLowerCase().includes(q),
     );
   }, [departments, search]);
 
