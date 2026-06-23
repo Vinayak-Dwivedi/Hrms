@@ -39,7 +39,7 @@ async function upsertAttendancePunch(
   employeeId: number,
   dateStr: string,   // "YYYY-MM-DD"
   timeStr: string,   // "HH:mm:ss"
-  isCheckIn: boolean,
+  _deviceIsCheckIn: boolean, // kept for signature compat; logic is auto below
 ) {
   const [existing] = await db
     .select()
@@ -51,12 +51,16 @@ async function upsertAttendancePunch(
       ),
     );
 
+  // Smart auto-detection: ignore device punch direction.
+  // First scan of the day → punch-in. Already has punch-in → punch-out.
+  const isCheckIn = !existing || !existing.punchIn;
+
   if (!existing) {
     await db.insert(attendanceRecords).values({
       employeeId,
       date: dateStr,
-      punchIn: isCheckIn ? timeStr : null,
-      punchOut: isCheckIn ? null : timeStr,
+      punchIn: timeStr,
+      punchOut: null,
       status: "Present",
       workingMinutes: 0,
     });
@@ -64,6 +68,7 @@ async function upsertAttendancePunch(
   }
 
   if (isCheckIn) {
+    // Update to earliest punch-in seen
     const newPunchIn =
       !existing.punchIn || timeStr < existing.punchIn
         ? timeStr
@@ -78,6 +83,7 @@ async function upsertAttendancePunch(
         ),
       );
   } else {
+    // Update to latest punch-out seen
     const newPunchOut =
       !existing.punchOut || timeStr > existing.punchOut
         ? timeStr
