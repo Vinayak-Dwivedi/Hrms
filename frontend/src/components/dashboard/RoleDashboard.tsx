@@ -66,6 +66,10 @@ import {
   type WeekChartPoint,
 } from "@/lib/hrms-client";
 import {
+  listManagerResignations,
+  type ResignationWithEmployee,
+} from "@/features/offboarding/api/offboarding.client";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -725,6 +729,70 @@ function RoleBottomTable({
   );
 }
 
+// ─── Manager Pending Approvals summary card ──────────────────────────────────
+
+type PendingItem = {
+  label: string;
+  count: number;
+  href: string;
+  color: string;
+};
+
+function ManagerPendingSummaryCard({ items }: { items: PendingItem[] }) {
+  const total = items.reduce((s, i) => s + i.count, 0);
+  return (
+    <div className={topRowCardClass}>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className={cardTitleClass}>Pending Approvals</h3>
+        {total > 0 && (
+          <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">
+            {total} pending
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 flex-1">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="flex items-center justify-between gap-3 px-3 py-3 rounded-lg border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all group no-underline"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ background: item.color }}
+              />
+              <span className="text-[13px] font-medium text-slate-700 truncate group-hover:text-slate-900">
+                {item.label}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {item.count > 0 ? (
+                <span
+                  className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white"
+                  style={{ background: item.color }}
+                >
+                  {item.count}
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-400 font-medium">None</span>
+              )}
+              <ChevronRight size={13} className="text-slate-400 group-hover:text-slate-600" />
+            </div>
+          </Link>
+        ))}
+
+        {total === 0 && (
+          <p className="text-[12px] text-slate-400 text-center mt-4">
+            All caught up — no pending approvals.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function RoleDashboard({ role }: { role: Role }) {
@@ -755,6 +823,9 @@ export default function RoleDashboard({ role }: { role: Role }) {
   );
   const [hrPendingReview, setHrPendingReview] = useState<
     PendingReviewEmployee[] | null
+  >(null);
+  const [managerResignations, setManagerResignations] = useState<
+    ResignationWithEmployee[] | null
   >(null);
   const [hrData, setHrData] = useState<HrDashboardData>({
     completionStats: null,
@@ -821,6 +892,11 @@ export default function RoleDashboard({ role }: { role: Role }) {
 
       if (role === "manager" && managerApisAvailable) {
         baseTasks.push(fetchLeaveApprovals("all").then(setTeamLeaves));
+        baseTasks.push(
+          listManagerResignations()
+            .then(setManagerResignations)
+            .catch(() => setManagerResignations([])),
+        );
       } else if (role === "admin") {
         baseTasks.push(
           fetchOrgLeaveRequests({ limit: 10 }).then((r) => {
@@ -1140,71 +1216,92 @@ export default function RoleDashboard({ role }: { role: Role }) {
           </div>
         </div>
 
-        {/* Leave Balance */}
-        <div className={topRowCardClass}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className={cardTitleClass}>
-              Leave Balance
-            </h3>
-            <a href={leaveHref(role)} className={linkAccentClass}>
-              View all →
-            </a>
-          </div>
-          <div className="flex flex-1 items-center justify-center">
-            <div className="grid w-full grid-cols-2 gap-3 justify-items-center">
-              {[
-                {
-                  key: "used",
-                  label: "Used Leaves",
-                  used: usedLeaves,
-                  total: totalLeaves,
-                  days: usedLeaves,
-                },
-                {
-                  key: "balance",
-                  label: "Balance Leaves",
-                  used: balLeaves,
-                  total: totalLeaves,
-                  days: balLeaves,
-                },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="flex w-full max-w-[140px] flex-col items-center justify-center text-center"
-                >
-                  <Ring used={item.used} total={item.total} size={96} />
-                  <p className="mt-2 text-sm font-semibold leading-tight text-gray-800">
-                    {item.label}
+        {/* Leave Balance (non-manager) OR Pending Approvals summary (manager) */}
+        {role === "manager" && managerApisAvailable ? (
+          <ManagerPendingSummaryCard
+            items={[
+              {
+                label: "Leave Requests",
+                count:
+                  teamLeaves?.filter((r) => r.status === "Pending").length ?? 0,
+                href: "/manager/approvals",
+                color: "#3b82f6",
+              },
+              {
+                label: "Resignations",
+                count:
+                  managerResignations?.filter(
+                    (r) =>
+                      r.status === "Submitted" ||
+                      r.status === "ManagerDiscussion",
+                  ).length ?? 0,
+                href: "/manager/approvals",
+                color: "#f59e0b",
+              },
+            ]}
+          />
+        ) : (
+          <div className={topRowCardClass}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className={cardTitleClass}>Leave Balance</h3>
+              <a href={leaveHref(role)} className={linkAccentClass}>
+                View all →
+              </a>
+            </div>
+            <div className="flex flex-1 items-center justify-center">
+              <div className="grid w-full grid-cols-2 gap-3 justify-items-center">
+                {[
+                  {
+                    key: "used",
+                    label: "Used Leaves",
+                    used: usedLeaves,
+                    total: totalLeaves,
+                    days: usedLeaves,
+                  },
+                  {
+                    key: "balance",
+                    label: "Balance Leaves",
+                    used: balLeaves,
+                    total: totalLeaves,
+                    days: balLeaves,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex w-full max-w-[140px] flex-col items-center justify-center text-center"
+                  >
+                    <Ring used={item.used} total={item.total} size={96} />
+                    <p className="mt-2 text-sm font-semibold leading-tight text-gray-800">
+                      {item.label}
+                    </p>
+                    <p className="mt-0.5 text-[13px] text-gray-400">
+                      {formatDayCount(item.days)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {compOffPolicy && (
+              <div className={cn("mt-3 px-3 py-2.5 flex items-center gap-2.5", enterpriseMutedPanelClass)}>
+                <div className={cn("w-7 h-7 rounded-md text-white flex items-center justify-center text-[10px] font-semibold tracking-wider shrink-0", enterpriseAvatarClass)}>
+                  CO
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={cn("text-[11.5px] font-semibold text-slate-800 leading-tight truncate")}>
+                    {compOffPolicy.name}
                   </p>
-                  <p className="mt-0.5 text-[13px] text-gray-400">
-                    {formatDayCount(item.days)}
+                  <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
+                    Earn {compOffPolicy.weekendUnits} unit/weekend ·{" "}
+                    {compOffPolicy.holidayUnits} unit/holiday ·{" "}
+                    {compOffPolicy.expiryMode === "yearEnd"
+                      ? "expires year-end"
+                      : `expires in ${compOffPolicy.expiryDays} days`}
                   </p>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
-          {/* Resolved Comp-Off policy strip — only shown when a policy is
-              actually active. Driven by /api/me/leave-policy?leaveTypeCode=CO. */}
-          {compOffPolicy && (
-            <div className={cn("mt-3 px-3 py-2.5 flex items-center gap-2.5", enterpriseMutedPanelClass)}>
-              <div className={cn("w-7 h-7 rounded-md text-white flex items-center justify-center text-[10px] font-semibold tracking-wider shrink-0", enterpriseAvatarClass)}>
-                CO
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={cn("text-[11.5px] font-semibold text-slate-800 leading-tight truncate")}>
-                  {compOffPolicy.name}
-                </p>
-                <p className="text-[10.5px] text-[#be185d]/80 leading-snug mt-0.5">
-                  Earn {compOffPolicy.weekendUnits} unit/weekend ·{" "}
-                  {compOffPolicy.holidayUnits} unit/holiday ·{" "}
-                  {compOffPolicy.expiryMode === "yearEnd"
-                    ? "expires year-end"
-                    : `expires in ${compOffPolicy.expiryDays} days`}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Upcoming Holidays */}
         <div className={topRowCardClass}>
