@@ -160,20 +160,23 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
     }
 
     const body = typeof req.body === "string" ? req.body : "";
+    // Old firmware:  "ATTLOG\tUserID\tDateTime\tPunchType\tVerify\t..."
+    // New firmware (pushver 2.x): "UserID\tDateTime\tPunchType\tVerify\t..."
     const lines = body
       .split("\n")
       .map((l) => l.trim())
-      .filter((l) => l.startsWith("ATTLOG"));
+      .filter((l) => l.length > 0 && !l.startsWith("#"));
 
     let processed = 0;
 
     for (const line of lines) {
-      // Fields: ATTLOG \t UserID \t DateTime \t PunchType \t Verify \t WorkCode \t Reserved
-      const parts = line.split("\t");
-      const rawUserId = parts[1]?.trim();
-      const rawDateTime = parts[2]?.trim(); // "2024-06-22 09:15:23"
-      const punchType = parseInt(parts[3] ?? "0", 10);
-      const verifyType = parseInt(parts[4] ?? "1", 10);
+      const raw = line.split("\t");
+      // Detect format: old firmware prefixes "ATTLOG" as first field
+      const parts = raw[0]?.trim() === "ATTLOG" ? raw.slice(1) : raw;
+      const rawUserId = parts[0]?.trim();
+      const rawDateTime = parts[1]?.trim(); // "YYYY-MM-DD HH:mm:ss"
+      const punchType = parseInt(parts[2] ?? "0", 10);
+      const verifyType = parseInt(parts[3] ?? "1", 10);
 
       if (!rawUserId || !rawDateTime) continue;
 
