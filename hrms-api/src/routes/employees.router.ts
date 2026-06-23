@@ -27,6 +27,10 @@ import * as invitationService from "@/modules/hr-onboarding/services/invitation.
 import { ONBOARDING_PERMISSIONS } from "@/modules/hr-onboarding/constants/permissions";
 import { requirePermission } from "@/middleware/require-permission";
 import { ApiError } from "@/middleware/error";
+import {
+  assertValidReportingManagerAssignment,
+  buildEmployeeOrgContextFromPayload,
+} from "@/lib/reporting-manager-rules";
 
 export const employeesRouter = Router();
 
@@ -105,6 +109,12 @@ employeesRouter.post(
   bankOnboardingCtrl.approveOnboardingBank,
 );
 employeesRouter.get("/:id/documents", viewEmployees, employeeAdminCtrl.getEmployeeDocuments);
+
+employeesRouter.patch(
+  "/:id/profile",
+  editEmployees,
+  employeeAdminCtrl.patchEmployeeProfile,
+);
 
 employeesRouter.get("/:id", viewEmployees, async (req, res, next) => {
   try {
@@ -209,14 +219,31 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
     }
 
     if (rest.reportingManagerId) {
-      const [manager] = await db
-        .select({ id: employees.id })
+      const [existingRow] = await db
+        .select({
+          orgHierarchyStructureId: employees.orgHierarchyStructureId,
+          locationId: employees.locationId,
+          branchId: employees.branchId,
+        })
         .from(employees)
-        .where(eq(employees.id, rest.reportingManagerId))
+        .where(eq(employees.id, id))
         .limit(1);
-      if (!manager) {
-        throw new ApiError(400, "INVALID_MANAGER", "Reporting manager not found.");
-      }
+
+      const employeeContext = await buildEmployeeOrgContextFromPayload({
+        orgHierarchyStructureId:
+          rest.orgHierarchyStructureId ??
+          existingRow?.orgHierarchyStructureId ??
+          null,
+        departmentId: rest.departmentId,
+        designationId: rest.designationId,
+        locationId: rest.locationId ?? existingRow?.locationId ?? null,
+        branchId: rest.branchId ?? existingRow?.branchId ?? null,
+      });
+
+      await assertValidReportingManagerAssignment({
+        employee: employeeContext,
+        managerId: rest.reportingManagerId,
+      });
     }
 
     if (rest.orgHierarchyStructureId) {
@@ -604,14 +631,11 @@ async function insertEmployeeRecord(body: CreateEmployeeBody, options?: { sendIn
   }
 
   if (body.reportingManagerId) {
-    const [manager] = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(eq(employees.id, body.reportingManagerId))
-      .limit(1);
-    if (!manager) {
-      throw new ApiError(400, "INVALID_MANAGER", "Reporting manager not found.");
-    }
+    const employeeContext = await buildEmployeeOrgContextFromPayload(body);
+    await assertValidReportingManagerAssignment({
+      employee: employeeContext,
+      managerId: body.reportingManagerId,
+    });
   }
 
   const reportingChain = body.reportingManagerId ? [body.reportingManagerId] : [];

@@ -283,10 +283,15 @@ export function SelectField({
     | undefined;
   const invalid = errors.length > 0;
   const hasValue = value !== undefined && value !== "";
+  const optionValues = React.useMemo(
+    () => new Set(options.map((option) => option.value)),
+    [options],
+  );
+  const valueInOptions = hasValue && optionValues.has(value);
   const selectValue =
-    emptyOptionLabel && !hasValue
+    emptyOptionLabel && (!hasValue || !valueInOptions)
       ? SELECT_EMPTY_SENTINEL
-      : hasValue
+      : valueInOptions
         ? value
         : undefined;
 

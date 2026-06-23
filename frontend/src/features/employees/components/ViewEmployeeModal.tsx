@@ -19,8 +19,11 @@ import {
   fetchBranches,
   fetchEmployeeById,
   fetchEmployees,
+  fetchRoleOptions,
   formatEmployeeDisplayName,
+  isOnboardingCompleted,
   resendOnboardingInvitation,
+  resolveSystemAccessRoleLabel,
   type EmployeeDetail,
   type LookupItem,
 } from "../api/employees.client";
@@ -54,6 +57,7 @@ export default function ViewEmployeeModal({
     structures: [],
   });
   const [branches, setBranches] = useState<LookupItem[]>([]);
+  const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
   const [allEmployees, setAllEmployees] = useState<
     Awaited<ReturnType<typeof fetchEmployees>>
   >([]);
@@ -71,16 +75,18 @@ export default function ViewEmployeeModal({
 
     (async () => {
       try {
-        const [emp, org, brs, emps] = await Promise.all([
+        const [emp, org, brs, roles, emps] = await Promise.all([
           fetchEmployeeById(employeeId),
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
+          fetchRoleOptions(),
           fetchEmployees(),
         ]);
         if (cancelled) return;
         setEmployee(emp);
         setOrgLookups(org);
         setBranches(brs);
+        setRoleOptions(roles);
         setAllEmployees(emps);
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
@@ -99,6 +105,11 @@ export default function ViewEmployeeModal({
     const mgr = allEmployees.find((e) => e.id === employee.reportingManagerId);
     return mgr ? `${mgr.firstName} ${mgr.lastName} (${mgr.empId})` : "—";
   }, [allEmployees, employee?.reportingManagerId]);
+
+  const systemAccessRoleLabel = useMemo(() => {
+    if (!employee) return "—";
+    return resolveSystemAccessRoleLabel(employee, roleOptions);
+  }, [employee, roleOptions]);
 
   const title =
     employee != null
@@ -141,12 +152,19 @@ export default function ViewEmployeeModal({
             employee={employee}
             managerLabel={managerLabel}
             orgLookups={orgLookups}
+            systemAccessRoleLabel={systemAccessRoleLabel}
             onEdit={() => onEdit(employee.id)}
-            onResendInvitation={() => void handleResendInvitation()}
+            onResendInvitation={
+              employee && !isOnboardingCompleted(employee)
+                ? () => void handleResendInvitation()
+                : undefined
+            }
             resendingInvitation={resendingInvitation}
             variant="modal"
           />
-          {showOnboardingPanel && (
+          {showOnboardingPanel &&
+            employee &&
+            !isOnboardingCompleted(employee) && (
             <div className="px-6 pb-6">
               <OnboardingAdminPanel
                 employeeId={employee.id}

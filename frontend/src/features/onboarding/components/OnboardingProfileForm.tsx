@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { OnboardingRequestError } from "@/features/onboarding/api/onboarding.client";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
@@ -40,9 +40,15 @@ import {
 
 interface Props {
   initialValues?: Partial<OnboardingProfileValues>;
-  onSubmit: (values: OnboardingProfileValues) => Promise<void>;
+  onSubmit?: (values: OnboardingProfileValues) => Promise<void>;
   submitting?: boolean;
+  embedded?: boolean;
 }
+
+export type OnboardingProfileFormHandle = {
+  validate: () => OnboardingProfileValues | null;
+  isEmpty: () => boolean;
+};
 
 const DEFAULT_VALUES: OnboardingProfileValues = {
   currentAddress: "",
@@ -211,11 +217,34 @@ function getServerFieldErrors(err: unknown): Record<string, string> {
   return next;
 }
 
-export default function OnboardingProfileForm({
-  initialValues,
-  onSubmit,
-  submitting = false,
-}: Props) {
+function isProfileEmpty(values: OnboardingProfileValues): boolean {
+  const hasPersonalData =
+    values.currentAddress.trim() ||
+    values.permanentAddress.trim() ||
+    values.emergencyContactName.trim() ||
+    values.emergencyContactPhone.trim() ||
+    values.fatherName.trim() ||
+    values.motherName.trim() ||
+    values.panNo.trim() ||
+    values.aadhaarNo.trim() ||
+    values.uanNo.trim() ||
+    values.esicNo.trim();
+
+  const hasAcademicData = values.academic.some(
+    (row) =>
+      row.institution.trim() ||
+      row.boardUniversity?.trim() ||
+      row.gradeOrPercentage?.trim(),
+  );
+
+  return !hasPersonalData && !hasAcademicData;
+}
+
+const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
+  function OnboardingProfileForm(
+    { initialValues, onSubmit, submitting = false, embedded = false },
+    ref,
+  ) {
   const [values, setValues] = useState<OnboardingProfileValues>({
     ...DEFAULT_VALUES,
     ...initialValues,
@@ -349,7 +378,7 @@ export default function OnboardingProfileForm({
     }
 
     try {
-      await onSubmit(parsed.data);
+      await onSubmit?.(parsed.data);
     } catch (err) {
       const serverFieldErrors = getServerFieldErrors(err);
       if (Object.keys(serverFieldErrors).length > 0) {
@@ -363,8 +392,21 @@ export default function OnboardingProfileForm({
 
   const canAddMore = canAppendAcademicRow(values.academic);
 
-  return (
-    <form onSubmit={handleSubmit} noValidate>
+  useImperativeHandle(ref, () => ({
+    validate: () => {
+      const parsed = onboardingProfileSchema.safeParse(values);
+      if (!parsed.success) {
+        setErrors(collectOnboardingProfileErrors(values));
+        return null;
+      }
+      setErrors({});
+      return parsed.data;
+    },
+    isEmpty: () => isProfileEmpty(values),
+  }));
+
+  const formBody = (
+    <>
       <EmployeeFormSection title="Address">
         <EmployeeFormField span={2}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
@@ -777,15 +819,30 @@ export default function OnboardingProfileForm({
         <FieldError message={errors.academic} />
       </EmployeeFormSection>
 
-      {formError && <p className="text-sm text-red-600 mb-4">{formError}</p>}
+      {formError && !embedded && <p className="text-sm text-red-600 mb-4">{formError}</p>}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className={onboardingBtnPrimaryClass}
-      >
-        {submitting ? "Saving…" : "Save Profile"}
-      </button>
+      {!embedded ? (
+        <button
+          type="submit"
+          disabled={submitting}
+          className={onboardingBtnPrimaryClass}
+        >
+          {submitting ? "Saving…" : "Save Profile"}
+        </button>
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="contents">{formBody}</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate>
+      {formBody}
     </form>
   );
-}
+},
+);
+
+export default OnboardingProfileForm;

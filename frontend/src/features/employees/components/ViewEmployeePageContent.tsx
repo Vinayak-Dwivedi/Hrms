@@ -18,7 +18,10 @@ import {
   fetchBranches,
   fetchEmployeeById,
   fetchEmployees,
+  fetchRoleOptions,
+  isOnboardingCompleted,
   resendOnboardingInvitation,
+  resolveSystemAccessRoleLabel,
   type EmployeeDetail,
   type LookupItem,
 } from "../api/employees.client";
@@ -42,6 +45,7 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
     structures: [],
   });
   const [branches, setBranches] = useState<LookupItem[]>([]);
+  const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
   const [allEmployees, setAllEmployees] = useState<
     Awaited<ReturnType<typeof fetchEmployees>>
   >([]);
@@ -57,16 +61,18 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
 
     (async () => {
       try {
-        const [emp, org, brs, emps] = await Promise.all([
+        const [emp, org, brs, roles, emps] = await Promise.all([
           fetchEmployeeById(employeeId),
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
+          fetchRoleOptions(),
           fetchEmployees(),
         ]);
         if (cancelled) return;
         setEmployee(emp);
         setOrgLookups(org);
         setBranches(brs);
+        setRoleOptions(roles);
         setAllEmployees(emps);
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
@@ -85,6 +91,11 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
     const mgr = allEmployees.find((e) => e.id === employee.reportingManagerId);
     return mgr ? `${mgr.firstName} ${mgr.lastName} (${mgr.empId})` : "—";
   }, [allEmployees, employee?.reportingManagerId]);
+
+  const systemAccessRoleLabel = useMemo(() => {
+    if (!employee) return "—";
+    return resolveSystemAccessRoleLabel(employee, roleOptions);
+  }, [employee, roleOptions]);
 
   async function handleResendInvitation() {
     setResendingInvitation(true);
@@ -109,14 +120,16 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
         <Link className={employeeBtnOutlineSmClass} href="/employees">
           ← Back to employees
         </Link>
-        {showOnboardingLink && (
-          <Link
-            className={employeeBtnOutlineSmClass}
-            href={`/employees/${employeeId}/onboarding`}
-          >
-            Manage onboarding
-          </Link>
-        )}
+        {showOnboardingLink &&
+          employee &&
+          !isOnboardingCompleted(employee) && (
+            <Link
+              className={employeeBtnOutlineSmClass}
+              href={`/employees/${employeeId}/onboarding`}
+            >
+              Manage onboarding
+            </Link>
+          )}
       </div>
 
       {loading && <div className={employeeLoadingClass}>Loading employee…</div>}
@@ -135,12 +148,17 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
             employee={employee}
             managerLabel={managerLabel}
             orgLookups={orgLookups}
+            systemAccessRoleLabel={systemAccessRoleLabel}
             onboardingHref={
-              showOnboardingLink
+              showOnboardingLink && !isOnboardingCompleted(employee)
                 ? `/employees/${employee.id}/onboarding`
                 : undefined
             }
-            onResendInvitation={() => void handleResendInvitation()}
+            onResendInvitation={
+              !isOnboardingCompleted(employee)
+                ? () => void handleResendInvitation()
+                : undefined
+            }
             resendingInvitation={resendingInvitation}
             variant="page"
           />

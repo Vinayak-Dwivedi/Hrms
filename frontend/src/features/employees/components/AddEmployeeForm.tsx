@@ -12,12 +12,11 @@ import {
   createEmployee,
   EmployeeApiError,
   fetchBranches,
-  fetchManagerOptions,
+  fetchEmployees,
   fetchRoleOptions,
-  toManagerSelectOptions,
   toSelectOptions,
+  type EmployeeListItem,
   type LookupItem,
-  type ManagerOption,
 } from "../api/employees.client";
 import OrgHierarchyRoleFields, {
   fetchOrgHierarchyRoleLookups,
@@ -51,6 +50,7 @@ import {
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
+import ReportingManagerField from "./ReportingManagerField";
 
 const employeeFieldControl = { controlClassName: employeeListFormControlClass };
 const employeeSelectControl = {
@@ -61,7 +61,7 @@ const maxJoiningDateValue = maxJoiningDate();
 
 type FormLookups = OrgHierarchyRoleLookups & {
   branches: LookupItem[];
-  managers: ManagerOption[];
+  employees: EmployeeListItem[];
   roleOptions: LookupItem[];
   lookupsError: string | null;
 };
@@ -73,7 +73,7 @@ function AddEmployeeFormContent({
   levels,
   structures,
   branches,
-  managers,
+  employees,
   roleOptions,
   lookupsError,
 }: FormLookups) {
@@ -328,6 +328,7 @@ function AddEmployeeFormContent({
                     form.setFieldValue("orgHierarchyDepartmentId", "");
                     form.setFieldValue("orgHierarchySubDepartmentId", "");
                     form.setFieldValue("orgHierarchyDesignationId", "");
+                    form.setFieldValue("reportingManagerId", "");
                   }}
                 />
               )}
@@ -346,28 +347,16 @@ function AddEmployeeFormContent({
             requireLocation
           />
 
-          <EmployeeFormField>
-            <form.Field
-              name="reportingManagerId"
-              validators={fieldValidators.reportingManagerId}
-            >
-              {(field) => (
-                <NativeSelectField
-                  {...employeeSelectControl}
-                  description={
-                    managers.length === 0
-                      ? "No employees are available to assign as reporting manager yet."
-                      : undefined
-                  }
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Reporting manager"
-                  options={toManagerSelectOptions(managers)}
-                  placeholder="Select manager"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
+          <ReportingManagerField
+            controlClassName={employeeFormNativeSelectClass}
+            designations={designations}
+            employees={employees}
+            fieldValidators={fieldValidators}
+            form={form}
+            levels={levels}
+            structures={structures}
+            useNativeSelect
+          />
         </EmployeeFormSection>
 
         <EmployeeFormSection
@@ -482,23 +471,23 @@ export default function AddEmployeeForm() {
     structures: [],
   });
   const [branches, setBranches] = useState<LookupItem[]>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [org, brs, mgrs, rolesList] = await Promise.all([
+        const [org, brs, emps, rolesList] = await Promise.all([
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
-          fetchManagerOptions(),
+          fetchEmployees(),
           fetchRoleOptions(),
         ]);
         if (cancelled) return;
         setOrgLookups(org);
         setBranches(brs);
-        setManagers(mgrs);
+        setEmployees(emps);
         setRoleOptions(rolesList);
       } catch (e) {
         if (!cancelled) setLookupsError((e as Error).message);
@@ -519,8 +508,8 @@ export default function AddEmployeeForm() {
     <AddEmployeeFormContent
       {...orgLookups}
       branches={branches}
+      employees={employees}
       lookupsError={lookupsError}
-      managers={managers}
       roleOptions={roleOptions}
     />
   );

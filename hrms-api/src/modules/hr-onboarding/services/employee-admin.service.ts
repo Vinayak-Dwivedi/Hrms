@@ -56,10 +56,21 @@ async function resolveSystemAccessRole(userId: string | null | undefined): Promi
     .from(roles)
     .where(eq(roles.code, rbacCode))
     .limit(1);
-  if (!role) {
-    return { roleId: null, roleName: null };
+  if (role) {
+    return { roleId: role.id, roleName: role.name };
   }
-  return { roleId: role.id, roleName: role.name };
+  const [roleByAuthCode] = await db
+    .select({ id: roles.id, name: roles.name })
+    .from(roles)
+    .where(eq(roles.code, user.role))
+    .limit(1);
+  if (roleByAuthCode) {
+    return { roleId: roleByAuthCode.id, roleName: roleByAuthCode.name };
+  }
+  return {
+    roleId: null,
+    roleName: user.role.charAt(0).toUpperCase() + user.role.slice(1),
+  };
 }
 
 export async function getEmployeeDetail(employeeId: number) {

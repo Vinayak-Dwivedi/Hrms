@@ -22,8 +22,9 @@ import {
 import {
   fetchDepartments,
   fetchDesignations,
-  fetchEmployees,
+  fetchEmployeeList,
   formatOnboardingStatus,
+  type EmployeeListItem,
   type EmployeeStatus,
   type LookupItem,
   type OnboardingPipelineStatus,
@@ -31,12 +32,13 @@ import {
 import { resolveEmployeeOrgRoleIds } from "@/features/employees/lib/resolve-employee-org-role";
 import {
   fetchOrgHierarchyRoleLookups,
-  resolveOrgHierarchyRoleDisplay,
   type OrgHierarchyRoleLookups,
 } from "@/features/org-hierarchy/lib/org-hierarchy-role";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const ALL_STATUS = "All";
 const ALL_ONBOARDING = "All";
+const LIST_PAGE_SIZE = 10;
 
 export default function EmployeesPage() {
   const { hasAnyPermission } = useAuth();
@@ -44,14 +46,15 @@ export default function EmployeesPage() {
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [employees, setEmployees] = useState<
-    Awaited<ReturnType<typeof fetchEmployees>>
-  >([]);
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
   const [departments, setDepartments] = useState<LookupItem[]>([]);
   const [designations, setDesignations] = useState<LookupItem[]>([]);
   const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups | null>(null);
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_STATUS);
   const [onboardingFilter, setOnboardingFilter] =
     useState<string>(ALL_ONBOARDING);
@@ -67,31 +70,29 @@ export default function EmployeesPage() {
     }
   }, []);
 
-  const loadEmployees = useCallback(async () => {
-    try {
-      const [empsResult, deptsResult, desigsResult, orgResult] =
-        await Promise.allSettled([
-          fetchEmployees(),
-          fetchDepartments(),
-          fetchDesignations(),
-          fetchOrgHierarchyRoleLookups(),
-        ]);
+  useEffect(() => {
+    setPage(1);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    onboardingFilter,
+    departmentFilter,
+    designationFilter,
+  ]);
 
-      // Org-hierarchy lookups are best-effort; the table falls back to the
-      // legacy id→name maps when they are unavailable.
-      setOrgLookups(orgResult.status === "fulfilled" ? orgResult.value : null);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLookups() {
+      const [deptsResult, desigsResult, orgResult] = await Promise.allSettled([
+        fetchDepartments(),
+        fetchDesignations(),
+        fetchOrgHierarchyRoleLookups(),
+      ]);
+
+      if (cancelled) return;
 
       const failures: string[] = [];
-      if (empsResult.status === "fulfilled") {
-        setEmployees(empsResult.value);
-      } else {
-        failures.push(
-          empsResult.reason instanceof Error
-            ? empsResult.reason.message
-            : "employees list",
-        );
-        setEmployees([]);
-      }
       if (deptsResult.status === "fulfilled") {
         setDepartments(deptsResult.value);
       } else {
@@ -123,13 +124,70 @@ export default function EmployeesPage() {
         setOrgLookups(null);
       }
 
-      setLoadError(failures.length > 0 ? failures.join("; ") : null);
+      if (failures.length > 0) {
+        setLoadError(failures.join("; "));
+      }
+    }
+
+    void loadLookups();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadEmployees = useCallback(async () => {
+    setLoading(true);
+    try {
+      const designationActive = Boolean(designationFilter);
+      const listFilters = {
+        search: debouncedSearch.trim() || undefined,
+        departmentId: departmentFilter ? Number(departmentFilter) : undefined,
+        employeeStatus:
+          statusFilter !== ALL_STATUS
+            ? (statusFilter as EmployeeStatus)
+            : undefined,
+        onboardingStatus:
+          onboardingFilter !== ALL_ONBOARDING
+            ? (onboardingFilter as OnboardingPipelineStatus)
+            : undefined,
+        limit: designationActive ? 500 : LIST_PAGE_SIZE,
+        offset: designationActive ? 0 : (page - 1) * LIST_PAGE_SIZE,
+      };
+
+      const result = await fetchEmployeeList(listFilters);
+
+      if (designationActive) {
+        const filtered = result.employees.filter((emp) => {
+          const roleIds =
+            orgLookups != null
+              ? resolveEmployeeOrgRoleIds(emp, orgLookups)
+              : { designationId: emp.designationId };
+          return String(roleIds.designationId ?? "") === designationFilter;
+        });
+        const start = (page - 1) * LIST_PAGE_SIZE;
+        setEmployees(filtered.slice(start, start + LIST_PAGE_SIZE));
+        setTotalCount(filtered.length);
+      } else {
+        setEmployees(result.employees);
+        setTotalCount(result.total);
+      }
+      setLoadError(null);
     } catch (e) {
+      setEmployees([]);
+      setTotalCount(0);
       setLoadError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    onboardingFilter,
+    departmentFilter,
+    designationFilter,
+    page,
+    orgLookups,
+  ]);
 
   useEffect(() => {
     void loadEmployees();
@@ -158,76 +216,13 @@ export default function EmployeesPage() {
     return designations;
   }, [orgLookups, designations]);
 
-  const filteredEmployees = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return employees.filter((emp) => {
-      if (statusFilter !== ALL_STATUS && emp.employeeStatus !== statusFilter) {
-        return false;
-      }
-      if (
-        onboardingFilter !== ALL_ONBOARDING &&
-        (emp.onboardingStatus ?? "PENDING") !== onboardingFilter
-      ) {
-        return false;
-      }
-
-      const roleIds =
-        orgLookups != null
-          ? resolveEmployeeOrgRoleIds(emp, orgLookups)
-          : {
-              departmentId: emp.departmentId,
-              designationId: emp.designationId,
-            };
-
-      if (
-        departmentFilter &&
-        String(roleIds.departmentId ?? "") !== departmentFilter
-      ) {
-        return false;
-      }
-      if (
-        designationFilter &&
-        String(roleIds.designationId ?? "") !== designationFilter
-      ) {
-        return false;
-      }
-
-      if (!q) return true;
-      const org =
-        emp.orgHierarchyStructureId != null && orgLookups
-          ? resolveOrgHierarchyRoleDisplay(emp.orgHierarchyStructureId, orgLookups)
-          : null;
-      const haystack = [
-        emp.empId,
-        emp.firstName,
-        emp.lastName,
-        emp.workEmail ?? "",
-        emp.phone,
-        org?.department ?? departmentNames.get(emp.departmentId ?? -1) ?? "",
-        org?.designation ?? designationNames.get(emp.designationId ?? -1) ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    }).sort((a, b) => b.id - a.id);
-  }, [
-    employees,
-    search,
-    statusFilter,
-    onboardingFilter,
-    departmentFilter,
-    designationFilter,
-    departmentNames,
-    designationNames,
-    orgLookups,
-  ]);
-
   function resetFilters() {
     setSearch("");
     setStatusFilter(ALL_STATUS);
     setOnboardingFilter(ALL_ONBOARDING);
     setDepartmentFilter("");
     setDesignationFilter("");
+    setPage(1);
   }
 
   function openBulkUpload() {
@@ -251,7 +246,7 @@ export default function EmployeesPage() {
                 className={`${employeeListInputClass} pl-8`}
                 id="emp-search"
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search employees..."
+                placeholder="Search by ID, name, email..."
                 type="text"
                 value={search}
               />
@@ -391,12 +386,17 @@ export default function EmployeesPage() {
         <div className={employeeLoadingClass}>Loading employees…</div>
       ) : (
         <EmployeeTable
-          key={`${search}-${statusFilter}-${onboardingFilter}-${departmentFilter}-${designationFilter}`}
           departmentNames={departmentNames}
           designationNames={designationNames}
           orgLookups={orgLookups}
-          employees={filteredEmployees}
+          employees={employees}
           showOnboardingAction={showOnboardingAction}
+          pagination={{
+            page,
+            pageSize: LIST_PAGE_SIZE,
+            totalCount,
+            onPageChange: setPage,
+          }}
         />
       )}
 

@@ -4,7 +4,7 @@ import { useForm } from "@tanstack/react-form";
 import { Briefcase, Contact, KeyRound, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FormValidationRevealProvider } from "@/components/form/form-validation-context";
 import {
@@ -22,14 +22,14 @@ import OrgHierarchyRoleFields, {
 import {
   EmployeeApiError,
   fetchBranches,
-  fetchManagerOptions,
+  fetchEmployees,
   fetchRoleOptions,
-  toManagerSelectOptions,
   toSelectOptions,
   type EmployeeDetail,
+  type EmployeeListItem,
   type LookupItem,
-  type ManagerOption,
   updateEmployee,
+  updateEmployeeProfileByHr,
 } from "../api/employees.client";
 import {
   createUpdateEmployeeFieldValidators,
@@ -57,6 +57,10 @@ import {
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
+import EmployeeOnboardingProfileEdit, {
+  type EmployeeOnboardingProfileEditHandle,
+} from "./EmployeeOnboardingProfileEdit";
+import ReportingManagerField from "./ReportingManagerField";
 
 const employeeFieldControl = { controlClassName: employeeListFormControlClass };
 const maxDob = maxDateOfBirthForAdult();
@@ -71,7 +75,7 @@ interface Props {
 
 type FormLookups = OrgHierarchyRoleLookups & {
   branches: Awaited<ReturnType<typeof fetchBranches>>;
-  managers: ManagerOption[];
+  employees: EmployeeListItem[];
   roleOptions: LookupItem[];
   lookupsError: string | null;
 };
@@ -87,13 +91,14 @@ function EditEmployeeFormContent({
   levels,
   structures,
   branches,
-  managers,
+  employees,
   roleOptions,
   lookupsError,
 }: Props & FormLookups) {
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [revealErrors, setRevealErrors] = useState(false);
+  const onboardingRef = useRef<EmployeeOnboardingProfileEditHandle>(null);
 
   const validRoleIds = useMemo(
     () => roleOptions.map((role) => role.id),
@@ -170,10 +175,31 @@ function EditEmployeeFormContent({
       }
 
       try {
+        const onboardingPayload = onboardingRef.current?.isEmpty()
+          ? null
+          : onboardingRef.current?.validate();
+
+        if (!onboardingRef.current?.isEmpty() && !onboardingPayload) {
+          setRevealErrors(true);
+          setSubmitError(
+            "Please fix the onboarding profile fields before submitting.",
+          );
+          return;
+        }
+
         await updateEmployee(
           employee.id,
           toUpdateApiPayload(parsed.data, structureId),
         );
+
+        if (onboardingPayload) {
+          await updateEmployeeProfileByHr(
+            employee.id,
+            onboardingPayload.profile,
+            onboardingPayload.bank,
+          );
+        }
+
         toast.success("Employee updated successfully.");
         if (onSuccess) {
           onSuccess();
@@ -200,7 +226,7 @@ function EditEmployeeFormContent({
   return (
     <FormValidationRevealProvider reveal={revealErrors}>
     <form
-      className={embedded ? "flex flex-col" : `${employeeCardClass} overflow-hidden`}
+      className={embedded ? "flex flex-col gap-4 p-6" : "space-y-4"}
       noValidate
       onSubmit={(e) => {
         e.preventDefault();
@@ -208,15 +234,18 @@ function EditEmployeeFormContent({
         void form.handleSubmit();
       }}
     >
-      <div className="p-5">
-      {lookupsError && (
-        <div className={employeeListWarnBannerClass}>
-          Some dropdown options failed to load: {lookupsError}
-        </div>
-      )}
+      {(lookupsError || submitError) && (
+        <div className="space-y-3">
+          {lookupsError && (
+            <div className={employeeListWarnBannerClass}>
+              Some dropdown options failed to load: {lookupsError}
+            </div>
+          )}
 
-      {submitError && (
-        <div className={employeeListErrorBannerClass}>{submitError}</div>
+          {submitError && (
+            <div className={employeeListErrorBannerClass}>{submitError}</div>
+          )}
+        </div>
       )}
 
       <div className={employeeFormSectionsGridClass}>
@@ -376,6 +405,7 @@ function EditEmployeeFormContent({
                     form.setFieldValue("orgHierarchyDepartmentId", "");
                     form.setFieldValue("orgHierarchySubDepartmentId", "");
                     form.setFieldValue("orgHierarchyDesignationId", "");
+                    form.setFieldValue("reportingManagerId", "");
                   }}
                 />
               )}
@@ -394,23 +424,18 @@ function EditEmployeeFormContent({
             requireLocation
           />
 
-          <EmployeeFormField>
-            <form.Field
-              name="reportingManagerId"
-              validators={fieldValidators.reportingManagerId}
-            >
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  emptyOptionLabel="None"
-                  field={field}
-                  label="Reporting manager"
-                  options={toManagerSelectOptions(managers)}
-                  placeholder="Select manager"
-                />
-              )}
-            </form.Field>
-          </EmployeeFormField>
+          <ReportingManagerField
+            controlClassName={employeeListFormControlClass}
+            designations={designations}
+            employees={employees}
+            excludeEmployeeId={employee.id}
+            fieldValidators={fieldValidators}
+            form={form}
+            levels={levels}
+            pinnedReportingManagerId={employee.reportingManagerId}
+            structures={structures}
+            useNativeSelect
+          />
 
           <EmployeeFormField>
             <form.Field
@@ -495,10 +520,17 @@ function EditEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
         </EmployeeFormSection>
-      </div>
+
+      <EmployeeOnboardingProfileEdit
+        inGrid
+        profile={employee.profile}
+        ref={onboardingRef}
+      />
       </div>
 
-      <div className="flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border-t border-gray-100">
+      <div
+        className={`flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border border-slate-200 rounded-md ${employeeCardClass}`}
+      >
         {onCancel ? (
           <button
             className={employeeListBtnOutlineClass}
@@ -548,23 +580,23 @@ export default function EditEmployeeForm({
     structures: [],
   });
   const [branches, setBranches] = useState<Awaited<ReturnType<typeof fetchBranches>>>([]);
-  const [managers, setManagers] = useState<ManagerOption[]>([]);
+  const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [org, brs, mgrs, roles] = await Promise.all([
+        const [org, brs, emps, roles] = await Promise.all([
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
-          fetchManagerOptions(),
+          fetchEmployees(),
           fetchRoleOptions(),
         ]);
         if (cancelled) return;
         setOrgLookups(org);
         setBranches(brs);
-        setManagers(mgrs.filter((m) => m.id !== employee.id));
+        setEmployees(emps);
         setRoleOptions(roles);
       } catch (e) {
         if (!cancelled) setLookupsError((e as Error).message);
@@ -587,8 +619,8 @@ export default function EditEmployeeForm({
       branches={branches}
       employee={employee}
       embedded={embedded}
+      employees={employees}
       lookupsError={lookupsError}
-      managers={managers}
       roleOptions={roleOptions}
       onCancel={onCancel}
       onSuccess={onSuccess}

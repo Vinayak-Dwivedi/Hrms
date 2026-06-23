@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, forwardRef, useImperativeHandle, useState } from "react";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
 import { employeeBtnClass } from "@/features/employees/employee-theme";
@@ -14,11 +14,17 @@ import {
 
 interface Props {
   initialValues?: OnboardingBankFormValues;
-  onSubmit: (values: OnboardingBankFormValues) => Promise<void>;
+  onSubmit?: (values: OnboardingBankFormValues) => Promise<void>;
   submitting?: boolean;
   submitLabel?: string;
   readOnly?: boolean;
+  embedded?: boolean;
 }
+
+export type OnboardingBankFormHandle = {
+  validate: () => OnboardingBankFormValues | null;
+  isEmpty: () => boolean;
+};
 
 const DEFAULT_BANK_ROW: BankDetailValues = {
   accountNumber: "",
@@ -57,13 +63,29 @@ function digitsOnly(value: string, maxLen: number) {
   return value.replace(/\D/g, "").slice(0, maxLen);
 }
 
-export default function OnboardingBankForm({
-  initialValues,
-  onSubmit,
-  submitting = false,
-  submitLabel = "Save bank details",
-  readOnly = false,
-}: Props) {
+function isBankEmpty(values: OnboardingBankFormValues): boolean {
+  return values.bank.every(
+    (row) =>
+      !row.accountNumber.trim() &&
+      !row.accountName.trim() &&
+      !row.bankName.trim() &&
+      !row.branchName.trim() &&
+      !row.ifscCode.trim(),
+  );
+}
+
+const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
+  function OnboardingBankForm(
+    {
+      initialValues,
+      onSubmit,
+      submitting = false,
+      submitLabel = "Save bank details",
+      readOnly = false,
+      embedded = false,
+    },
+    ref,
+  ) {
   const [values, setValues] = useState<OnboardingBankFormValues>({
     bank:
       initialValues?.bank?.length && initialValues.bank.length > 0
@@ -108,11 +130,25 @@ export default function OnboardingBankForm({
     }
     setErrors({});
     try {
-      await onSubmit(parsed.data);
+      await onSubmit?.(parsed.data);
     } catch (err) {
       setFormError((err as Error).message ?? "Failed to save bank details.");
     }
   }
+
+  useImperativeHandle(ref, () => ({
+    validate: () => {
+      if (isBankEmpty(values)) return null;
+      const parsed = onboardingBankFormSchema.safeParse(values);
+      if (!parsed.success) {
+        setErrors(collectOnboardingBankErrors(values));
+        return null;
+      }
+      setErrors({});
+      return parsed.data;
+    },
+    isEmpty: () => isBankEmpty(values),
+  }));
 
   if (readOnly) {
     return (
@@ -151,8 +187,8 @@ export default function OnboardingBankForm({
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+  const formBody = (
+    <>
       <EmployeeFormSection title="Bank account details">
         {values.bank.map((row, index) => (
           <div key={index} className="contents">
@@ -252,15 +288,36 @@ export default function OnboardingBankForm({
         <FieldError message={errors.bank} />
       </EmployeeFormSection>
 
-      {formError && <p className="text-sm text-red-600 m-0">{formError}</p>}
+      {formError && !embedded ? (
+        <p className="text-sm text-red-600 m-0">{formError}</p>
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className={submitLabel === "Save bank details" ? employeeBtnClass : onboardingBtnPrimaryClass}
-      >
-        {submitting ? "Saving…" : submitLabel}
-      </button>
+      {!embedded ? (
+        <button
+          type="submit"
+          disabled={submitting}
+          className={
+            submitLabel === "Save bank details"
+              ? employeeBtnClass
+              : onboardingBtnPrimaryClass
+          }
+        >
+          {submitting ? "Saving…" : submitLabel}
+        </button>
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return <div className="contents">{formBody}</div>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      {formBody}
     </form>
   );
-}
+},
+);
+
+export default OnboardingBankForm;

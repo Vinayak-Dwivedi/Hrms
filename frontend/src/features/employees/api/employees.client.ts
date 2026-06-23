@@ -1,5 +1,13 @@
 import { API_BASE } from "@/lib/hrms-client";
 import type { MaritalStatus } from "@/features/onboarding/constants/personal";
+import {
+  toProfilePayload,
+  type EmployeeProfile,
+} from "@/features/onboarding/api/onboarding.client";
+import type {
+  OnboardingBankFormValues,
+  OnboardingProfileValues,
+} from "@/features/onboarding/schemas/onboarding.schema";
 
 export type EmployeeStatus =
   | "Active"
@@ -27,6 +35,8 @@ export type EmployeeListItem = {
   subDepartmentId: number | null;
   designationId: number | null;
   orgHierarchyStructureId?: number | null;
+  locationId?: number | null;
+  branchId?: number | null;
   employeeStatus: EmployeeStatus;
   joiningDate: string;
   onboardingStatus?: OnboardingPipelineStatus;
@@ -50,6 +60,7 @@ export type EmployeeDetail = EmployeeListItem & {
   onboardingTokenUsed?: boolean;
   onboardingCompletedAt?: string | null;
   onboardingSubmittedAt?: string | null;
+  profile?: EmployeeProfile;
 };
 
 export type LookupItem = {
@@ -236,6 +247,7 @@ type RawEmployeeRow = {
   onboardingSubmittedAt?: string | null;
   roleId?: number | null;
   roleName?: string | null;
+  profile?: EmployeeProfile;
 };
 
 function toDetail(row: RawEmployeeRow): EmployeeDetail {
@@ -270,6 +282,7 @@ function toDetail(row: RawEmployeeRow): EmployeeDetail {
     onboardingSubmittedAt: row.onboardingSubmittedAt ?? null,
     roleId: row.roleId ?? null,
     roleName: row.roleName ?? null,
+    profile: row.profile,
   };
 }
 
@@ -286,6 +299,8 @@ function toListItem(row: RawEmployeeRow): EmployeeListItem {
     subDepartmentId: row.subDepartmentId,
     designationId: row.designationId,
     orgHierarchyStructureId: row.orgHierarchyStructureId ?? null,
+    locationId: row.locationId ?? row.branchId ?? null,
+    branchId: row.branchId ?? null,
     employeeStatus: row.employeeStatus,
     joiningDate: row.joiningDate,
     onboardingStatus: row.onboardingStatus,
@@ -315,9 +330,14 @@ export type EmployeeListFilters = {
   sort?: "id" | "createdAt" | "joiningDate" | "lastName";
 };
 
-export async function fetchEmployees(
+export type EmployeeListResult = {
+  employees: EmployeeListItem[];
+  total: number;
+};
+
+export async function fetchEmployeeList(
   filters: EmployeeListFilters = {},
-): Promise<EmployeeListItem[]> {
+): Promise<EmployeeListResult> {
   const params = new URLSearchParams();
   params.set("sort", filters.sort ?? "id");
   params.set("limit", String(filters.limit ?? 500));
@@ -333,7 +353,16 @@ export async function fetchEmployees(
     params.set("onboardingStatus", filters.onboardingStatus);
   }
   const res = await jsonFetch<ListResponse>(`/employees?${params}`);
-  return res.data.map(toListItem);
+  return {
+    employees: res.data.map(toListItem),
+    total: res.total ?? res.data.length,
+  };
+}
+
+export async function fetchEmployees(
+  filters: EmployeeListFilters = {},
+): Promise<EmployeeListItem[]> {
+  return (await fetchEmployeeList(filters)).employees;
 }
 
 const ONBOARDING_STATUS_LABEL: Record<OnboardingPipelineStatus, string> = {
@@ -475,6 +504,46 @@ export async function updateEmployee(
   return toDetail(res.data);
 }
 
+function toHrProfilePayload(
+  values: OnboardingProfileValues,
+  bank?: OnboardingBankFormValues | null,
+) {
+  const payload = toProfilePayload(values) as ReturnType<typeof toProfilePayload> & {
+    bank?: Array<{
+      id?: number;
+      accountNumber: string;
+      accountName: string;
+      bankName: string;
+      branchName: string;
+      ifscCode: string;
+      isPrimary?: boolean;
+    }>;
+  };
+  if (bank?.bank?.length) {
+    payload.bank = bank.bank.map((row) => ({
+      id: row.id,
+      accountNumber: row.accountNumber,
+      accountName: row.accountName,
+      bankName: row.bankName,
+      branchName: row.branchName,
+      ifscCode: row.ifscCode,
+      isPrimary: row.isPrimary ?? false,
+    }));
+  }
+  return payload;
+}
+
+export async function updateEmployeeProfileByHr(
+  id: number,
+  values: OnboardingProfileValues,
+  bank?: OnboardingBankFormValues | null,
+): Promise<EmployeeProfile> {
+  return jsonFetch<EmployeeProfile>(`/employees/${id}/profile`, {
+    method: "PATCH",
+    body: JSON.stringify(toHrProfilePayload(values, bank)),
+  });
+}
+
 async function fetchLookup(path: string): Promise<LookupItem[]> {
   const res = await jsonFetch<CrudListResponse>(`${path}?limit=500`);
   return res.data
@@ -547,6 +616,22 @@ export function lookupName(
   return items.find((item) => item.id === id)?.name ?? "—";
 }
 
+export function resolveSystemAccessRoleLabel(
+  employee: Pick<EmployeeDetail, "roleId" | "roleName">,
+  roleOptions: LookupItem[],
+): string {
+  if (employee.roleName?.trim()) {
+    return employee.roleName.trim();
+  }
+  if (employee.roleId != null) {
+    const name = lookupName(employee.roleId, roleOptions);
+    if (name !== "—") {
+      return name;
+    }
+  }
+  return "—";
+}
+
 export async function resendOnboardingInvitation(
   id: number,
 ): Promise<{ message: string; expiresAt: string }> {
@@ -556,12 +641,22 @@ export async function resendOnboardingInvitation(
   );
 }
 
+export function isOnboardingCompleted(employee: {
+  onboardingStatus?: OnboardingPipelineStatus;
+  onboardingCompletedAt?: string | null;
+}): boolean {
+  return (
+    employee.onboardingStatus === "COMPLETED" ||
+    Boolean(employee.onboardingCompletedAt)
+  );
+}
+
 export function getOnboardingInvitationStatus(employee: EmployeeDetail): {
   label: string;
   tone: "green" | "amber" | "gray" | "blue";
 } {
   const status = employee.onboardingStatus;
-  if (status === "COMPLETED" || employee.onboardingCompletedAt) {
+  if (isOnboardingCompleted(employee)) {
     return { label: "Onboarding completed", tone: "green" };
   }
   if (status === "EXPIRED") {
