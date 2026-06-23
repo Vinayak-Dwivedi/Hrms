@@ -83,7 +83,7 @@ const USER_MGMT_SECTION: NavSection = {
     },
     {
       icon: GitBranch,
-      label: "Hierarchy",
+      label: "Org Config",
       href: "/departments/hierarchy",
       requiredPermission: "employees.view",
     },
@@ -115,7 +115,6 @@ const USER_MGMT_SECTION: NavSection = {
 };
 
 const SETTINGS_HREFS = [
-  "/locations",
   "/leave-policy",
   "/holiday-calendars",
   "/weekly-off",
@@ -129,12 +128,6 @@ const SETTINGS_SECTION: NavSection = {
   collapsible: true,
   collapsedIcon: Settings,
   entries: [
-    {
-      icon: MapPin,
-      label: "Location",
-      href: "/locations",
-      requiredPermission: "admin.roles",
-    },
     // Weekly Off lives as a tab inside Leave Policy; Holiday Policy is here.
     { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
     {

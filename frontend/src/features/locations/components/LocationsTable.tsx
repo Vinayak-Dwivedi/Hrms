@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -38,10 +38,10 @@ export default function LocationsTable({
   return (
     <div className={`${employeeCardClass} overflow-hidden`}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[500px]">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr className="text-nowrap">
-              {["Name", "Address", "Action"].map((h) => (
+              {["Name", "Address", "Headcount", "Action"].map((h) => (
                 <th
                   key={h}
                   className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider"
@@ -70,6 +70,9 @@ export default function LocationsTable({
                   <td className="px-6 py-4 font-medium">{location.name}</td>
                   <td className="px-6 py-4 max-w-xs truncate">
                     {location.address ?? "—"}
+                  </td>
+                  <td className="px-6 py-4">
+                    {location.headcount === 0 ? "—" : location.headcount}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
