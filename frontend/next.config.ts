@@ -11,7 +11,6 @@ const nextConfig: NextConfig = {
   // (onboarding) code still carries type debt. Runtime is unaffected. Remove
   // once those type errors are cleaned up.
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   async rewrites() {
     return [
       {

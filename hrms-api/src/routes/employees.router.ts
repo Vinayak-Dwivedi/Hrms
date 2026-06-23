@@ -50,6 +50,18 @@ employeesRouter.get("/", viewEmployees, async (req, res, next) => {
   }
 });
 
+employeesRouter.get("/role-options", viewEmployees, async (_req, res, next) => {
+  try {
+    const rows = await db
+      .select({ id: roles.id, name: roles.name })
+      .from(roles)
+      .where(eq(roles.isActive, true));
+    res.json({ data: rows });
+  } catch (e) {
+    next(e);
+  }
+});
+
 employeesRouter.get("/:id/onboarding", viewEmployees, employeeAdminCtrl.getEmployeeOnboarding);
 employeesRouter.get(
   "/:id/onboarding/profile",
@@ -262,12 +274,43 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
         throw new ApiError(404, "NOT_FOUND", "Employee not found.");
       }
 
+      const provisionLogin = !existing.userId && roleId !== undefined;
+      if (provisionLogin) {
+        if (!employeePatch.workEmail?.trim()) {
+          throw new ApiError(
+            400,
+            "LOGIN_WORK_EMAIL_REQUIRED",
+            "Work email is required to create a login account.",
+          );
+        }
+        if (!password) {
+          throw new ApiError(
+            400,
+            "LOGIN_PASSWORD_REQUIRED",
+            "Password is required to create a login account.",
+          );
+        }
+      }
+
       await tx
         .update(employees)
         .set(employeePatch)
         .where(eq(employees.id, id));
 
-      if (existing.userId) {
+      if (provisionLogin) {
+        await provisionEmployeeLogin(tx, {
+          employeeId: id,
+          roleId: roleId!,
+          password: password!,
+          workEmail: employeePatch.workEmail,
+          fullName: formatEmployeeFullName({
+            firstName: employeePatch.firstName,
+            middleName: employeePatch.middleName,
+            lastName: employeePatch.lastName,
+          }),
+          now,
+        });
+      } else if (existing.userId) {
         const userPatch: {
           email: string;
           name: string;
@@ -294,7 +337,7 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
           .where(eq(users.id, existing.userId));
       }
 
-      if (password) {
+      if (password && !provisionLogin) {
         const passwordHash = await hashPassword(password);
         await tx
           .update(employees)
@@ -337,16 +380,6 @@ const optionalId = z
   .union([z.coerce.number().int().positive(), z.literal(""), z.null()])
   .optional()
   .transform((v) => (v === "" || v === null || v === undefined ? undefined : v));
-
-function formatEmployeeFullName(parts: {
-  firstName: string;
-  middleName?: string | null;
-  lastName: string;
-}): string {
-  return [parts.firstName, parts.middleName, parts.lastName]
-    .filter((part) => part?.trim())
-    .join(" ");
-}
 
 const createEmployeeSchema = z
   .object({
@@ -417,6 +450,53 @@ async function resolveAuthRole(roleId: number): Promise<string> {
     throw new ApiError(400, "INVALID_ROLE", "Selected role is inactive.");
   }
   return rbacCodeToAuthRole(role.code);
+}
+
+type DbExecutor = Pick<typeof db, "insert" | "update">;
+
+async function provisionEmployeeLogin(
+  tx: DbExecutor,
+  params: {
+    employeeId: number;
+    roleId: number;
+    password: string;
+    workEmail: string;
+    fullName: string;
+    now: Date;
+  },
+): Promise<string> {
+  const userId = randomUUID();
+  const accountId = randomUUID();
+  const authRole = await resolveAuthRole(params.roleId);
+  const passwordHash = await hashPassword(params.password);
+
+  await tx.insert(users).values({
+    id: userId,
+    name: params.fullName,
+    email: params.workEmail.toLowerCase(),
+    emailVerified: true,
+    role: authRole,
+    userTypeId: userTypeIdFromAuthRole(authRole),
+    createdAt: params.now,
+    updatedAt: params.now,
+  });
+
+  await tx.insert(accounts).values({
+    id: accountId,
+    accountId: userId,
+    providerId: CREDENTIAL_PROVIDER,
+    userId,
+    password: passwordHash,
+    createdAt: params.now,
+    updatedAt: params.now,
+  });
+
+  await tx
+    .update(employees)
+    .set({ userId, passwordHash, updatedAt: params.now })
+    .where(eq(employees.id, params.employeeId));
+
+  return userId;
 }
 
 type CreateEmployeeBody = z.infer<typeof createEmployeeSchema>;

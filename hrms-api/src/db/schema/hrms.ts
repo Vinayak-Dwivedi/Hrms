@@ -1543,6 +1543,48 @@ export const attendanceRecords = pgTable(
   ],
 );
 
+export const attendance = pgTable(
+  "attendance",
+  {
+    id: serial("id").primaryKey(),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    totalRecords: integer("total_records").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check("attendance_total_records_chk", sql`${table.totalRecords} >= 0`),
+    index("idx_attendance_created_at").on(table.createdAt),
+  ],
+);
+
+export const attendanceUploads = pgTable(
+  "attendance_uploads",
+  {
+    id: serial("id").primaryKey(),
+    attendanceId: integer("attendance_id")
+      .notNull()
+      .references(() => attendance.id, { onDelete: "cascade" }),
+    employeeCode: varchar("employee_code", { length: 20 }).notNull(),
+    inTime: time("in_time"),
+    outTime: time("out_time"),
+    totalHours: time("total_hours"),
+    attendanceDate: date("attendance_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("attendance_uploads_emp_date_uidx").on(
+      table.employeeCode,
+      table.attendanceDate,
+    ),
+    index("idx_att_upload_attendance_id").on(table.attendanceId),
+    index("idx_att_upload_date").on(table.attendanceDate),
+  ],
+);
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 4 — LEAVE
 // ───────────────────────────────────────────────────────────────────────────
@@ -2180,6 +2222,10 @@ export type NewRegularisationRequest =
   typeof regularisationRequests.$inferInsert;
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type NewAttendanceRecord = typeof attendanceRecords.$inferInsert;
+export type Attendance = typeof attendance.$inferSelect;
+export type NewAttendance = typeof attendance.$inferInsert;
+export type AttendanceUpload = typeof attendanceUploads.$inferSelect;
+export type NewAttendanceUpload = typeof attendanceUploads.$inferInsert;
 export type LeaveType = typeof leaveTypes.$inferSelect;
 export type NewLeaveType = typeof leaveTypes.$inferInsert;
 export type LeaveBalance = typeof leaveBalances.$inferSelect;

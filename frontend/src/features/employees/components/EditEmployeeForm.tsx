@@ -100,14 +100,16 @@ function EditEmployeeFormContent({
     [roleOptions],
   );
 
+  const hasLoginAccount = employee.roleId != null;
+
   const updateSchema = useMemo(
-    () => createUpdateEmployeeFormSchema(validRoleIds),
-    [validRoleIds],
+    () => createUpdateEmployeeFormSchema(validRoleIds, hasLoginAccount),
+    [validRoleIds, hasLoginAccount],
   );
 
   const fieldValidators = useMemo(
-    () => createUpdateEmployeeFieldValidators(validRoleIds),
-    [validRoleIds],
+    () => createUpdateEmployeeFieldValidators(validRoleIds, hasLoginAccount),
+    [validRoleIds, hasLoginAccount],
   );
 
   const defaultValues = useMemo(
@@ -435,23 +437,33 @@ function EditEmployeeFormContent({
 
         <EmployeeFormSection compact icon={KeyRound} title="Account & Access">
           <EmployeeFormField>
-            <form.Field name="roleId" validators={fieldValidators.roleId}>
-              {(field) => (
-                <SelectField
-                  {...employeeFieldControl}
-                  description={
-                    employee.roleId == null
-                      ? "No login account linked"
-                      : undefined
-                  }
-                  disabled={employee.roleId == null}
-                  field={field}
-                  label="System access role"
-                  options={toSelectOptions(roleOptions)}
-                  placeholder="Select role"
-                />
-              )}
-            </form.Field>
+            <form.Subscribe selector={(s) => s.values.workEmail}>
+              {(workEmail) => {
+                const canAssignRole =
+                  hasLoginAccount || Boolean(workEmail?.trim());
+                const roleDescription = hasLoginAccount
+                  ? employee.roleName ?? undefined
+                  : canAssignRole
+                    ? "Choose a role and set a new password below to create login access"
+                    : "Set a work email above to assign system access";
+
+                return (
+                  <form.Field name="roleId" validators={fieldValidators.roleId}>
+                    {(field) => (
+                      <SelectField
+                        {...employeeFieldControl}
+                        description={roleDescription}
+                        disabled={!canAssignRole}
+                        field={field}
+                        label="System access role"
+                        options={toSelectOptions(roleOptions)}
+                        placeholder="Select role"
+                      />
+                    )}
+                  </form.Field>
+                );
+              }}
+            </form.Subscribe>
           </EmployeeFormField>
 
           <EmployeeFormField>

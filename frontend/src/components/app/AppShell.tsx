@@ -15,6 +15,7 @@ import {
   Settings,
   Shield,
   ShieldPlus,
+  Upload,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -193,6 +194,12 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         requiredPermission: "attendance.view",
       },
       {
+        icon: Upload,
+        label: "Upload Attendance",
+        href: "/attendance/upload",
+        requiredPermission: "attendance.upload",
+      },
+      {
         icon: CalendarIcon,
         label: "Leave",
         href: "/leave",
@@ -285,6 +292,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/holiday-calendars": "Holiday Policy",
   "/employees": "Employees",
   "/employees/bulk-upload": "Bulk Upload",
+  "/attendance/upload": "Upload Attendance",
 };
 
 function breadcrumbFor(pathname: string): string {

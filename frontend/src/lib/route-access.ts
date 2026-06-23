@@ -67,6 +67,9 @@ export function requiredPermissionsForRoute(pathname: string): string[] | null {
   if (pathname.startsWith("/manager/")) {
     return ["leave.approve", "attendance.view"];
   }
+  if (pathname === "/attendance/upload") {
+    return ["attendance.upload"];
+  }
   if (pathname === "/attendance" || pathname.startsWith("/attendance/")) {
     return ["attendance.view"];
   }
