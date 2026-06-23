@@ -22,12 +22,20 @@ import {
 } from "../employee-theme";
 import { cn } from "@/lib/utils";
 
+export type EmployeeTablePagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (page: number) => void;
+};
+
 interface Props {
   employees: EmployeeListItem[];
   orgLookups: OrgHierarchyRoleLookups | null;
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
   showOnboardingAction?: boolean;
+  pagination?: EmployeeTablePagination;
 }
 
 const STATUS_CLASS: Record<EmployeeStatus, string> = {
@@ -55,19 +63,27 @@ export default function EmployeeTable({
   departmentNames,
   designationNames,
   showOnboardingAction = false,
+  pagination,
 }: Props) {
-  const [page, setPage] = useState(1);
+  const [internalPage, setInternalPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil(employees.length / PAGE_SIZE));
+  const pageSize = pagination?.pageSize ?? PAGE_SIZE;
+  const totalCount = pagination?.totalCount ?? employees.length;
+  const page = pagination?.page ?? internalPage;
+  const setPage = pagination?.onPageChange ?? setInternalPage;
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const safePage = Math.min(page, totalPages);
-  const start = (safePage - 1) * PAGE_SIZE;
+  const start = (safePage - 1) * pageSize;
   const pageRows = useMemo(
-    () => employees.slice(start, start + PAGE_SIZE),
-    [employees, start],
+    () => (pagination ? employees : employees.slice(start, start + pageSize)),
+    [employees, pagination, start, pageSize],
   );
 
-  const rangeStart = employees.length === 0 ? 0 : start + 1;
-  const rangeEnd = Math.min(start + PAGE_SIZE, employees.length);
+  const rangeStart = totalCount === 0 ? 0 : start + 1;
+  const rangeEnd = pagination
+    ? Math.min(start + pageRows.length, totalCount)
+    : Math.min(start + pageSize, employees.length);
 
   return (
     <div className={`${employeeCardClass} overflow-hidden`}>
@@ -170,7 +186,8 @@ export default function EmployeeTable({
                       >
                         <Pencil className={employeeIconSm} />
                       </Link>
-                      {showOnboardingAction && (
+                      {showOnboardingAction &&
+                        emp.onboardingStatus !== "COMPLETED" && (
                         <Link
                           aria-label={`Onboarding for ${emp.firstName} ${emp.lastName}`}
                           className={employeeEditIconBtnClass}
@@ -190,12 +207,12 @@ export default function EmployeeTable({
         </table>
       </div>
 
-      {employees.length > 0 && (
+      {totalCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-200">
           <p className="text-[13px] text-slate-500 m-0">
             Showing <span className="font-medium">{rangeStart}</span> to{" "}
             <span className="font-medium">{rangeEnd}</span> of{" "}
-            <span className="font-medium">{employees.length}</span> results
+            <span className="font-medium">{totalCount}</span> results
           </p>
           <div className="flex items-center gap-2">
             <button

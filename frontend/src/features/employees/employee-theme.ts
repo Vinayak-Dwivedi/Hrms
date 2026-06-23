@@ -145,7 +145,7 @@ export const employeeFormFieldSpan3Class = "lg:col-span-3";
 export const employeeFormSectionsStackClass = "space-y-5";
 
 export const employeeFormSectionsGridClass =
-  "grid grid-cols-1 xl:grid-cols-2 gap-4";
+  "grid grid-cols-1 md:grid-cols-2 gap-4";
 
 export const employeeInputClass = `w-full h-[38px] min-h-[38px] px-3 py-0 border border-slate-200 rounded-sm text-sm leading-normal text-slate-900 ${focusRingClass}`;
 

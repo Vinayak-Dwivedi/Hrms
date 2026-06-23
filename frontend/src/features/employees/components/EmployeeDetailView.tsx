@@ -1,8 +1,8 @@
 "use client";
 
-import { Mail, Pencil } from "lucide-react";
+import { Briefcase, Contact, KeyRound, Mail, Pencil, User } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   resolveOrgHierarchyRoleDisplay,
   type OrgHierarchyRoleLookups,
@@ -10,18 +10,28 @@ import {
 import {
   formatEmployeeDisplayName,
   getOnboardingInvitationStatus,
+  isOnboardingCompleted,
   lookupName,
   type EmployeeDetail,
   type EmployeeStatus,
   type LookupItem,
 } from "../api/employees.client";
-import { employeeCardClass, employeeEditIconBtnClass, employeeFieldLabelClass, employeeIconPen } from "../employee-theme";
+import {
+  employeeCardClass,
+  employeeEditIconBtnClass,
+  employeeFieldLabelClass,
+  employeeFormSectionsGridClass,
+  employeeIconPen,
+} from "../employee-theme";
+import EmployeeFormSection from "./EmployeeFormSection";
+import EmployeeOnboardingProfileView from "./EmployeeOnboardingProfileView";
 
 interface Props {
   employee: EmployeeDetail;
   orgLookups: OrgHierarchyRoleLookups;
   branches: LookupItem[];
   managerLabel: string;
+  systemAccessRoleLabel?: string;
   variant?: "page" | "modal";
   onboardingHref?: string;
   onEdit?: () => void;
@@ -56,10 +66,16 @@ function fmtDate(iso: string) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="py-3 border-b border-slate-100 last:border-b-0">
-      <p className={`${employeeFieldLabelClass} mb-1.5 m-0`}>
-        {label}
-      </p>
+      <p className={`${employeeFieldLabelClass} mb-1.5 m-0`}>{label}</p>
       <p className="text-sm text-gray-800 m-0">{value || "—"}</p>
+    </div>
+  );
+}
+
+function DetailSectionBody({ children }: { children: ReactNode }) {
+  return (
+    <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-x-8">
+      {children}
     </div>
   );
 }
@@ -69,6 +85,7 @@ export default function EmployeeDetailView({
   orgLookups,
   branches,
   managerLabel,
+  systemAccessRoleLabel,
   variant = "page",
   onboardingHref,
   onEdit,
@@ -76,8 +93,9 @@ export default function EmployeeDetailView({
   resendingInvitation = false,
 }: Props) {
   const isModal = variant === "modal";
-  const wrapperClass = isModal ? "p-6" : `${employeeCardClass} p-6`;
+  const headerClass = isModal ? "p-6" : `${employeeCardClass} p-6`;
   const invitation = getOnboardingInvitationStatus(employee);
+  const onboardingComplete = isOnboardingCompleted(employee);
   const orgRole = useMemo(
     () =>
       resolveOrgHierarchyRoleDisplay(
@@ -88,97 +106,141 @@ export default function EmployeeDetailView({
   );
 
   return (
-    <div className={wrapperClass}>
-      <div className="flex items-start justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
-        <div>
-          {!isModal && (
-            <h2 className="text-xl font-semibold text-slate-800 m-0">
-              {formatEmployeeDisplayName(employee)}
-            </h2>
-          )}
-          <p className={`text-sm text-slate-500 ${isModal ? "mt-0 mb-2" : "mt-1 mb-2"} m-0`}>
-            {employee.empId}
-          </p>
-          <span
-            className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${STATUS_CLASS[employee.employeeStatus]}`}
-          >
-            {employee.employeeStatus}
-          </span>
-          <span
-            className={`inline-block ml-2 px-3 py-1 text-xs font-medium rounded-full ${INVITATION_TONE_CLASS[invitation.tone]}`}
-          >
-            {invitation.label}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {onboardingHref && (
+    <div className="space-y-4">
+      <div className={headerClass}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            {!isModal && (
+              <h2 className="text-xl font-semibold text-slate-800 m-0">
+                {formatEmployeeDisplayName(employee)}
+              </h2>
+            )}
             <p
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-blue-50 text-[lab(52%_28_-70)] hover:bg-blue-100/80 no-underline transition-colors"
-              
+              className={`text-sm text-slate-500 ${isModal ? "mt-0 mb-2" : "mt-1 mb-2"} m-0`}
             >
-              Onboarding
+              {employee.empId}
             </p>
-          )}
-          {onResendInvitation && employee.employeeStatus === "Active" && (
-            <button
-              type="button"
-              onClick={onResendInvitation}
-              disabled={resendingInvitation}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+            <span
+              className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${STATUS_CLASS[employee.employeeStatus]}`}
             >
-              <Mail size={14} />
-              {resendingInvitation ? "Sending…" : "Resend invitation"}
-            </button>
-          )}
-          {isModal && onEdit ? (
-            <button
-              aria-label="Edit employee"
-              className={employeeEditIconBtnClass}
-              onClick={onEdit}
-              title="Edit"
-              type="button"
+              {employee.employeeStatus}
+            </span>
+            <span
+              className={`inline-block ml-2 px-3 py-1 text-xs font-medium rounded-full ${INVITATION_TONE_CLASS[invitation.tone]}`}
             >
-              <Pencil className={employeeIconPen} />
-            </button>
-          ) : !isModal ? (
-            <Link
-              aria-label="Edit employee"
-              className={employeeEditIconBtnClass}
-              href={`/employees/${employee.id}/edit`}
-              title="Edit"
-            >
-              <Pencil className={employeeIconPen} />
-            </Link>
-          ) : null}
+              {invitation.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {onboardingHref && !onboardingComplete && (
+              <Link
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-blue-50 text-[lab(52%_28_-70)] hover:bg-blue-100/80 no-underline transition-colors"
+                href={onboardingHref}
+              >
+                Onboarding
+              </Link>
+            )}
+            {onResendInvitation &&
+              !onboardingComplete &&
+              employee.employeeStatus === "Active" && (
+              <button
+                type="button"
+                onClick={onResendInvitation}
+                disabled={resendingInvitation}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50"
+              >
+                <Mail size={14} />
+                {resendingInvitation ? "Sending…" : "Resend invitation"}
+              </button>
+            )}
+            {isModal && onEdit ? (
+              <button
+                aria-label="Edit employee"
+                className={employeeEditIconBtnClass}
+                onClick={onEdit}
+                title="Edit"
+                type="button"
+              >
+                <Pencil className={employeeIconPen} />
+              </button>
+            ) : !isModal ? (
+              <Link
+                aria-label="Edit employee"
+                className={employeeEditIconBtnClass}
+                href={`/employees/${employee.id}/edit`}
+                title="Edit"
+              >
+                <Pencil className={employeeIconPen} />
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-        <DetailRow label="First name" value={employee.firstName} />
-        <DetailRow label="Middle name" value={employee.middleName ?? "—"} />
-        <DetailRow label="Last name" value={employee.lastName} />
-        <DetailRow label="Personal email" value={employee.personalEmail} />
-        <DetailRow label="Work email" value={employee.workEmail ?? "—"} />
-        <DetailRow
-          label="System access role"
-          value={employee.roleName ?? "—"}
-        />
-        <DetailRow label="Phone" value={employee.phone} />
-        <DetailRow label="Date of birth" value={fmtDate(employee.dob)} />
-        <DetailRow label="Gender" value={employee.gender} />
-        <DetailRow label="Nationality" value={employee.nationality} />
-        <DetailRow label="Joining date" value={fmtDate(employee.joiningDate)} />
-        <DetailRow label="Department" value={orgRole.department} />
-        <DetailRow label="Sub department" value={orgRole.subDepartment} />
-        <DetailRow label="Designation" value={orgRole.designation} />
-        <DetailRow label="Level / grade" value={orgRole.levelGrade} />
-        <DetailRow label="Reporting manager" value={managerLabel} />
-        <DetailRow
-          label="Location"
-          value={lookupName(employee.locationId ?? employee.branchId, branches)}
-        />
-        <DetailRow label="Marital status" value={employee.maritalStatus ?? "—"} />
-        <DetailRow label="Spouse name" value={employee.spouseName ?? "—"} />
+      <div
+        className={
+          isModal
+            ? `px-6 pb-6 ${employeeFormSectionsGridClass}`
+            : employeeFormSectionsGridClass
+        }
+      >
+        <EmployeeFormSection compact icon={User} title="Basic Information">
+          <DetailSectionBody>
+            <DetailRow label="First name" value={employee.firstName} />
+            <DetailRow label="Middle name" value={employee.middleName ?? "—"} />
+            <DetailRow label="Last name" value={employee.lastName} />
+          </DetailSectionBody>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection compact icon={Contact} title="Personal Details">
+          <DetailSectionBody>
+            <DetailRow label="Personal email" value={employee.personalEmail} />
+            <DetailRow label="Work email" value={employee.workEmail ?? "—"} />
+            <DetailRow label="Phone" value={employee.phone} />
+            <DetailRow label="Date of birth" value={fmtDate(employee.dob)} />
+            <DetailRow label="Gender" value={employee.gender} />
+          </DetailSectionBody>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection compact dense icon={Briefcase} title="Employment Details">
+          <DetailSectionBody>
+            <DetailRow
+              label="Joining date"
+              value={fmtDate(employee.joiningDate)}
+            />
+            <DetailRow
+              label="Location"
+              value={lookupName(
+                employee.locationId ?? employee.branchId,
+                branches,
+              )}
+            />
+            <DetailRow label="Department" value={orgRole.department} />
+            <DetailRow label="Sub department" value={orgRole.subDepartment} />
+            <DetailRow label="Designation" value={orgRole.designation} />
+            <DetailRow label="Level / grade" value={orgRole.levelGrade} />
+            <DetailRow label="Reporting manager" value={managerLabel} />
+            <DetailRow label="Status" value={employee.employeeStatus} />
+          </DetailSectionBody>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection
+          bodyClassName="px-4 py-4"
+          compact
+          icon={KeyRound}
+          title="Account & Access"
+        >
+          <div className="col-span-full">
+            <DetailRow
+              label="System access role"
+              value={systemAccessRoleLabel ?? employee.roleName ?? "—"}
+            />
+          </div>
+        </EmployeeFormSection>
+
+        {employee.profile ? (
+          <EmployeeOnboardingProfileView inGrid profile={employee.profile} />
+        ) : null}
       </div>
     </div>
   );
