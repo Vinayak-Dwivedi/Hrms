@@ -1162,6 +1162,12 @@ export default function RoleDashboard({ role }: { role: Role }) {
                   {identity.employeeId}
                 </span>
               )}
+              {identity?.reportingManagerName && (
+                <p className="text-[11px] text-gray-500 m-0 mt-1.5 truncate">
+                  <span className="font-medium text-gray-400">Reports to: </span>
+                  {identity.reportingManagerName}
+                </p>
+              )}
               <div className="flex flex-col gap-1.5 mt-2 min-w-0">
                 <EmployeeEmailSummary
                   className="space-y-1"

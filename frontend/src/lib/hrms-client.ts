@@ -200,6 +200,7 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     personalEmailVerified: me.personalEmailVerified ?? false,
     phone: me.phone,
     phoneVerified: me.phoneVerified ?? false,
+    reportingManagerName: me.reportingManager ?? null,
   };
 }
 
@@ -709,6 +710,7 @@ export async function fetchCurrentManager(): Promise<UIEmployee> {
     personalEmail: me.personalEmail,
     workEmail: me.workEmail,
     phone: me.phone,
+    reportingManagerName: me.reportingManager ?? null,
   };
 }
 
