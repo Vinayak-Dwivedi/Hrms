@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { Router } from "express";
@@ -39,6 +38,7 @@ import { env } from "@/env";
 import { ApiError } from "@/middleware/error";
 import {
   PROFILE_PIC_SUBDIR,
+  extensionForMime,
   profilePhotoUpload,
 } from "@/middleware/profile-photo.middleware";
 import { documentUpload } from "@/middleware/upload.middleware";
@@ -67,16 +67,24 @@ import {
   mapLeaveDocumentUrls,
   mimeTypeForLeaveDocument,
 } from "@/lib/leave-document-urls";
-import { openPrivateFileReadable } from "@/infrastructure/storage/private-file-storage";
+import {
+  deletePrivateFile,
+  openPrivateFileReadable,
+  validateAndSavePrivateFile,
+} from "@/infrastructure/storage/private-file-storage";
 
-function resolveProfilePhotoDiskPath(
+/** Returns the storage path (S3 key or local path) from a profilePhotoUrl, or null. */
+function storagePathFromPhotoUrl(
   profilePhotoUrl: string | null | undefined,
 ): string | null {
-  if (!profilePhotoUrl?.startsWith(`/uploads/${PROFILE_PIC_SUBDIR}/`)) {
-    return null;
+  if (!profilePhotoUrl) return null;
+  // New format: "profile_pic/uuid.jpg"  (S3 key)
+  if (profilePhotoUrl.startsWith(`${PROFILE_PIC_SUBDIR}/`)) return profilePhotoUrl;
+  // Legacy format: "/uploads/profile_pic/uuid.jpg"
+  if (profilePhotoUrl.startsWith(`/uploads/${PROFILE_PIC_SUBDIR}/`)) {
+    return `${PROFILE_PIC_SUBDIR}/${path.basename(profilePhotoUrl)}`;
   }
-  const filename = path.basename(profilePhotoUrl);
-  return path.join(env.UPLOAD_DIR, PROFILE_PIC_SUBDIR, filename);
+  return null;
 }
 
 export const meRouter: Router = Router();
@@ -283,33 +291,54 @@ meRouter.post(
       }
 
       const emp = await loadCurrentEmployee(req.user!.id);
-      const relativeUrl = `/uploads/${PROFILE_PIC_SUBDIR}/${req.file.filename}`;
-      const oldPath = resolveProfilePhotoDiskPath(emp.profilePhotoUrl);
-      if (oldPath && fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
+
+      // Delete old photo if exists
+      const oldStoragePath = storagePathFromPhotoUrl(emp.profilePhotoUrl);
+      if (oldStoragePath) {
+        await deletePrivateFile(oldStoragePath).catch(() => {});
       }
 
+      // Save to S3 (or local disk fallback)
+      const ext = extensionForMime(req.file.mimetype);
+      const saved = await validateAndSavePrivateFile({
+        employeeId: emp.id,
+        originalName: `photo${ext}`,
+        buffer: req.file.buffer,
+        declaredMime: req.file.mimetype,
+        storageSubdir: PROFILE_PIC_SUBDIR,
+      });
+
+      // Store the S3 key (storagePath) as the profilePhotoUrl
       await db
         .update(employees)
-        .set({
-          profilePhotoUrl: relativeUrl,
-          updatedAt: new Date(),
-        })
+        .set({ profilePhotoUrl: saved.storagePath, updatedAt: new Date() })
         .where(eq(employees.id, emp.id));
 
-      res.json({
-        ok: true,
-        avatarUrl: relativeUrl,
-        profilePhotoUrl: relativeUrl,
-      });
+      // Serve via our proxy endpoint
+      const avatarUrl = `/api/me/profile-photo`;
+      res.json({ ok: true, avatarUrl, profilePhotoUrl: saved.storagePath });
     } catch (e) {
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       next(e);
     }
   },
 );
+
+// ── GET /api/me/profile-photo ───────────────────────────────────────────────
+meRouter.get("/profile-photo", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const storagePath = storagePathFromPhotoUrl(emp.profilePhotoUrl);
+    if (!storagePath) throw new ApiError(404, "NOT_FOUND", "No profile photo.");
+    const ext = path.extname(storagePath).toLowerCase();
+    const mime = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    const readable = await openPrivateFileReadable(storagePath);
+    readable.pipe(res);
+  } catch (e) {
+    next(e);
+  }
+});
 
 meRouter.patch("/", async (req, res, next) => {
   try {
