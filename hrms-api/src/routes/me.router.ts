@@ -226,7 +226,7 @@ meRouter.get("/", async (req, res, next) => {
       lastName: emp.lastName,
       fullName,
       initials,
-      avatarUrl: emp.profilePhotoUrl ?? null,
+      avatarUrl: emp.profilePhotoUrl ? `/api/me/profile-photo` : null,
       email: req.user!.email,
       personalEmail: emp.personalEmail,
       personalEmailVerified: emp.personalEmailVerified,

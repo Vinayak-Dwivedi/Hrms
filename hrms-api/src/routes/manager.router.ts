@@ -92,7 +92,7 @@ managerRouter.get("/me", async (req, res, next) => {
       lastName: mgr.lastName,
       fullName: `${mgr.firstName} ${mgr.lastName}`,
       initials: `${mgr.firstName[0] ?? ""}${mgr.lastName[0] ?? ""}`.toUpperCase(),
-      avatarUrl: mgr.profilePhotoUrl ?? null,
+      avatarUrl: mgr.profilePhotoUrl ? `/api/me/profile-photo` : null,
       email: req.user!.email,
       personalEmail: mgr.personalEmail,
       workEmail: mgr.workEmail,
