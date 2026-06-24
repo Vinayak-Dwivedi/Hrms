@@ -4,7 +4,7 @@ import { employees } from "@/db/schema/hrms";
 import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import {
   deletePrivateFile,
-  openPrivateFileStream,
+  openPrivateFileReadable,
   validateAndSavePrivateFile,
 } from "@/infrastructure/storage/private-file-storage";
 import type { SupportedDocumentType } from "@/modules/onboarding/constants";
@@ -109,7 +109,7 @@ export async function getDocumentStream(params: {
   }
 
   return {
-    stream: openPrivateFileStream(doc.storagePath),
+    stream: await openPrivateFileReadable(doc.storagePath),
     mimeType: doc.mimeType,
     originalFilename: doc.originalFilename,
   };

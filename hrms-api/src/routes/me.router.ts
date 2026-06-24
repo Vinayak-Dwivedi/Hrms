@@ -67,7 +67,7 @@ import {
   mapLeaveDocumentUrls,
   mimeTypeForLeaveDocument,
 } from "@/lib/leave-document-urls";
-import { openPrivateFileStream } from "@/infrastructure/storage/private-file-storage";
+import { openPrivateFileReadable } from "@/infrastructure/storage/private-file-storage";
 
 function resolveProfilePhotoDiskPath(
   profilePhotoUrl: string | null | undefined,
@@ -861,7 +861,8 @@ meRouter.get("/leave-requests/:id/documents/:index", async (req, res, next) => {
       "Content-Disposition",
       `inline; filename="${filename.replace(/"/g, "")}"`,
     );
-    openPrivateFileStream(storagePath).pipe(res);
+    const readable = await openPrivateFileReadable(storagePath);
+    readable.pipe(res);
   } catch (e) {
     next(e);
   }
