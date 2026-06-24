@@ -26,6 +26,7 @@
     "seed:holidays": "node scripts/seed-holidays.mjs",
     "seed:rbac": "node scripts/seed-rbac.mjs",
     "seed:onboarding-permissions": "node scripts/ensure-onboarding-permissions.mjs",
+    "seed:attendance-permissions": "node scripts/ensure-attendance-permissions.mjs",
     "db:migrate-designation-code": "node scripts/apply-designation-code-schema.mjs",
     "db:migrate-personal-email-verification": "node scripts/apply-personal-email-verification-schema.mjs",
     "db:migrate-phone-verification": "node scripts/apply-phone-verification-schema.mjs",

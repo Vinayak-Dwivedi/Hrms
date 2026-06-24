@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import SelfPunchBar from "@/components/attendance/SelfPunchBar";
 import HrDashboardSection, {
   type HrDashboardData,
 } from "@/components/dashboard/HrDashboardSection";
@@ -763,7 +764,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
   });
   const [hrSectionLoading, setHrSectionLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [punchBusy, setPunchBusy] = useState(false);
   // Resolved Comp-Off policy for the current user — read from
   // /api/me/leave-policy. Drives the "Your Comp Off rules" mini-card below
   // the Leave Balance rings.
@@ -1138,6 +1138,15 @@ export default function RoleDashboard({ role }: { role: Role }) {
               </div>
             </div>
           </div>
+          {hasPermission("attendance.view") && attendance && (
+            <SelfPunchBar
+              attendance={attendance}
+              onAttendanceChange={(record) => {
+                setAttendance(record);
+                void loadWeek(weekAnchorRef.current);
+              }}
+            />
+          )}
         </div>
 
         {/* Leave Balance */}
