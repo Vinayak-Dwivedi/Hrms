@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import SelfPunchBar from "@/components/attendance/SelfPunchBar";
 import HrDashboardSection, {
   type HrDashboardData,
 } from "@/components/dashboard/HrDashboardSection";
@@ -1220,15 +1219,6 @@ export default function RoleDashboard({ role }: { role: Role }) {
               </div>
             </div>
           </div>
-          {hasPermission("attendance.view") && attendance && (
-            <SelfPunchBar
-              attendance={attendance}
-              onAttendanceChange={(record) => {
-                setAttendance(record);
-                void loadWeek(weekAnchorRef.current);
-              }}
-            />
-          )}
         </div>
 
         {/* Leave Balance (non-manager) OR Pending Approvals summary (manager) */}

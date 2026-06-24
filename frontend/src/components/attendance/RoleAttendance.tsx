@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import SelfPunchBar from "@/components/attendance/SelfPunchBar";
 import type {
   LeaveSubmission,
   RegularisationHistoryItem,
@@ -32,7 +31,6 @@ import {
   fetchMyLeaveBalances,
   fetchMyLeaveRequests,
   fetchMyRegularisationRequests,
-  fetchTodayAttendance,
   type MyRegularisationRow,
   type UpcomingHoliday,
   cancelLeaveRequest,
@@ -106,9 +104,6 @@ export default function RoleAttendance({
   const [holidays, setHolidays] = useState<UpcomingHoliday[]>([]);
   const [balances, setBalances] = useState<LeaveType[]>([]);
   const [regHistory, setRegHistory] = useState<MyRegularisationRow[]>([]);
-  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(
-    null,
-  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [calYear, setCalYear] = useState(initialYear);
@@ -137,21 +132,17 @@ export default function RoleAttendance({
     let cancelled = false;
     (async () => {
       try {
-        const [merged, bal, regs, monthHolidays, todayRecord] = await Promise.all([
+        const [merged, bal, regs, monthHolidays] = await Promise.all([
           refreshDays(initialYear, initialMonth0),
           adapters.fetchLeaveBalances(),
           fetchMyRegularisationRequests(adapters.regScope),
           fetchMonthHolidays(initialYear, initialMonth0 + 1),
-          hasPermission("attendance.view")
-            ? fetchTodayAttendance()
-            : Promise.resolve(null),
         ]);
         if (cancelled) return;
         setData(merged);
         setHolidays(monthHolidays);
         setBalances(bal);
         setRegHistory(regs);
-        setTodayAttendance(todayRecord);
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
       } finally {
@@ -223,17 +214,6 @@ export default function RoleAttendance({
     }
   }
 
-  async function handleTodayPunchChange(record: AttendanceRecord) {
-    setTodayAttendance(record);
-    try {
-      const merged = await refreshDays(calYear, calMonth0);
-      setData(merged);
-    } catch (e) {
-      toast.error(`Failed to refresh attendance: ${(e as Error).message}`);
-    }
-  }
-
-  const showPunchBar = hasPermission("attendance.view") && todayAttendance;
 
   return (
     <>
@@ -249,24 +229,10 @@ export default function RoleAttendance({
           className="flex flex-col flex-1 min-h-0 gap-2"
           style={{ height: "calc(100vh - 7rem)" }}
         >
-          {(leadingToolbar || showViewToggle || showPunchBar) && (
-            <div
-              className={cn(
-                "flex items-center shrink-0 gap-3",
-                leadingToolbar || showPunchBar
-                  ? "justify-between"
-                  : "justify-end",
-              )}
-            >
+          {(leadingToolbar || showViewToggle) && (
+            <div className="flex items-center shrink-0 gap-3 justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 {leadingToolbar}
-                {showPunchBar && (
-                  <SelfPunchBar
-                    attendance={todayAttendance}
-                    onAttendanceChange={handleTodayPunchChange}
-                    className="mt-0 w-auto min-w-[140px] shrink-0"
-                  />
-                )}
               </div>
               {showViewToggle && (
                 <ViewModeToggle view={view} onChange={setView} />
