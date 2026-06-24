@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import {
@@ -279,6 +280,22 @@ function VerifiedReadOnlyField({
   );
 }
 
+function CharCount({ value, max }: { value: string; max: number }) {
+  const len = value.length;
+  const pct = len / max;
+  const cls =
+    pct >= 1
+      ? "text-red-500 font-semibold"
+      : pct >= 0.85
+        ? "text-orange-400"
+        : "text-gray-400";
+  return (
+    <span className={`text-[11px] tabular-nums shrink-0 ${cls}`}>
+      {len}/{max}
+    </span>
+  );
+}
+
 function EditableField({
   label,
   value,
@@ -310,11 +327,19 @@ function EditableField({
         maxLength={maxLength}
       />
       {error ? (
-        <p className="text-xs text-red-500 mt-1 mb-0 leading-tight">{error}</p>
-      ) : helper ? (
-        <p className="text-xs text-gray-400 mt-1.5 mb-0 leading-relaxed">
-          {helper}
-        </p>
+        <div className="flex items-center justify-between mt-1 gap-2">
+          <p className="text-xs text-red-500 mb-0 leading-tight">{error}</p>
+          {maxLength ? <CharCount value={value} max={maxLength} /> : null}
+        </div>
+      ) : (helper || maxLength) ? (
+        <div className="flex items-start justify-between mt-1 gap-2">
+          {helper ? (
+            <p className="text-xs text-gray-400 mb-0 leading-relaxed">{helper}</p>
+          ) : (
+            <span />
+          )}
+          {maxLength ? <CharCount value={value} max={maxLength} /> : null}
+        </div>
       ) : null}
     </div>
   );
@@ -346,6 +371,11 @@ function EditableTextArea({
         value={value}
         maxLength={maxLength}
       />
+      {maxLength ? (
+        <div className="flex justify-end mt-1">
+          <CharCount value={value} max={maxLength} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -498,6 +528,7 @@ export default function ProfileForm() {
   const [academicErrors, setAcademicErrors] = useState<
     Record<string, { yearOfPassing?: string; gradePercentage?: string }>
   >({});
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pendingPhotoFileRef = useRef<File | null>(null);
   const committedFormRef = useRef<ProfileEditableState | null>(null);
@@ -902,6 +933,7 @@ export default function ProfileForm() {
                   <EditableField
                     helper="Used for urgent communication and emergency outreach."
                     label="Phone Number"
+                    maxLength={20}
                     onChange={(v) => set("phone", v)}
                     placeholder="9999900000"
                     type="tel"
@@ -909,6 +941,7 @@ export default function ProfileForm() {
                   />
                   <EditableField
                     label="Personal Email"
+                    maxLength={254}
                     onChange={(v) => set("personalEmail", v)}
                     placeholder="you@example.com"
                     type="email"
@@ -922,14 +955,14 @@ export default function ProfileForm() {
                       onChange={(v) => set("currentAddress", v)}
                       placeholder="House / street / city / state / PIN"
                       value={form.currentAddress}
-                      maxLength={500}
+                      maxLength={200}
                     />
                     <EditableTextArea
                       label="Permanent Address"
                       onChange={(v) => set("permanentAddress", v)}
                       placeholder="House / street / city / state / PIN"
                       value={form.permanentAddress}
-                      maxLength={500}
+                      maxLength={200}
                     />
                   </div>
                 </div>
@@ -964,14 +997,15 @@ export default function ProfileForm() {
                 <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Contact Name"
+                    maxLength={200}
                     onChange={(v) => set("emergencyContactName", v)}
                     placeholder="Full Name"
                     value={form.emergencyContactName}
-                    maxLength={200}
                   />
                   <EditableField
                     helper="We collect this in case of emergencies."
                     label="Contact Phone"
+                    maxLength={20}
                     onChange={(v) => set("emergencyContactPhone", v)}
                     placeholder="9999900000"
                     type="tel"
@@ -984,36 +1018,42 @@ export default function ProfileForm() {
                 <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Father's Name"
+                    maxLength={200}
                     onChange={(v) => set("fatherName", v)}
                     placeholder="Full Name"
                     value={form.fatherName}
                   />
                   <EditableField
                     label="Mother's Name"
+                    maxLength={200}
                     onChange={(v) => set("motherName", v)}
                     placeholder="Full Name"
                     value={form.motherName}
                   />
                   <EditableField
                     label="PAN Number"
+                    maxLength={10}
                     onChange={(v) => set("panNumber", v)}
                     placeholder="ABCDE1234F"
                     value={form.panNumber}
                   />
                   <EditableField
                     label="Aadhaar Number"
+                    maxLength={14}
                     onChange={(v) => set("aadhaarNumber", v)}
                     placeholder="1234 5678 9012"
                     value={form.aadhaarNumber}
                   />
                   <EditableField
                     label="UAN"
+                    maxLength={12}
                     onChange={(v) => set("uanNumber", v)}
                     placeholder="12-digit UAN"
                     value={form.uanNumber}
                   />
                   <EditableField
                     label="ESIC"
+                    maxLength={17}
                     onChange={(v) => set("esicNumber", v)}
                     placeholder="ESIC number"
                     value={form.esicNumber}
@@ -1056,7 +1096,7 @@ export default function ProfileForm() {
                         />
                         <EditableField
                           label="Institution / School"
-                          maxLength={150}
+                          maxLength={200}
                           onChange={(v) =>
                             updateAcademic(a.id, { institution: v })
                           }
@@ -1065,7 +1105,7 @@ export default function ProfileForm() {
                         />
                         <EditableField
                           label="Board / University"
-                          maxLength={150}
+                          maxLength={200}
                           onChange={(v) =>
                             updateAcademic(a.id, { boardUniversity: v })
                           }
@@ -1110,30 +1150,35 @@ export default function ProfileForm() {
                 <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
                     label="Account Number"
+                    maxLength={20}
                     onChange={(v) => set("accountNumber", v)}
                     placeholder="Account number"
                     value={form.accountNumber}
                   />
                   <EditableField
                     label="Account Name"
+                    maxLength={100}
                     onChange={(v) => set("accountName", v)}
                     placeholder="As per bank records"
                     value={form.accountName}
                   />
                   <EditableField
                     label="Bank Name"
+                    maxLength={100}
                     onChange={(v) => set("bankName", v)}
                     placeholder="e.g. HDFC Bank"
                     value={form.bankName}
                   />
                   <EditableField
                     label="Branch"
+                    maxLength={100}
                     onChange={(v) => set("branchName", v)}
                     placeholder="Branch name"
                     value={form.branchName}
                   />
                   <EditableField
                     label="IFSC Code"
+                    maxLength={11}
                     onChange={(v) => set("ifscCode", v)}
                     placeholder="HDFC0001234"
                     value={form.ifscCode}
@@ -1158,17 +1203,7 @@ export default function ProfileForm() {
             {showActionBar ? (
               <ProfileActionBar
                 hint="Changes are saved to your employee record."
-                onReset={() => {
-                  pendingPhotoFileRef.current = null;
-                  if (photoPreview) {
-                    URL.revokeObjectURL(photoPreview);
-                    setPhotoPreview(null);
-                  }
-                  if (committedFormRef.current) {
-                    setForm(committedFormRef.current);
-                  }
-                  setAcademicErrors({});
-                }}
+                onReset={() => setShowResetConfirm(true)}
                 saving={saving}
                 showReset={!TAB_META[activeTab].hrManaged}
               />
@@ -1214,6 +1249,78 @@ export default function ProfileForm() {
         open={phoneVerifyOpen}
         phone={profile.phone}
       />
+
+      {showResetConfirm &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setShowResetConfirm(false)}
+          >
+            <div
+              className="bg-white rounded-2xl w-full max-w-[380px] shadow-[0_24px_64px_rgba(0,0,0,0.22)] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-6 pt-6 pb-2">
+                <h2 className="text-[15px] font-bold text-gray-900 leading-tight m-0">
+                  Reset fields?
+                </h2>
+                <p className="text-[13px] text-gray-500 mt-1.5 m-0">
+                  This will clear all editable fields on this page. This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2.5 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowResetConfirm(false);
+                    pendingPhotoFileRef.current = null;
+                    if (photoPreview) {
+                      URL.revokeObjectURL(photoPreview);
+                      setPhotoPreview(null);
+                    }
+                    setAcademicErrors({});
+                    setForm({
+                      phone: "",
+                      personalEmail: "",
+                      currentAddress: "",
+                      permanentAddress: "",
+                      emergencyContactName: "",
+                      emergencyContactPhone: "",
+                      fatherName: "",
+                      motherName: "",
+                      panNumber: "",
+                      aadhaarNumber: "",
+                      uanNumber: "",
+                      esicNumber: "",
+                      academics: [
+                        { id: "class-10", qualification: "Class 10", institution: "", boardUniversity: "", yearOfPassing: "", gradePercentage: "" },
+                        { id: "class-12", qualification: "Class 12", institution: "", boardUniversity: "", yearOfPassing: "", gradePercentage: "" },
+                      ],
+                      accountNumber: "",
+                      accountName: "",
+                      bankName: "",
+                      branchName: "",
+                      ifscCode: "",
+                      isPrimaryAccount: true,
+                    });
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors cursor-pointer"
+                >
+                  Yes, Reset
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

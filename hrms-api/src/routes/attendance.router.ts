@@ -77,16 +77,14 @@ attendanceRouter.get("/uploads", uploadAttendance, async (req, res, next) => {
         attendanceDate: attendanceUploads.attendanceDate,
         inTime: attendanceUploads.inTime,
         outTime: attendanceUploads.outTime,
-        uploadedAt: attendance.createdAt,
-        fileName: attendance.fileName,
+        uploadedAt: attendanceUploads.createdAt,
+        fileName: sql<string>`''`,
       })
-      .from(attendanceUploads)
-      .innerJoin(attendance, eq(attendanceUploads.attendanceId, attendance.id));
+      .from(attendanceUploads);
 
     const countQuery = db
       .select({ count: sql<number>`count(*)::int` })
-      .from(attendanceUploads)
-      .innerJoin(attendance, eq(attendanceUploads.attendanceId, attendance.id));
+      .from(attendanceUploads);
 
     const [rows, countRows] = await Promise.all([
       (whereClause ? baseQuery.where(whereClause) : baseQuery)

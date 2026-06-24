@@ -85,6 +85,13 @@ try {
         ON "attendance_uploads" ("employee_code", "attendance_date");
     `);
     console.log("attendance_uploads unique index verified.");
+
+    // Ensure created_at column exists (added after initial table creation).
+    await sql.unsafe(`
+      ALTER TABLE "attendance_uploads"
+        ADD COLUMN IF NOT EXISTS "created_at" timestamptz DEFAULT now() NOT NULL;
+    `);
+    console.log("attendance_uploads created_at column verified.");
   }
 
   console.log("Attendance upload schema migration complete.");

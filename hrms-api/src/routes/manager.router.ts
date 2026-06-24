@@ -1,3 +1,4 @@
+import path from "node:path";
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Router } from "express";
@@ -35,6 +36,11 @@ import {
 } from "@/services/leave-routing";
 import { fetchEmployeeLeaveBalances } from "@/services/leave-request-validation";
 import { syncLeaveUsageOnTransition } from "@/services/leave-balance";
+import {
+  mapLeaveDocumentUrls,
+  mimeTypeForLeaveDocument,
+} from "@/lib/leave-document-urls";
+import { openPrivateFileReadable } from "@/infrastructure/storage/private-file-storage";
 
 export const managerRouter: Router = Router();
 
@@ -397,6 +403,7 @@ managerRouter.get("/leave-approvals", async (req, res, next) => {
           string | null
         >`${reportingMgr.firstName} || ' ' || ${reportingMgr.lastName}`,
         reportingManagerEmpId: reportingMgr.empId,
+        documentUrls: leaveRequests.documentUrls,
       })
       .from(leaveRequests)
       .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
@@ -405,7 +412,17 @@ managerRouter.get("/leave-approvals", async (req, res, next) => {
       .leftJoin(reportingMgr, eq(reportingMgr.id, employees.reportingManagerId))
       .where(and(...conds))
       .orderBy(desc(leaveRequests.appliedOn));
-    res.json({ requests: rows });
+    const IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png"]);
+    res.json({
+      requests: rows.map(({ documentUrls, ...row }) => ({
+        ...row,
+        documents: (documentUrls ?? []).map((storagePath, index) => ({
+          url: `/api/manager/leave-approvals/${row.id}/documents/${index}`,
+          name: path.basename(storagePath),
+          kind: IMAGE_EXTS.has(path.extname(storagePath).toLowerCase()) ? "image" : "pdf",
+        })),
+      })),
+    });
   } catch (e) {
     next(e);
   }
@@ -592,6 +609,36 @@ managerRouter.post("/leave-approvals/:id/forward", async (req, res, next) => {
     }
 
     res.json({ request: row });
+  } catch (e) {
+    next(e);
+  }
+});
+
+managerRouter.get("/leave-approvals/:id/documents/:index", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+    const idNum = parseLeaveId(req.params.id);
+    const index = Number(req.params.index);
+    if (!Number.isFinite(index) || index < 0) {
+      throw new ApiError(400, "BAD_ID", "Invalid document reference.");
+    }
+    if (!(await leaveOwnedByManager(idNum, mgr.id))) {
+      throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
+    }
+    const [row] = await db
+      .select({ documentUrls: leaveRequests.documentUrls })
+      .from(leaveRequests)
+      .where(eq(leaveRequests.id, idNum))
+      .limit(1);
+    const storagePath = row?.documentUrls?.[index];
+    if (!storagePath) {
+      throw new ApiError(404, "NOT_FOUND", "Document not found.");
+    }
+    const filename = path.basename(storagePath);
+    res.setHeader("Content-Type", mimeTypeForLeaveDocument(storagePath));
+    res.setHeader("Content-Disposition", `inline; filename="${filename.replace(/"/g, "")}"`);
+    const readable = await openPrivateFileReadable(storagePath);
+    readable.pipe(res);
   } catch (e) {
     next(e);
   }

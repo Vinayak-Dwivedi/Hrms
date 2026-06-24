@@ -10,6 +10,8 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Eye,
+  FileText,
+  MessageSquareText,
   Paperclip,
   Pencil,
   RotateCcw,
@@ -17,6 +19,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import ManagerResignations from "@/components/manager/ManagerResignations";
@@ -639,7 +642,8 @@ type LeaveSortKey =
   | "days"
   | "reason"
   | "appliedOn"
-  | "status";
+  | "status"
+  | "documents";
 
 const LEAVE_COLUMNS: { key: LeaveSortKey; label: string; sortable: boolean }[] =
   [
@@ -650,6 +654,7 @@ const LEAVE_COLUMNS: { key: LeaveSortKey; label: string; sortable: boolean }[] =
     { key: "toDate", label: "To", sortable: true },
     { key: "days", label: "Days", sortable: true },
     { key: "reason", label: "Reason", sortable: true },
+    { key: "documents", label: "Documents", sortable: false },
     { key: "appliedOn", label: "Applied On", sortable: true },
     { key: "status", label: "Status", sortable: true },
   ];
@@ -673,6 +678,8 @@ function leaveSortValue(
       return Number(req.days);
     case "reason":
       return (req.reason ?? "").toLowerCase();
+    case "documents":
+      return (req.documents?.length ?? 0);
     case "appliedOn":
       return new Date(req.appliedOn).getTime();
     case "status":
@@ -697,7 +704,9 @@ function LeaveApprovalsTable({
   onOpenReject: (req: ApprovalLeaveRequest) => void;
   busyId: number | null;
 }) {
+  const [reasonView, setReasonView] = useState<{ name: string; reason: string } | null>(null);
   return (
+    <>
     <TableShell>
       <SortHeader columns={LEAVE_COLUMNS} sort={sort} onSort={onSort} />
       <tbody>
@@ -758,7 +767,24 @@ function LeaveApprovalsTable({
                   {Number(req.days).toFixed(1)}
                 </td>
                 <td style={{ ...cellStyle, maxWidth: 200 }}>
-                  <span>{req.reason}</span>
+                  {req.reason ? (
+                    <button
+                      type="button"
+                      onClick={() => setReasonView({ name: `${req.firstName} ${req.lastName}`, reason: req.reason })}
+                      className="inline-flex items-center gap-1.5 text-left text-blue-600 hover:text-blue-800"
+                      style={{ maxWidth: 190, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                    >
+                      <MessageSquareText size={14} className="shrink-0" />
+                      <span
+                        className="truncate block text-sm"
+                        style={{ maxWidth: 160, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}
+                      >
+                        {req.reason}
+                      </span>
+                    </button>
+                  ) : (
+                    <span style={{ color: "#cbd5e1" }}>—</span>
+                  )}
                   {req.managerRemarks && req.status !== "Pending" && (
                     <span
                       className="flex items-start gap-1 mt-1"
@@ -769,6 +795,41 @@ function LeaveApprovalsTable({
                         <strong>Remarks:</strong> {req.managerRemarks}
                       </span>
                     </span>
+                  )}
+                </td>
+                <td style={{ ...cellStyle, maxWidth: 120 }}>
+                  {req.documents && req.documents.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {req.documents.map((doc, i) =>
+                        doc.kind === "image" ? (
+                          <a
+                            key={i}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={doc.name}
+                            className="block shrink-0 rounded border border-slate-200 overflow-hidden hover:ring-2 hover:ring-blue-300 transition-shadow"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img alt={doc.name} className="h-9 w-9 object-cover bg-slate-50" src={doc.url} />
+                          </a>
+                        ) : (
+                          <a
+                            key={i}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={doc.name}
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+                          >
+                            <FileText size={13} className="shrink-0" />
+                            PDF
+                          </a>
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <span style={{ color: "#cbd5e1" }}>—</span>
                   )}
                 </td>
                 <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
@@ -818,6 +879,40 @@ function LeaveApprovalsTable({
         )}
       </tbody>
     </TableShell>
+    {reasonView && typeof document !== "undefined" && createPortal(
+      <div
+        className="fixed inset-0 z-[1100] flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.45)" }}
+        onClick={() => setReasonView(null)}
+      >
+        <div
+          className="bg-white rounded-2xl w-full overflow-hidden flex flex-col"
+          style={{ maxWidth: 440, maxHeight: "80vh", boxShadow: "0 24px 64px rgba(0,0,0,0.22)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200">
+            <div>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 2 }}>Leave reason</h2>
+              <p style={{ fontSize: 12.5, color: "#6b7280", margin: 0 }}>{reasonView.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReasonView(null)}
+              style={{ color: "#9ca3af", background: "none", border: "none", cursor: "pointer", padding: 4 }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="overflow-y-auto px-6 py-4">
+            <p style={{ fontSize: 13.5, color: "#374151", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+              {reasonView.reason}
+            </p>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    )}
+    </>
   );
 }
 

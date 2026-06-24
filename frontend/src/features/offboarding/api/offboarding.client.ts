@@ -987,11 +987,11 @@ export function closeCase(caseId: number): Promise<CaseClosure> {
   return unwrap(jsonFetch<{ data: CaseClosure }>(`/cases/${caseId}/close`, { method: "POST" }));
 }
 
-// Open a printable window for a rendered document and trigger the print dialog
-// (the user can "Save as PDF"). No server-side PDF dependency.
+// Open a preview popup for a rendered document. The user can print manually
+// (Ctrl+P / Cmd+P) from within the popup if needed.
 export function printDocumentHtml(title: string, renderedHtml: string): void {
   if (typeof window === "undefined") return;
-  const w = window.open("", "_blank", "width=820,height=1000");
+  const w = window.open("", "_blank", "width=860,height=920");
   if (!w) return;
   w.document.write(`<!doctype html><html><head><title>${title}</title>
     <meta charset="utf-8" />
@@ -999,9 +999,15 @@ export function printDocumentHtml(title: string, renderedHtml: string): void {
       body { font-family: Georgia, 'Times New Roman', serif; color: #1f2937; max-width: 720px; margin: 48px auto; padding: 0 24px; line-height: 1.6; }
       h2 { font-size: 20px; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; }
       p { margin: 12px 0; }
-      @media print { body { margin: 24px; } }
-    </style></head><body>${renderedHtml}
-    <script>window.onload=function(){window.print();}</script>
+      #print-bar { position: fixed; top: 0; left: 0; right: 0; background: #1e40af; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; font-family: system-ui, sans-serif; font-size: 14px; z-index: 999; }
+      #print-bar button { background: #fff; color: #1e40af; border: none; padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+      @media print { #print-bar { display: none; } body { margin: 24px; } }
+    </style></head><body>
+    <div id="print-bar">
+      <span>${title}</span>
+      <button onclick="window.print()">Print / Save PDF</button>
+    </div>
+    <div style="margin-top:56px">${renderedHtml}</div>
     </body></html>`);
   w.document.close();
 }

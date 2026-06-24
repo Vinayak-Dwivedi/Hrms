@@ -42,6 +42,9 @@ const BREADCRUMB_LABELS: Record<string, string> = {
 function breadcrumbFor(pathname: string): string {
   const fromTable = BREADCRUMB_LABELS[pathname];
   if (fromTable) return fromTable;
+  if (/^\/employees\/\d+\/edit$/.test(pathname)) return "Edit Employee";
+  if (/^\/employees\/\d+\/onboarding$/.test(pathname)) return "Employee Onboarding";
+  if (/^\/employees\/\d+$/.test(pathname)) return "View Employee";
   const derived = pathname
     .split("/")
     .filter(Boolean)

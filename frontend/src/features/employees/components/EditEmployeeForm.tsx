@@ -425,7 +425,7 @@ function EditEmployeeFormContent({
           />
 
           <ReportingManagerField
-            controlClassName={employeeListFormControlClass}
+            controlClassName={employeeFormNativeSelectClass}
             designations={designations}
             employees={employees}
             excludeEmployeeId={employee.id}

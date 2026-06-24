@@ -221,10 +221,11 @@ export function NativeSelectField({
           aria-invalid={invalid || undefined}
           className={cn(
             controlClassName,
-            "w-full",
+            "w-full appearance-none pr-10",
             !hasValue && placeholderLabel ? "text-gray-400" : "text-gray-800",
             disabled && "cursor-not-allowed opacity-60",
           )}
+          style={{ WebkitAppearance: "none", MozAppearance: "none", backgroundImage: "none" }}
           disabled={disabled}
           id={field.name}
           name={field.name}

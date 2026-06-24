@@ -534,8 +534,9 @@ export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void>
       }
       let message = text || `Request failed (${res.status})`;
       try {
-        const body = JSON.parse(text) as { message?: string };
-        if (body.message) message = body.message;
+        const body = JSON.parse(text) as { message?: string; error?: { message?: string } };
+        if (body.error?.message) message = body.error.message;
+        else if (body.message) message = body.message;
       } catch {
         // keep raw text
       }
@@ -921,6 +922,7 @@ export interface ApprovalLeaveRequest {
   managerRemarks: string | null;
   reportingManager: string | null;
   reportingManagerEmpId?: string | null;
+  documents?: { url: string; name: string; kind: "image" | "pdf" }[];
 }
 
 export async function fetchOrgLeaveRequests(args?: {

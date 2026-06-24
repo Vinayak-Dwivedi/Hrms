@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { ArrowUpRight, Check, MessageSquareText, X, XCircle } from "lucide-react";
+import { ArrowUpRight, Check, FileText, MessageSquareText, X, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -69,27 +69,27 @@ export default function LeaveApprovalsTable({
   const headers = readOnly
     ? [
         "Employee",
-     
         "Emp ID",
         "Code",
         "Period",
         "Duration",
         "Reason",
+        "Documents",
         "Applied",
         "Status",
-           "Manager",
+        "Manager",
       ]
     : [
         "Employee",
-       
         "Emp ID",
         "Code",
         "Period",
         "Duration",
         "Reason",
+        "Documents",
         "Applied",
         "Status",
-         "Manager",
+        "Manager",
         "Action",
       ];
 
@@ -168,6 +168,41 @@ export default function LeaveApprovalsTable({
                         <MessageSquareText className="w-4 h-4 shrink-0" />
                         <span className="truncate text-sm">{req.reason}</span>
                       </button>
+                    ) : (
+                      <span className="text-sm text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className={tableBodyCellClass}>
+                    {req.documents && req.documents.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {req.documents.map((doc, i) =>
+                          doc.kind === "image" ? (
+                            <a
+                              key={i}
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={doc.name}
+                              className="block shrink-0 rounded border border-slate-200 overflow-hidden hover:ring-2 hover:ring-blue-300 transition-shadow"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img alt={doc.name} className="h-9 w-9 object-cover bg-slate-50" src={doc.url} />
+                            </a>
+                          ) : (
+                            <a
+                              key={i}
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={doc.name}
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+                            >
+                              <FileText size={13} className="shrink-0" />
+                              PDF
+                            </a>
+                          )
+                        )}
+                      </div>
                     ) : (
                       <span className="text-sm text-gray-400">—</span>
                     )}
