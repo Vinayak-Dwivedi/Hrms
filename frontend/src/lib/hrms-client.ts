@@ -46,11 +46,12 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
     if (res.status === 401 && typeof window !== "undefined") {
       window.location.href = "/login";
     }
-    throw new Error(`API ${res.status}: ${text || res.statusText}`);
+    const body = await res.json().catch(() => null) as { error?: { message?: string } } | null;
+    const friendly = body?.error?.message;
+    throw new Error(friendly ?? `Request failed (${res.status}).`);
   }
   return (await res.json()) as T;
 }

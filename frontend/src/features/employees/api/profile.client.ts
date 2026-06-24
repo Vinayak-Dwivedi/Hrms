@@ -108,6 +108,7 @@ function bankFromEditable(
   form: ProfileEditableState,
   base: OnboardingProfileValues["bank"],
 ): OnboardingProfileValues["bank"] {
+  const safeBase = base ?? [];
   const hasFormBank =
     form.accountNumber.trim() ||
     form.accountName.trim() ||
@@ -115,9 +116,9 @@ function bankFromEditable(
     form.branchName.trim() ||
     form.ifscCode.trim();
 
-  if (!hasFormBank) return base;
+  if (!hasFormBank) return safeBase;
 
-  const existing = base.find((b) => b.isPrimary) ?? base[0];
+  const existing = safeBase.find((b) => b.isPrimary) ?? safeBase[0];
   return [
     {
       id: existing?.id,

@@ -160,8 +160,6 @@ export default function AppHeader({
     <>
       <header className={["flex items-center justify-between px-6 h-14 shrink-0", enterpriseHeaderClass].join(" ")}>
         <nav className="flex items-center gap-2 text-[13px]">
-          <span className="text-slate-400 font-medium">{rootLabelFor(role, sessionUser.role)}</span>
-          <span className="text-slate-300">/</span>
           <span className="font-semibold text-slate-800">{crumb}</span>
         </nav>
         <div className="flex items-center gap-3">
@@ -178,9 +176,16 @@ export default function AppHeader({
                 initials={initials}
                 src={identity?.avatarUrl}
               />
-              <span className="text-[13px] font-medium text-slate-700">
-                {displayName}
-              </span>
+              <div className="flex flex-col items-start min-w-0">
+                <span className="text-[13px] font-medium text-slate-700 leading-tight">
+                  {displayName}
+                </span>
+                {identity?.role && (
+                  <span className="text-[10px] text-slate-400 leading-tight truncate max-w-[120px]">
+                    {identity.role}
+                  </span>
+                )}
+              </div>
               <ChevronDown
                 size={14}
                 className={[
@@ -196,8 +201,8 @@ export default function AppHeader({
                 className="absolute right-0 top-full mt-2 z-40 w-56 rounded-xl bg-white border border-gray-200 shadow-lg overflow-hidden"
               >
                 <div className="px-3 py-2.5 border-b border-gray-100">
-                  <p className="text-[12px] font-semibold text-gray-900 truncate">
-                    {displayName}
+                  <p className="text-[11px] text-gray-500 truncate">
+                    {identity?.email ?? sessionUser.email}
                   </p>
                   <p className="text-[11px] text-gray-400 truncate">
                     {identity?.role ?? rootLabelFor(role, sessionUser.role)}

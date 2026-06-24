@@ -273,8 +273,8 @@ const updateMeSchema = z
   .object({
     phone: z.string().trim().regex(/^\+?[0-9]{7,15}$/, "Enter a valid phone number"),
     personalEmail: z.string().trim().email().max(255),
-    currentAddress: z.string().trim().max(5000).optional(),
-    permanentAddress: z.string().trim().max(5000).optional(),
+    currentAddress: z.string().trim().max(500).optional(),
+    permanentAddress: z.string().trim().max(500).optional(),
     emergencyContactName: z.string().trim().max(200).optional(),
     emergencyContactPhone: z.string().trim().max(20).optional(),
   })

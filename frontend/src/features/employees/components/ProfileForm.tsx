@@ -286,6 +286,8 @@ function EditableField({
   type = "text",
   placeholder,
   helper,
+  maxLength,
+  error,
 }: {
   label: string;
   value: string;
@@ -293,18 +295,23 @@ function EditableField({
   type?: string;
   placeholder?: string;
   helper?: string;
+  maxLength?: number;
+  error?: string;
 }) {
   return (
     <div>
       <label className={employeeProfileLabelClass}>{label}</label>
       <input
-        className={editableInputClass}
+        className={`${editableInputClass} ${error ? "!border-red-400 focus:!ring-red-100" : ""}`}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
         value={value}
+        maxLength={maxLength}
       />
-      {helper ? (
+      {error ? (
+        <p className="text-xs text-red-500 mt-1 mb-0 leading-tight">{error}</p>
+      ) : helper ? (
         <p className="text-xs text-gray-400 mt-1.5 mb-0 leading-relaxed">
           {helper}
         </p>
@@ -319,12 +326,14 @@ function EditableTextArea({
   onChange,
   placeholder,
   span2 = false,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   span2?: boolean;
+  maxLength?: number;
 }) {
   return (
     <div className={span2 ? FORM_GRID_FULL_ROW_CLASS : undefined}>
@@ -335,6 +344,7 @@ function EditableTextArea({
         placeholder={placeholder}
         rows={3}
         value={value}
+        maxLength={maxLength}
       />
     </div>
   );
@@ -368,10 +378,12 @@ function ProfileSidebar({
   activeTab,
   onTabChange,
   onRequestSeparation,
+  canRequestResignation,
 }: {
   activeTab: ProfileTab;
   onTabChange: (tab: ProfileTab) => void;
   onRequestSeparation: () => void;
+  canRequestResignation: boolean;
 }) {
   return (
     <aside className="w-full md:w-[272px] shrink-0 border-b md:border-b-0 md:border-r border-gray-100 bg-white flex flex-col">
@@ -409,16 +421,18 @@ function ProfileSidebar({
         ))}
       </nav>
 
-      <div className="px-3 pb-5 pt-2 border-t border-gray-100 mt-auto">
-        <button
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer border-0 bg-transparent"
-          onClick={onRequestSeparation}
-          type="button"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span>Request Resignation</span>
-        </button>
-      </div>
+      {canRequestResignation && (
+        <div className="px-3 pb-5 pt-2 border-t border-gray-100 mt-auto">
+          <button
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer border-0 bg-transparent"
+            onClick={onRequestSeparation}
+            type="button"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span>Request Resignation</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
@@ -481,8 +495,34 @@ export default function ProfileForm() {
   const [phoneVerifyCooldown, setPhoneVerifyCooldown] = useState(60);
   const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("profile");
+  const [academicErrors, setAcademicErrors] = useState<
+    Record<string, { yearOfPassing?: string; gradePercentage?: string }>
+  >({});
   const fileRef = useRef<HTMLInputElement | null>(null);
   const pendingPhotoFileRef = useRef<File | null>(null);
+  const committedFormRef = useRef<ProfileEditableState | null>(null);
+
+  function validateYear(value: string): string | undefined {
+    const v = value.trim();
+    if (!v) return undefined;
+    if (!/^\d+$/.test(v)) return "Year must be a number";
+    if (v.length !== 4) return "Enter a 4-digit year";
+    const n = Number(v);
+    if (n < 1950) return "Year must be 1950 or later";
+    if (n > new Date().getFullYear()) return "Year cannot be in the future";
+    return undefined;
+  }
+
+  function validatePercentage(value: string): string | undefined {
+    const v = value.trim();
+    if (!v) return undefined;
+    const cleaned = v.endsWith("%") ? v.slice(0, -1) : v;
+    const n = Number(cleaned);
+    if (isNaN(n) || cleaned === "") return "Enter a number (e.g. 85 or 85%)";
+    if (n < 0) return "Percentage cannot be negative";
+    if (n > 100) return "Percentage must be 100 or less";
+    return undefined;
+  }
 
   async function load() {
     setLoading(true);
@@ -492,6 +532,7 @@ export default function ProfileForm() {
       setProfile(data.profile);
       setExtendedProfile(data.extended);
       setForm(data.form);
+      committedFormRef.current = data.form;
     } catch (e) {
       setError((e as Error).message ?? "Failed to load profile.");
     } finally {
@@ -548,27 +589,40 @@ export default function ProfileForm() {
           }
         : prev,
     );
+    setAcademicErrors((prev) => {
+      const entry = { ...(prev[id] ?? {}) };
+      if ("yearOfPassing" in patch) {
+        const err = validateYear(patch.yearOfPassing ?? "");
+        if (err) entry.yearOfPassing = err;
+        else delete entry.yearOfPassing;
+      }
+      if ("gradePercentage" in patch) {
+        const err = validatePercentage(patch.gradePercentage ?? "");
+        if (err) entry.gradePercentage = err;
+        else delete entry.gradePercentage;
+      }
+      return { ...prev, [id]: entry };
+    });
   }
 
   function addAcademic() {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            academics: [
-              ...prev.academics,
-              {
-                id: newLocalId(),
-                qualification: "",
-                institution: "",
-                boardUniversity: "",
-                yearOfPassing: "",
-                gradePercentage: "",
-              },
-            ],
-          }
-        : prev,
-    );
+    setForm((prev) => {
+      if (!prev || prev.academics.length >= 5) return prev;
+      return {
+        ...prev,
+        academics: [
+          ...prev.academics,
+          {
+            id: newLocalId(),
+            qualification: "",
+            institution: "",
+            boardUniversity: "",
+            yearOfPassing: "",
+            gradePercentage: "",
+          },
+        ],
+      };
+    });
   }
 
   function removeAcademic(id: string) {
@@ -577,6 +631,11 @@ export default function ProfileForm() {
         ? { ...prev, academics: prev.academics.filter((a) => a.id !== id) }
         : prev,
     );
+    setAcademicErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }
 
   async function handleVerifyPersonalEmail() {
@@ -620,6 +679,32 @@ export default function ProfileForm() {
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     if (!form || !extendedProfile) return;
+
+    if (activeTab === "academics") {
+      const hasErrors = Object.values(academicErrors).some(
+        (e) => e.yearOfPassing || e.gradePercentage,
+      );
+      if (hasErrors) {
+        toast.error("Please fix the errors in Academic Details before saving.");
+        return;
+      }
+    }
+
+    if (activeTab === "bank" && profile) {
+      const saved = profilePageToEditable(profile, extendedProfile);
+      if (
+        form.accountNumber.trim() === saved.accountNumber.trim() &&
+        form.accountName.trim() === saved.accountName.trim() &&
+        form.bankName.trim() === saved.bankName.trim() &&
+        form.branchName.trim() === saved.branchName.trim() &&
+        form.ifscCode.trim() === saved.ifscCode.trim() &&
+        form.isPrimaryAccount === saved.isPrimaryAccount
+      ) {
+        toast.success("No changes to save.");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       if (pendingPhotoFileRef.current) {
@@ -635,6 +720,7 @@ export default function ProfileForm() {
       setProfile(data.profile);
       setExtendedProfile(data.extended);
       setForm(data.form);
+      committedFormRef.current = data.form;
       toast.success("Profile updated successfully.");
     } catch (err) {
       toast.error((err as Error).message ?? "Failed to update profile.");
@@ -669,7 +755,10 @@ export default function ProfileForm() {
 
   return (
     <>
-      {myResignation && <MyResignationStrip resignation={myResignation} />}
+      {myResignation &&
+        !["ManagerRejected", "Rejected", "Withdrawn"].includes(myResignation.status) && (
+          <MyResignationStrip resignation={myResignation} />
+        )}
       {myExitInterview?.status === "Pending" &&
         ["ClearancesComplete", "FnFComplete", "Closed"].includes(
           myResignation?.caseStatus ?? "",
@@ -702,6 +791,10 @@ export default function ProfileForm() {
         <div className="flex flex-col md:flex-row min-h-[620px]">
           <ProfileSidebar
             activeTab={activeTab}
+            canRequestResignation={
+              !myResignation ||
+              ["ManagerRejected", "Rejected", "Withdrawn"].includes(myResignation.status)
+            }
             onRequestSeparation={() => setExitOpen(true)}
             onTabChange={setActiveTab}
           />
@@ -829,12 +922,14 @@ export default function ProfileForm() {
                       onChange={(v) => set("currentAddress", v)}
                       placeholder="House / street / city / state / PIN"
                       value={form.currentAddress}
+                      maxLength={500}
                     />
                     <EditableTextArea
                       label="Permanent Address"
                       onChange={(v) => set("permanentAddress", v)}
                       placeholder="House / street / city / state / PIN"
                       value={form.permanentAddress}
+                      maxLength={500}
                     />
                   </div>
                 </div>
@@ -872,6 +967,7 @@ export default function ProfileForm() {
                     onChange={(v) => set("emergencyContactName", v)}
                     placeholder="Full Name"
                     value={form.emergencyContactName}
+                    maxLength={200}
                   />
                   <EditableField
                     helper="We collect this in case of emergencies."
@@ -951,6 +1047,7 @@ export default function ProfileForm() {
                       <div className={`p-5 ${FORM_GRID_CLASS}`}>
                         <EditableField
                           label="Qualification"
+                          maxLength={100}
                           onChange={(v) =>
                             updateAcademic(a.id, { qualification: v })
                           }
@@ -959,6 +1056,7 @@ export default function ProfileForm() {
                         />
                         <EditableField
                           label="Institution / School"
+                          maxLength={150}
                           onChange={(v) =>
                             updateAcademic(a.id, { institution: v })
                           }
@@ -967,6 +1065,7 @@ export default function ProfileForm() {
                         />
                         <EditableField
                           label="Board / University"
+                          maxLength={150}
                           onChange={(v) =>
                             updateAcademic(a.id, { boardUniversity: v })
                           }
@@ -974,7 +1073,9 @@ export default function ProfileForm() {
                           value={a.boardUniversity}
                         />
                         <EditableField
+                          error={academicErrors[a.id]?.yearOfPassing}
                           label="Year of Passing"
+                          maxLength={4}
                           onChange={(v) =>
                             updateAcademic(a.id, { yearOfPassing: v })
                           }
@@ -982,7 +1083,9 @@ export default function ProfileForm() {
                           value={a.yearOfPassing}
                         />
                         <EditableField
+                          error={academicErrors[a.id]?.gradePercentage}
                           label="Grade / Percentage"
+                          maxLength={7}
                           onChange={(v) =>
                             updateAcademic(a.id, { gradePercentage: v })
                           }
@@ -1054,20 +1157,17 @@ export default function ProfileForm() {
 
             {showActionBar ? (
               <ProfileActionBar
-                hint={
-                  TAB_META[activeTab].hrManaged
-                    ? "Profile photo is saved when you click Save Changes."
-                    : "Changes are saved to your employee record."
-                }
+                hint="Changes are saved to your employee record."
                 onReset={() => {
                   pendingPhotoFileRef.current = null;
                   if (photoPreview) {
                     URL.revokeObjectURL(photoPreview);
                     setPhotoPreview(null);
                   }
-                  if (profile && extendedProfile) {
-                    setForm(profilePageToEditable(profile, extendedProfile));
+                  if (committedFormRef.current) {
+                    setForm(committedFormRef.current);
                   }
+                  setAcademicErrors({});
                 }}
                 saving={saving}
                 showReset={!TAB_META[activeTab].hrManaged}
@@ -1533,11 +1633,15 @@ function ResignationExitDialog({
                 </span>
               </button>
               <input
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 ref={fileRef}
                 type="file"
               />
+              <p className="text-xs text-gray-400 mt-1.5 mb-0">
+                Accepted formats: PDF, JPG, PNG, WebP
+              </p>
             </div>
 
             <div>
