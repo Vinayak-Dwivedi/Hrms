@@ -34,9 +34,16 @@ import {
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
-function currentMonthValue(): string {
+function currentMonthDateRange(): { fromDate: string; toDate: string } {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthStr = String(month).padStart(2, "0");
+  return {
+    fromDate: `${year}-${monthStr}-01`,
+    toDate: `${year}-${monthStr}-${String(lastDay).padStart(2, "0")}`,
+  };
 }
 
 function formatAttendanceDate(ymd: string): string {
@@ -72,8 +79,8 @@ type Props = {
 };
 
 export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
-  const [month, setMonth] = useState(currentMonthValue);
-  const [date, setDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => currentMonthDateRange().fromDate);
+  const [toDate, setToDate] = useState(() => currentMonthDateRange().toDate);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
@@ -84,12 +91,20 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (fromDate && toDate && fromDate > toDate) {
+      setRows([]);
+      setTotal(0);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const result = await listAttendanceUploads({
-        month: date ? undefined : month || undefined,
-        date: date || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
         search,
         page,
         limit,
@@ -103,7 +118,7 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [month, date, search, page, limit]);
+  }, [fromDate, toDate, search, page, limit]);
 
   useEffect(() => {
     load();
@@ -111,16 +126,19 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
 
   useEffect(() => {
     setPage(1);
-  }, [month, date, search, limit]);
+  }, [fromDate, toDate, search, limit]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const safePage = Math.min(page, totalPages);
   const rangeStart = total === 0 ? 0 : (safePage - 1) * limit + 1;
   const rangeEnd = Math.min(safePage * limit, total);
+  const dateRangeInvalid =
+    Boolean(fromDate && toDate) && fromDate > toDate;
 
   function resetFilters() {
-    setMonth(currentMonthValue());
-    setDate("");
+    const range = currentMonthDateRange();
+    setFromDate(range.fromDate);
+    setToDate(range.toDate);
     setSearch("");
     setSearchInput("");
     setPage(1);
@@ -149,31 +167,29 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
           <div className="flex flex-col xl:flex-row xl:items-end gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 min-w-0">
               <div className="min-w-0">
-                <label className={employeeListFilterLabelClass} htmlFor="att-upload-month">
-                  Month
+                <label className={employeeListFilterLabelClass} htmlFor="att-upload-from-date">
+                  Attendance Date From
                 </label>
                 <input
-                  id="att-upload-month"
-                  type="month"
-                  value={month}
-                  onChange={(e) => {
-                    setMonth(e.target.value);
-                    setDate("");
-                  }}
-                  disabled={Boolean(date)}
+                  id="att-upload-from-date"
+                  type="date"
+                  value={fromDate}
+                  max={toDate || undefined}
+                  onChange={(e) => setFromDate(e.target.value)}
                   className={employeeListInputClass}
                 />
               </div>
 
               <div className="min-w-0">
-                <label className={employeeListFilterLabelClass} htmlFor="att-upload-date">
-                  Date
+                <label className={employeeListFilterLabelClass} htmlFor="att-upload-to-date">
+                  Attendance Date To
                 </label>
                 <input
-                  id="att-upload-date"
+                  id="att-upload-to-date"
                   type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(e) => setToDate(e.target.value)}
                   className={employeeListInputClass}
                 />
               </div>
@@ -222,8 +238,12 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
           </div>
         </div>
 
-        {error && (
-          <div className={`mx-4 mt-4 ${employeeErrorBannerClass}`}>{error}</div>
+        {(error || dateRangeInvalid) && (
+          <div className={`mx-4 mt-4 ${employeeErrorBannerClass}`}>
+            {dateRangeInvalid
+              ? "From date must be on or before to date."
+              : error}
+          </div>
         )}
 
         <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100">
@@ -249,8 +269,12 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
           </p>
         </div>
 
-        {loading ? (
+        {loading && !dateRangeInvalid ? (
           <div className={employeeLoadingClass}>Loading uploaded records…</div>
+        ) : dateRangeInvalid ? (
+          <div className={employeeListTableEmptyClass}>
+            Adjust the date range to view uploaded records.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px]">

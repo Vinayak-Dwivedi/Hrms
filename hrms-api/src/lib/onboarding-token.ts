@@ -91,7 +91,6 @@ export function formatEmployeeDisplayName(parts: {
 export const REQUIRED_ONBOARDING_DOCUMENTS = [
   "Aadhaar Card",
   "PAN Card",
-  "Resume",
 ] as const;
 
 export const REQUIRED_ONBOARDING_PROFILE_FIELDS = [

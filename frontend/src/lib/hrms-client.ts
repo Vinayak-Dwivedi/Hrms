@@ -36,6 +36,57 @@ function buildUrl(path: string): string {
   return `${API_BASE}/api/hrms${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export type HrmsApiErrorBody = {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+};
+
+export class HrmsApiError extends Error {
+  status: number;
+  code: string;
+  details?: unknown;
+
+  constructor(status: number, code: string, message: string, details?: unknown) {
+    super(message);
+    this.name = "HrmsApiError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export function getHrmsErrorMessage(error: unknown): string {
+  if (error instanceof HrmsApiError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return "Something went wrong. Please try again.";
+}
+
+async function parseHrmsApiError(res: Response): Promise<HrmsApiError> {
+  const body = (await res.json().catch(() => ({}))) as HrmsApiErrorBody;
+  const code = body.error?.code ?? "UNKNOWN";
+  let message = body.error?.message ?? res.statusText ?? "Request failed.";
+  const details = body.error?.details;
+  if (
+    details &&
+    typeof details === "object" &&
+    details !== null &&
+    "message" in details &&
+    typeof (details as { message?: unknown }).message === "string"
+  ) {
+    message = (details as { message: string }).message;
+  }
+  return new HrmsApiError(res.status, code, message, details);
+}
+
+function redirectToLoginOn401(res: Response) {
+  if (res.status === 401 && typeof window !== "undefined") {
+    window.location.href = "/login";
+  }
+}
+
 async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(buildUrl(path), {
     ...init,
@@ -46,11 +97,8 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    if (res.status === 401 && typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
-    throw new Error(`API ${res.status}: ${text || res.statusText}`);
+    redirectToLoginOn401(res);
+    throw await parseHrmsApiError(res);
   }
   return (await res.json()) as T;
 }
@@ -526,18 +574,8 @@ export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void>
       body: form,
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      if (res.status === 401 && typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
-      let message = text || `Request failed (${res.status})`;
-      try {
-        const body = JSON.parse(text) as { message?: string };
-        if (body.message) message = body.message;
-      } catch {
-        // keep raw text
-      }
-      throw new Error(message);
+      redirectToLoginOn401(res);
+      throw await parseHrmsApiError(res);
     }
     return;
   }

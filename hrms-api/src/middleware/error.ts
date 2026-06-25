@@ -56,6 +56,21 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 
   const pg = extractPostgresError(err);
 
+  if (pg?.code === "22P02") {
+    const pgMessage = extractDbErrorMessage(err);
+    if (/marital_status_enum/i.test(pgMessage)) {
+      res.status(400).json({
+        error: {
+          code: "SCHEMA_NOT_READY",
+          message:
+            "The selected marital status is not supported by the database yet. Run: npm run db:migrate-marital-status",
+          requestId: req.requestId,
+        },
+      });
+      return;
+    }
+  }
+
   if (pg?.code === "23505") {
     const apiErr = mapDbErrorToApiError(err);
     res.status(apiErr.status).json({

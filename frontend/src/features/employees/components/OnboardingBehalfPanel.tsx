@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+import type {
+  EmployeeProfile,
+  OnboardingStatus,
+} from "@/features/onboarding/api/onboarding.client";
+import OnboardingBankStep from "@/features/onboarding/components/OnboardingBankStep";
 import OnboardingDocumentUpload from "@/features/onboarding/components/OnboardingDocumentUpload";
 import OnboardingProfileForm from "@/features/onboarding/components/OnboardingProfileForm";
 import OnboardingReviewStep from "@/features/onboarding/components/OnboardingReviewStep";
 import type { OnboardingDocumentType } from "@/features/onboarding/constants/documents";
+import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
 import {
   computeOnboardingReadiness,
   deleteOnboardingDocumentOnBehalf,
@@ -13,12 +18,12 @@ import {
   fetchOnboardingDocument,
   submitOnboardingOnBehalf,
   updateEmployeeOnboardingProfileOnBehalf,
+  updateOnboardingBank,
   uploadOnboardingDocumentOnBehalf,
 } from "../api/hr-onboarding.client";
 import { employeeErrorBannerClass } from "../employee-theme";
-import { onboardingReviewCardClass } from "../onboarding-admin-theme";
 
-type BehalfStep = "profile" | "documents" | "review";
+type BehalfStep = "profile" | "documents" | "bank" | "review";
 
 interface Props {
   employeeId: number;
@@ -31,10 +36,30 @@ interface Props {
 function resolveBehalfStep(
   profileComplete: boolean,
   pendingDocuments: string[],
+  bankComplete: boolean,
 ): BehalfStep {
   if (!profileComplete) return "profile";
   if (pendingDocuments.length > 0) return "documents";
+  if (!bankComplete) return "bank";
   return "review";
+}
+
+function toReviewStatus(
+  profile: EmployeeProfile,
+  readiness: ReturnType<typeof computeOnboardingReadiness>,
+): OnboardingStatus {
+  return {
+    completed: profile.onboardingStatus === "COMPLETED",
+    completedAt: profile.completedAt ?? null,
+    profileComplete: readiness.profileComplete,
+    bankComplete: readiness.bankComplete,
+    bank: profile.bank,
+    academic: profile.academic,
+    requiredDocuments: readiness.requiredDocuments,
+    pendingDocuments: readiness.pendingDocuments,
+    documents: readiness.documents,
+    onboardingStatus: profile.onboardingStatus,
+  };
 }
 
 export default function OnboardingBehalfPanel({
@@ -53,7 +78,12 @@ export default function OnboardingBehalfPanel({
   const [initialProfile, setInitialProfile] =
     useState<OnboardingProfileValues | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
+  const [bankComplete, setBankComplete] = useState(false);
   const [pendingDocuments, setPendingDocuments] = useState<string[]>([]);
+  const [bank, setBank] = useState<EmployeeProfile["bank"]>([]);
+  const [reviewStatus, setReviewStatus] = useState<OnboardingStatus | null>(
+    null,
+  );
   const [documents, setDocuments] = useState<
     Array<{
       id?: string;
@@ -71,8 +101,11 @@ export default function OnboardingBehalfPanel({
       const readiness = computeOnboardingReadiness(profile);
       setInitialProfile(readiness.formValues);
       setProfileComplete(readiness.profileComplete);
+      setBankComplete(readiness.bankComplete);
       setPendingDocuments(readiness.pendingDocuments);
       setDocuments(readiness.documents);
+      setBank(profile.bank);
+      setReviewStatus(toReviewStatus(profile, readiness));
       return readiness;
     } catch (e) {
       setError((e as Error).message);
@@ -88,9 +121,15 @@ export default function OnboardingBehalfPanel({
 
   useEffect(() => {
     if (manualStep === "documents" && pendingDocuments.length === 0) {
-      setManualStep("review");
+      setManualStep("bank");
     }
   }, [manualStep, pendingDocuments.length]);
+
+  useEffect(() => {
+    if (manualStep === "bank" && bankComplete) {
+      setManualStep("review");
+    }
+  }, [manualStep, bankComplete]);
 
   if (onboardingStatus === "COMPLETED" || submittedAt) {
     return null;
@@ -108,8 +147,11 @@ export default function OnboardingBehalfPanel({
       const readiness = computeOnboardingReadiness(profile);
       setInitialProfile(readiness.formValues);
       setProfileComplete(readiness.profileComplete);
+      setBankComplete(readiness.bankComplete);
       setPendingDocuments(readiness.pendingDocuments);
       setDocuments(readiness.documents);
+      setBank(profile.bank);
+      setReviewStatus(toReviewStatus(profile, readiness));
       setSuccess("Profile saved on behalf of employee.");
       setManualStep(readiness.profileComplete ? "documents" : "profile");
       onUpdated?.();
@@ -149,11 +191,12 @@ export default function OnboardingBehalfPanel({
 
   const containerClass =
     layout === "flat"
-      ? `${onboardingReviewCardClass} p-5 space-y-4`
+      ? "space-y-4"
       : "space-y-4 border border-slate-200 rounded-md bg-slate-50/40 p-4 mt-4";
 
   const step =
-    manualStep ?? resolveBehalfStep(profileComplete, pendingDocuments);
+    manualStep ??
+    resolveBehalfStep(profileComplete, pendingDocuments, bankComplete);
 
   return (
     <div className={containerClass}>
@@ -163,14 +206,12 @@ export default function OnboardingBehalfPanel({
             Complete employee data
           </h2>
           <p className="text-xs text-gray-600 mt-1 mb-0">
-            Enter profile and documents on behalf of the employee before HR
-            review.
+            Enter profile, documents, and bank details on behalf of the employee
+            before HR review.
           </p>
         </header>
       )}
-      {error && (
-        <div className={employeeErrorBannerClass}>{error}</div>
-      )}
+      {error && <div className={employeeErrorBannerClass}>{error}</div>}
       {success && (
         <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
           {success}
@@ -186,20 +227,23 @@ export default function OnboardingBehalfPanel({
               initialValues={initialProfile}
               onSubmit={handleProfileSave}
               submitting={submittingProfile}
+              sectionsLayout={layout === "flat" ? "grid" : "stack"}
+              formOptionsSource="hr"
             />
           )}
 
           {step === "documents" && (
             <OnboardingDocumentUpload
               documents={documents}
+              academic={reviewStatus?.academic ?? []}
               onUploaded={() => {
                 void load().then((readiness) => {
                   if (!readiness) return;
                   const noPendingDocuments = readiness.pendingDocuments.length === 0;
-                  setManualStep(noPendingDocuments ? "review" : "documents");
+                  setManualStep(noPendingDocuments ? "bank" : "documents");
                   if (noPendingDocuments) {
                     setSuccess(
-                      "All required documents uploaded. You can now submit for HR review.",
+                      "All required documents uploaded. Continue with bank details.",
                     );
                   }
                 });
@@ -209,16 +253,29 @@ export default function OnboardingBehalfPanel({
             />
           )}
 
-          {step === "review" && initialProfile && (
+          {step === "bank" && (
+            <OnboardingBankStep
+              bank={bank}
+              onSubmitBank={(values) => updateOnboardingBank(employeeId, values)}
+              onSaved={async () => {
+                await load();
+                setManualStep("review");
+                setSuccess("Bank details saved on behalf of employee.");
+              }}
+            />
+          )}
+
+          {step === "review" && initialProfile && reviewStatus && (
             <OnboardingReviewStep
               profile={initialProfile}
-              documents={documents}
+              bank={bank}
+              status={reviewStatus}
               completing={completing}
-              pendingDocuments={pendingDocuments}
               submitButtonLabel="Submit for HR review"
               onComplete={() => void handleSubmit()}
               onEditProfile={() => setManualStep("profile")}
               onEditDocuments={() => setManualStep("documents")}
+              onEditBank={() => setManualStep("bank")}
               fetchDocument={fetchOnboardingDocument}
             />
           )}

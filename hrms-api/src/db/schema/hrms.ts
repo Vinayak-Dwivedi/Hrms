@@ -119,6 +119,8 @@ export const documentTypeEnum = pgEnum("document_type_enum", [
   "Experience Letter",
   "Relieving Letter",
   "Passport",
+  "Class 10 Certificate",
+  "Class 12 Certificate",
 ]);
 export const onboardingStatusEnum = pgEnum("onboarding_status_enum", [
   "PENDING",

@@ -22,8 +22,9 @@ interface Props {
 }
 
 export type OnboardingBankFormHandle = {
-  validate: () => OnboardingBankFormValues | null;
+  validate: (options?: { required?: boolean }) => OnboardingBankFormValues | null;
   isEmpty: () => boolean;
+  revealErrors: (options?: { required?: boolean }) => void;
 };
 
 const DEFAULT_BANK_ROW: BankDetailValues = {
@@ -53,6 +54,12 @@ function FieldLabel({
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-xs text-red-600 mt-1 m-0">{message}</p>;
+}
+
+function fieldControlClass(error?: string) {
+  return `w-full h-10 rounded-md border px-3 text-sm ${
+    error ? "border-red-500" : "border-gray-200"
+  }`;
 }
 
 function FieldHint({ children }: { children: ReactNode }) {
@@ -137,8 +144,9 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
   }
 
   useImperativeHandle(ref, () => ({
-    validate: () => {
-      if (isBankEmpty(values)) return null;
+    validate: (options?: { required?: boolean }) => {
+      const required = options?.required ?? false;
+      if (!required && isBankEmpty(values)) return null;
       const parsed = onboardingBankFormSchema.safeParse(values);
       if (!parsed.success) {
         setErrors(collectOnboardingBankErrors(values));
@@ -148,6 +156,11 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
       return parsed.data;
     },
     isEmpty: () => isBankEmpty(values),
+    revealErrors: (options?: { required?: boolean }) => {
+      const required = options?.required ?? false;
+      if (!required && isBankEmpty(values)) return;
+      setErrors(collectOnboardingBankErrors(values));
+    },
   }));
 
   if (readOnly) {
@@ -195,7 +208,9 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
             <EmployeeFormField>
               <FieldLabel required>Account Number</FieldLabel>
               <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+                className={fieldControlClass(
+                  errors[`bank.${index}.accountNumber`],
+                )}
                 value={row.accountNumber}
                 onBlur={() =>
                   blurBankField(`bank.${index}.accountNumber`, values)
@@ -214,7 +229,7 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
             <EmployeeFormField>
               <FieldLabel required>Account Name</FieldLabel>
               <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+                className={fieldControlClass(errors[`bank.${index}.accountName`])}
                 value={row.accountName}
                 onBlur={() =>
                   blurBankField(`bank.${index}.accountName`, values)
@@ -228,7 +243,7 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
             <EmployeeFormField>
               <FieldLabel required>Bank Name</FieldLabel>
               <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+                className={fieldControlClass(errors[`bank.${index}.bankName`])}
                 value={row.bankName}
                 onBlur={() => blurBankField(`bank.${index}.bankName`, values)}
                 onChange={(e) =>
@@ -240,7 +255,7 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
             <EmployeeFormField>
               <FieldLabel required>Branch</FieldLabel>
               <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+                className={fieldControlClass(errors[`bank.${index}.branchName`])}
                 value={row.branchName}
                 onBlur={() =>
                   blurBankField(`bank.${index}.branchName`, values)
@@ -254,7 +269,7 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
             <EmployeeFormField>
               <FieldLabel required>IFSC Code</FieldLabel>
               <input
-                className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm uppercase"
+                className={`${fieldControlClass(errors[`bank.${index}.ifscCode`])} uppercase`}
                 value={row.ifscCode}
                 onBlur={() => blurBankField(`bank.${index}.ifscCode`, values)}
                 onChange={(e) =>

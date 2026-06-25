@@ -3,6 +3,7 @@ import * as employeeAdminCtrl from "@/modules/hr-onboarding/controllers/employee
 import * as docVerificationCtrl from "@/modules/hr-onboarding/controllers/document-verification.controller";
 import * as invitationCtrl from "@/modules/hr-onboarding/controllers/invitation.controller";
 import * as reportingCtrl from "@/modules/hr-onboarding/controllers/reporting.controller";
+import * as formOptionsController from "@/modules/onboarding/controllers/form-options.controller";
 import { requirePermission } from "@/middleware/require-permission";
 
 export const hrOnboardingRoutes = Router();
@@ -11,6 +12,8 @@ const view = requirePermission("onboarding.view", "employees.view");
 const manage = requirePermission("onboarding.manage");
 const verify = requirePermission("onboarding.verify_documents");
 const resend = requirePermission("onboarding.resend_invitation");
+
+hrOnboardingRoutes.get("/form-options", view, formOptionsController.getFormOptions);
 
 hrOnboardingRoutes.get(
   "/employees/pending-review",

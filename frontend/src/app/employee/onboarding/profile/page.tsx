@@ -11,11 +11,16 @@ import {
   type OnboardingStatus,
 } from "@/features/onboarding/api/onboarding.client";
 import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+import OnboardingBankStep from "@/features/onboarding/components/OnboardingBankStep";
 import OnboardingDocumentUpload from "@/features/onboarding/components/OnboardingDocumentUpload";
 import OnboardingProfileForm from "@/features/onboarding/components/OnboardingProfileForm";
 import OnboardingReviewStep from "@/features/onboarding/components/OnboardingReviewStep";
 import OnboardingSuccessAlert from "@/features/onboarding/components/OnboardingSuccessAlert";
-import { onboardingBtnPrimaryClass, onboardingErrorAlertClass } from "@/features/onboarding/constants/onboarding-theme";
+import {
+  onboardingBtnPrimaryClass,
+  onboardingErrorAlertClass,
+} from "@/features/onboarding/constants/onboarding-theme";
+import type { OnboardingProfileSubStep } from "@/features/onboarding/context/onboarding-progress-context";
 import { useOnboardingProgress } from "@/features/onboarding/context/onboarding-progress-context";
 import { signOut } from "@/lib/hrms-client";
 
@@ -23,10 +28,14 @@ const ONBOARDING_SUBMIT_SUCCESS_MESSAGE =
   "Onboarding submitted successfully. HR will review your documents and approve your account.";
 const CLOSE_AFTER_SUCCESS_MS = 3000;
 
-type ProfileSubStep = "profile" | "documents" | "review";
-
-function parseSubStep(raw: string | null): ProfileSubStep {
-  if (raw === "documents" || raw === "review") return raw;
+function parseSubStep(raw: string | null): OnboardingProfileSubStep {
+  if (
+    raw === "documents" ||
+    raw === "bank" ||
+    raw === "review"
+  ) {
+    return raw;
+  }
   return "profile";
 }
 
@@ -41,7 +50,6 @@ function OnboardingProfilePageInner() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [initialProfile, setInitialProfile] =
     useState<OnboardingProfileValues | null>(null);
-  const [profileSaved, setProfileSaved] = useState(false);
   const [submittingProfile, setSubmittingProfile] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +58,11 @@ function OnboardingProfilePageInner() {
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const syncProgress = useCallback(
-    (data: OnboardingStatus, subStep: ProfileSubStep) => {
+    (data: OnboardingStatus, subStep: OnboardingProfileSubStep) => {
       setProgress({
         profileComplete: data.profileComplete,
         documentsReady: data.pendingDocuments.length === 0,
+        bankComplete: data.bankComplete,
         profileSubStep: subStep,
       });
     },
@@ -61,7 +70,7 @@ function OnboardingProfilePageInner() {
   );
 
   const navigateToStep = useCallback(
-    (next: ProfileSubStep) => {
+    (next: OnboardingProfileSubStep) => {
       router.replace(`/employee/onboarding/profile?step=${next}`);
       setProgress({ profileSubStep: next });
     },
@@ -78,9 +87,6 @@ function OnboardingProfilePageInner() {
     if (data.completed) {
       router.replace("/dashboard");
       return;
-    }
-    if (data.profileComplete) {
-      setProfileSaved(true);
     }
     return data;
   }, [router]);
@@ -125,11 +131,21 @@ function OnboardingProfilePageInner() {
       navigateToStep("profile");
       return;
     }
+    if (step === "bank") {
+      if (!status.profileComplete) {
+        navigateToStep("profile");
+      } else if (status.pendingDocuments.length > 0) {
+        navigateToStep("documents");
+      }
+      return;
+    }
     if (step === "review") {
       if (!status.profileComplete) {
         navigateToStep("profile");
       } else if (status.pendingDocuments.length > 0) {
         navigateToStep("documents");
+      } else if (!status.bankComplete) {
+        navigateToStep("bank");
       }
     }
   }, [step, status, loading, navigateToStep]);
@@ -153,7 +169,6 @@ function OnboardingProfilePageInner() {
     setError(null);
     try {
       const result = await updateOnboardingProfile(values);
-      setProfileSaved(true);
       setSuccess("Profile saved successfully.");
       const data = await loadStatus();
       if (data) {
@@ -165,6 +180,15 @@ function OnboardingProfilePageInner() {
     } finally {
       setSubmittingProfile(false);
     }
+  }
+
+  async function handleBankSaved() {
+    const data = await loadStatus();
+    if (data) {
+      syncProgress(data, "review");
+      navigateToStep("review");
+    }
+    setSuccess("Bank details saved.");
   }
 
   async function handleComplete() {
@@ -208,10 +232,11 @@ function OnboardingProfilePageInner() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-1">
-        Complete Your Profile
+        Complete Your Onboarding
       </h1>
       <p className="text-sm text-gray-600 mb-6">
-        Fill in your details and upload required documents to finish onboarding.
+        Submit your employee data, upload required documents based on your
+        academic qualifications, add bank details, then verify and submit to HR.
       </p>
 
       {error && (
@@ -234,6 +259,7 @@ function OnboardingProfilePageInner() {
         <div className="space-y-6">
           <OnboardingDocumentUpload
             documents={status.documents}
+            academic={status.academic}
             onUploaded={() => {
               void loadStatus().then((data) => {
                 if (data) syncProgress(data, "documents");
@@ -251,19 +277,26 @@ function OnboardingProfilePageInner() {
           <button
             type="button"
             disabled={status.pendingDocuments.length > 0}
-            onClick={() => navigateToStep("review")}
+            onClick={() => navigateToStep("bank")}
             className={onboardingBtnPrimaryClass}
           >
-            Continue to Review
+            Continue to Bank Account
           </button>
         </div>
+      )}
+
+      {step === "bank" && status && (
+        <OnboardingBankStep
+          bank={status.bank}
+          onSaved={() => void handleBankSaved()}
+        />
       )}
 
       {step === "review" && status && initialProfile && (
         <OnboardingReviewStep
           profile={initialProfile}
-          documents={status.documents}
-          pendingDocuments={status.pendingDocuments}
+          bank={status.bank}
+          status={status}
           completing={completing}
           onComplete={() => void handleComplete()}
         />

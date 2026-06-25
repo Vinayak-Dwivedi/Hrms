@@ -10,5 +10,6 @@ describe("require-permission role mapping", () => {
     assert.equal(authRoleToRbacCode("hr"), "hr");
     assert.equal(authRoleToRbacCode("user"), "employee");
     assert.equal(authRoleToRbacCode("employee"), "employee");
+    assert.equal(authRoleToRbacCode("finance_lead"), "finance_lead");
   });
 });

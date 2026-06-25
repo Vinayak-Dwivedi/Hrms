@@ -68,7 +68,7 @@ export default function OnboardingPipelineSteps({
           />
         </div>
 
-        <ol className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 list-none p-0">
+        <ol className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 list-none p-0">
           {steps.map((step) => {
             const allowed = stepAllowed(step, hasPermission, hasAnyPermission);
             const isDone = step.status === "done";
@@ -102,6 +102,11 @@ export default function OnboardingPipelineSteps({
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 m-0 leading-snug">
                       {step.label}
+                      {isActive && (
+                        <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-[lab(36.9089%_35.0961_-85.6872)]">
+                          Current
+                        </span>
+                      )}
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1 mb-0 line-clamp-2">
                       {step.description}

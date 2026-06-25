@@ -23,7 +23,19 @@ export const ADDABLE_ACADEMIC_OPTIONS = [
   QUAL_OTHER,
 ] as const;
 
-export const MAX_ACADEMIC_RECORDS = 10;
+export const MAX_ADDABLE_ACADEMIC_RECORDS = 5;
+export const MAX_ACADEMIC_RECORDS =
+  FIXED_DEFAULT_QUALIFICATIONS.length + MAX_ADDABLE_ACADEMIC_RECORDS;
+
+const PASSING_YEAR_MIN = 1950;
+
+export function getPassingYearOptions(): number[] {
+  const max = new Date().getFullYear();
+  return Array.from(
+    { length: max - PASSING_YEAR_MIN + 1 },
+    (_, i) => max - i,
+  );
+}
 
 export function createEmptyAcademicRow(qualification = "") {
   return {
@@ -55,6 +67,14 @@ export function isFixedDefaultQualification(qualification: string): boolean {
   return (
     qualification === QUAL_CLASS_10 || qualification === QUAL_CLASS_12
   );
+}
+
+export function isClass10Qualification(qualification: string): boolean {
+  return qualification === QUAL_CLASS_10 || /^Class 10\b/.test(qualification);
+}
+
+export function isClass12Qualification(qualification: string): boolean {
+  return qualification === QUAL_CLASS_12 || /^Class 12\b/.test(qualification);
 }
 
 /** Map API-stored qualification back to form select + Other text. */

@@ -18,6 +18,8 @@ const PERMISSIONS = [
   { code: "employees.edit", name: "Edit Employees", module: "employees", description: "Update employee records" },
   { code: "leave.view", name: "View Leave", module: "leave", description: "View leave requests" },
   { code: "leave.approve", name: "Approve Leave", module: "leave", description: "Approve or reject leave" },
+  { code: "leave.policy.manage", name: "Manage Leave Policy", module: "leave", description: "Configure leave types, policies, plans, and weekly off" },
+  { code: "holiday.policy.manage", name: "Manage Holiday Policy", module: "leave", description: "Configure organisation holidays and holiday policy" },
   { code: "attendance.view", name: "View Attendance", module: "attendance", description: "View attendance records" },
   { code: "attendance.upload", name: "Upload Attendance", module: "attendance", description: "Bulk upload attendance" },
   { code: "payroll.view", name: "View Payroll", module: "payroll", description: "View payslips and payroll" },
@@ -86,6 +88,8 @@ const ROLE_PERMISSION_CODES = {
     "offboarding.clearance.finance",
     "offboarding.clearance.hr",
     "offboarding.clearance.operations",
+    "leave.policy.manage",
+    "holiday.policy.manage",
   ],
 };
 

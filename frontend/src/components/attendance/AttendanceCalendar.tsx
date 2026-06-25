@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { Upload } from "lucide-react";
 import type { DayAttendance, LeaveType } from "@/lib/dashboard";
 import { countLeaveDays, holidayDateSet } from "@/lib/attendance-merge";
-import type { UpcomingHoliday } from "@/lib/hrms-client";
+import { getHrmsErrorMessage, type UpcomingHoliday } from "@/lib/hrms-client";
 import { brandStyle } from "@/lib/branding";
 
 export interface LeaveSubmission {
@@ -279,7 +279,7 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       });
       onClose();
     } catch (e) {
-      setSubmitError((e as Error).message);
+      setSubmitError(getHrmsErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -673,7 +673,7 @@ function RegularisationModal({
       });
       onClose();
     } catch (e) {
-      setSubmitError((e as Error).message);
+      setSubmitError(getHrmsErrorMessage(e));
     } finally {
       setSubmitting(false);
     }

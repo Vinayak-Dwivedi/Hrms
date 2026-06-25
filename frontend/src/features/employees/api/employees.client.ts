@@ -504,6 +504,18 @@ export async function updateEmployee(
   return toDetail(res.data);
 }
 
+/** Mark an employee active or inactive without a full profile update. */
+export async function setEmployeeStatus(
+  id: number,
+  employeeStatus: Extract<EmployeeStatus, "Active" | "Inactive">,
+): Promise<EmployeeDetail> {
+  const res = await jsonFetch<{ data: RawEmployeeRow }>(`/employees/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ employeeStatus }),
+  });
+  return toDetail(res.data);
+}
+
 function toHrProfilePayload(
   values: OnboardingProfileValues,
   bank?: OnboardingBankFormValues | null,

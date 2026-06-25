@@ -65,8 +65,8 @@ export default function RejectDocumentDialog({
       open={open}
       title={
         document
-          ? `Deny — ${document.documentType}`
-          : "Deny document"
+          ? `Reject — ${document.documentType}`
+          : "Reject document"
       }
       onClose={onClose}
       maxWidthClass="max-w-md"
@@ -101,7 +101,7 @@ export default function RejectDocumentDialog({
             onClick={() => void handleSubmit()}
             className="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-700 border-0 disabled:opacity-50"
           >
-            {submitting ? "Denying…" : "Deny document"}
+            {submitting ? "Rejecting…" : "Reject document"}
           </button>
         </div>
       </div>

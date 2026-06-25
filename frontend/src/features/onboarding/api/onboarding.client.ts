@@ -4,9 +4,17 @@ import type { MaritalStatus } from "../constants/personal";
 import {
   academicQualificationFromApi,
   DEFAULT_ACADEMIC_ROWS,
+  QUAL_OTHER,
 } from "../constants/academic";
-import { REQUIRED_ONBOARDING_DOCUMENTS } from "../constants/documents";
-import type { OnboardingProfileValues } from "../schemas/onboarding.schema";
+import {
+  listPendingRequiredDocuments,
+  listRequiredOnboardingDocuments,
+} from "../constants/documents";
+import type {
+  OnboardingBankFormValues,
+  OnboardingProfileValues,
+} from "../schemas/onboarding.schema";
+import type { BloodGroupOption } from "../constants/blood-groups";
 
 export type OnboardingValidateResult = {
   status: "VALID";
@@ -40,6 +48,8 @@ export type OnboardingDocumentRow = {
   sizeBytes?: number;
   status: "Pending" | "Uploaded" | "Verified" | "Rejected";
   createdAt: string;
+  rejectionReason?: string | null;
+  rejectedAt?: string | null;
 };
 
 export type EmployeeProfile = {
@@ -102,7 +112,11 @@ export type OnboardingStatus = {
   completed: boolean;
   completedAt: string | null;
   profileComplete: boolean;
-  pendingDocuments: string[];
+  bankComplete: boolean;
+  bank: EmployeeProfile["bank"];
+  academic: EmployeeProfile["academic"];
+  requiredDocuments: ReturnType<typeof listRequiredOnboardingDocuments>;
+  pendingDocuments: ReturnType<typeof listPendingRequiredDocuments>;
   documents: OnboardingDocumentRow[];
   onboardingStatus?: string;
 };
@@ -185,7 +199,59 @@ export function fetchEmployeeProfile(): Promise<EmployeeProfile> {
   return authJsonFetch<EmployeeProfile>("/api/employee/profile");
 }
 
+export type OnboardingFormOptions = {
+  bloodGroups: BloodGroupOption[];
+};
+
+export function fetchOnboardingFormOptions(): Promise<OnboardingFormOptions> {
+  return authJsonFetch<OnboardingFormOptions>("/api/employee/form-options");
+}
+
 export function toProfilePayload(values: OnboardingProfileValues) {
+  const academic = values.academic
+    .filter((row) => {
+      const qualification =
+        row.qualification === QUAL_OTHER
+          ? (row.qualificationOther ?? "").trim()
+          : row.qualification.trim();
+      return (
+        qualification.length > 0 &&
+        row.institution.trim().length > 0 &&
+        row.yearTo != null &&
+        (row.gradeOrPercentage ?? "").trim().length > 0
+      );
+    })
+    .map((a) => ({
+      id: a.id,
+      qualification:
+        a.qualification === QUAL_OTHER
+          ? (a.qualificationOther ?? "").trim()
+          : a.qualification,
+      institution: a.institution,
+      boardUniversity: a.boardUniversity || null,
+      fieldOfStudy: a.fieldOfStudy || null,
+      yearFrom: a.yearFrom ?? null,
+      yearTo: a.yearTo ?? null,
+      gradeOrPercentage: (a.gradeOrPercentage ?? "").trim() || null,
+    }));
+
+  const professional = (values.professional ?? [])
+    .filter(
+      (row) =>
+        row.companyName.trim().length > 0 &&
+        row.designation.trim().length > 0 &&
+        row.fromDate.trim().length > 0,
+    )
+    .map((p) => ({
+      id: p.id,
+      companyName: p.companyName,
+      designation: p.designation,
+      fromDate: p.fromDate,
+      toDate: p.toDate || null,
+      isCurrent: p.isCurrent ?? false,
+      responsibilities: p.responsibilities || null,
+    }));
+
   return {
     personal: {
       currentAddress: values.currentAddress,
@@ -205,30 +271,11 @@ export function toProfilePayload(values: OnboardingProfileValues) {
     identity: {
       panNumber: values.panNo,
       aadhaarNumber: values.aadhaarNo,
-      uanNumber: values.uanNo || null,
-      esicNumber: values.esicNo || null,
+      uanNumber: values.uanNo?.trim() ? values.uanNo : null,
+      esicNumber: values.esicNo?.trim() ? values.esicNo : null,
     },
-    academic: values.academic.map((a) => ({
-      id: a.id,
-      qualification: a.qualification,
-      institution: a.institution,
-      boardUniversity: a.boardUniversity || null,
-      fieldOfStudy: a.fieldOfStudy || null,
-      yearFrom: a.yearFrom ?? null,
-      yearTo: a.yearTo ?? null,
-      gradeOrPercentage: a.gradeOrPercentage || null,
-    })),
-    // `professional` is optional in z.input (no default applied yet);
-    // default to an empty array if the form left it untouched.
-    professional: (values.professional ?? []).map((p) => ({
-      id: p.id,
-      companyName: p.companyName,
-      designation: p.designation,
-      fromDate: p.fromDate,
-      toDate: p.toDate || null,
-      isCurrent: p.isCurrent ?? false,
-      responsibilities: p.responsibilities || null,
-    })),
+    academic,
+    professional,
   };
 }
 
@@ -241,10 +288,85 @@ export async function updateEmployeeProfile(
   });
 }
 
+export function isBankComplete(profile: Pick<EmployeeProfile, "bank">): boolean {
+  const primary =
+    profile.bank.find((row) => row.isPrimary) ?? profile.bank[0];
+  if (!primary) return false;
+  return (
+    primary.accountNumber.trim().length > 0 &&
+    primary.accountName.trim().length > 0 &&
+    primary.bankName.trim().length > 0 &&
+    primary.branchName.trim().length > 0 &&
+    primary.ifscCode.trim().length > 0
+  );
+}
+
+export function bankFormValuesFromProfile(
+  profile?: Pick<EmployeeProfile, "bank">,
+): OnboardingBankFormValues {
+  if (profile?.bank?.length) {
+    return {
+      bank: profile.bank.map((row) => ({
+        id: row.id,
+        accountNumber: row.accountNumber,
+        accountName: row.accountName,
+        bankName: row.bankName,
+        branchName: row.branchName,
+        ifscCode: row.ifscCode,
+        isPrimary: row.isPrimary,
+      })),
+    };
+  }
+  return {
+    bank: [
+      {
+        accountNumber: "",
+        accountName: "",
+        bankName: "",
+        branchName: "",
+        ifscCode: "",
+        isPrimary: true,
+      },
+    ],
+  };
+}
+
+export function toBankPayload(values: OnboardingBankFormValues) {
+  return values.bank.map((row) => ({
+    id: row.id,
+    accountNumber: row.accountNumber,
+    accountName: row.accountName,
+    bankName: row.bankName,
+    branchName: row.branchName,
+    ifscCode: row.ifscCode,
+    isPrimary: row.isPrimary ?? false,
+  }));
+}
+
+export async function updateOnboardingBank(
+  values: OnboardingBankFormValues,
+): Promise<{ bankComplete: boolean; bank: EmployeeProfile["bank"] }> {
+  const profile = await fetchEmployeeProfile();
+  const payload = {
+    ...toProfilePayload(profileToFormValues(profile)),
+    bank: toBankPayload(values),
+  };
+  const updated = await authJsonFetch<EmployeeProfile>("/api/employee/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  return {
+    bankComplete: isBankComplete(updated),
+    bank: updated.bank,
+  };
+}
+
 export async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
   const profile = await fetchEmployeeProfile();
-  const pendingDocuments = REQUIRED_ONBOARDING_DOCUMENTS.filter(
-    (type) => !profile.documents.some((d) => d.documentType === type),
+  const requiredDocuments = listRequiredOnboardingDocuments(profile.academic);
+  const pendingDocuments = listPendingRequiredDocuments(
+    profile.documents,
+    profile.academic,
   );
   return {
     completed: profile.onboardingStatus === "COMPLETED",
@@ -254,6 +376,10 @@ export async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
       !!profile.identity.panNumber &&
       !!profile.identity.aadhaarNumber &&
       profile.academic.length > 0,
+    bankComplete: isBankComplete(profile),
+    bank: profile.bank,
+    academic: profile.academic,
+    requiredDocuments,
     pendingDocuments,
     documents: profile.documents,
     onboardingStatus: profile.onboardingStatus,

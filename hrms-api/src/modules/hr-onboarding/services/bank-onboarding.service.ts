@@ -83,13 +83,6 @@ export async function updateBankDuringOnboarding(params: {
 }) {
   await ensureInvitationStatusFresh(params.employeeId);
   const emp = await loadOnboardingEmployee(params.employeeId);
-  if (!emp.onboardingSubmittedAt) {
-    throw new ApiError(
-      400,
-      "NOT_SUBMITTED",
-      "Employee data must be submitted before bank details can be added.",
-    );
-  }
   if (emp.onboardingStatus === "COMPLETED" || emp.onboardingCompletedAt) {
     throw new ApiError(
       400,
@@ -100,7 +93,7 @@ export async function updateBankDuringOnboarding(params: {
 
   await bankRepo.syncBankDetails(params.employeeId, params.input.bank);
   const support = await getEmployeeColumnSupport();
-  if (support.onboardingBankApproval) {
+  if (support.onboardingBankApproval && emp.onboardingSubmittedAt) {
     await db
       .update(employees)
       .set({

@@ -43,20 +43,26 @@ describe("role-config", () => {
     assert.ok(hrefs.includes("/manager/approvals"));
   });
 
-  it("shows MY TEAM nav only for manager role", () => {
-    const managerTitles = navSectionsForRole("manager", SAMPLE_SECTIONS).map(
-      (s) => s.title,
-    );
-    assert.ok(managerTitles.includes("MY TEAM"));
+  it("shows MY TEAM nav when user has team or clearance permissions", () => {
+    const withApprove = navSectionsForRole(
+      "employee",
+      SAMPLE_SECTIONS,
+      (codes) => codes.includes("leave.approve"),
+    ).map((s) => s.title);
+    assert.ok(withApprove.includes("MY TEAM"));
 
-    const hrTitles = navSectionsForRole("hr", SAMPLE_SECTIONS).map(
-      (s) => s.title,
-    );
-    assert.ok(!hrTitles.includes("MY TEAM"));
+    const withClearance = navSectionsForRole(
+      "employee",
+      SAMPLE_SECTIONS,
+      (codes) => codes.includes("offboarding.clearance.it"),
+    ).map((s) => s.title);
+    assert.ok(withClearance.includes("MY TEAM"));
 
-    const adminTitles = navSectionsForRole("admin", SAMPLE_SECTIONS).map(
-      (s) => s.title,
-    );
-    assert.ok(!adminTitles.includes("MY TEAM"));
+    const withoutTeam = navSectionsForRole(
+      "hr",
+      SAMPLE_SECTIONS,
+      () => false,
+    ).map((s) => s.title);
+    assert.ok(!withoutTeam.includes("MY TEAM"));
   });
 });

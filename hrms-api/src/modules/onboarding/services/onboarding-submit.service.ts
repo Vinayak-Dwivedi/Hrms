@@ -2,15 +2,16 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import { employees } from "@/db/schema/hrms";
 import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
-import { REQUIRED_SUBMIT_DOCUMENT_TYPES } from "@/modules/onboarding/constants";
+import { listRequiredSubmitDocumentTypes } from "@/modules/onboarding/required-documents";
 import * as academicRepo from "@/modules/onboarding/repositories/academic.repository";
+import * as bankRepo from "@/modules/onboarding/repositories/bank.repository";
 import * as documentRepo from "@/modules/onboarding/repositories/document.repository";
 import * as identityRepo from "@/modules/onboarding/repositories/identity.repository";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { ApiError } from "@/middleware/error";
 
 export async function submitOnboarding(employeeId: number) {
-  const [emp, identity, academicCount, uploadedTypes] = await Promise.all([
+  const [emp, identity, academicRows, documents, bankRows] = await Promise.all([
       db
         .select({
           id: employees.id,
@@ -25,8 +26,9 @@ export async function submitOnboarding(employeeId: number) {
         .limit(1)
         .then((rows) => rows[0]),
       identityRepo.getIdentityByEmployeeId(employeeId),
-      academicRepo.countAcademicByEmployeeId(employeeId),
-      documentRepo.listDocumentTypesForEmployee(employeeId),
+      academicRepo.listAcademicByEmployeeId(employeeId),
+      documentRepo.listDocumentsByEmployeeId(employeeId),
+      bankRepo.listBankByEmployeeId(employeeId),
     ]);
 
   if (!emp) {
@@ -62,7 +64,7 @@ export async function submitOnboarding(employeeId: number) {
     );
   }
 
-  if (academicCount < 1) {
+  if (academicRows.length < 1) {
     throw new ApiError(
       400,
       "ACADEMIC_INCOMPLETE",
@@ -70,7 +72,10 @@ export async function submitOnboarding(employeeId: number) {
     );
   }
 
-  const missingDocs = REQUIRED_SUBMIT_DOCUMENT_TYPES.filter(
+  const requiredDocumentTypes = listRequiredSubmitDocumentTypes(academicRows);
+  const uploadedTypes = new Set(documents.map((d) => d.documentType));
+
+  const missingDocs = requiredDocumentTypes.filter(
     (type) => !uploadedTypes.has(type),
   );
   if (missingDocs.length > 0) {
@@ -78,6 +83,34 @@ export async function submitOnboarding(employeeId: number) {
       400,
       "DOCUMENTS_INCOMPLETE",
       `Missing required documents: ${missingDocs.join(", ")}.`,
+    );
+  }
+
+  const rejectedDocs = requiredDocumentTypes.filter((type) =>
+    documents.some((d) => d.documentType === type && d.status === "Rejected"),
+  );
+  if (rejectedDocs.length > 0) {
+    throw new ApiError(
+      400,
+      "DOCUMENTS_REJECTED",
+      `Re-upload required documents before submitting: ${rejectedDocs.join(", ")}.`,
+    );
+  }
+
+  const primaryBank =
+    bankRows.find((row) => row.isPrimary) ?? bankRows[0];
+  const bankComplete =
+    !!primaryBank &&
+    primaryBank.accountNumber?.trim() &&
+    primaryBank.accountName?.trim() &&
+    primaryBank.bankName?.trim() &&
+    primaryBank.branchName?.trim() &&
+    primaryBank.ifscCode?.trim();
+  if (!bankComplete) {
+    throw new ApiError(
+      400,
+      "BANK_INCOMPLETE",
+      "Primary bank account details are required before submitting onboarding.",
     );
   }
 

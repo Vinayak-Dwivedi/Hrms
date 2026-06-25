@@ -24,6 +24,7 @@ import {
   fetchBranches,
   fetchEmployees,
   fetchRoleOptions,
+  isOnboardingCompleted,
   toSelectOptions,
   type EmployeeDetail,
   type EmployeeListItem,
@@ -57,9 +58,11 @@ import {
 } from "../employee-theme";
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
+import { useAuth } from "@/lib/auth-context";
 import EmployeeOnboardingProfileEdit, {
   type EmployeeOnboardingProfileEditHandle,
 } from "./EmployeeOnboardingProfileEdit";
+import { hasOnboardingPanelAccess } from "./OnboardingAdminPanel";
 import ReportingManagerField from "./ReportingManagerField";
 
 const employeeFieldControl = { controlClassName: employeeListFormControlClass };
@@ -71,6 +74,7 @@ interface Props {
   embedded?: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
+  onRefreshEmployee?: () => void | Promise<void>;
 }
 
 type FormLookups = OrgHierarchyRoleLookups & {
@@ -85,6 +89,7 @@ function EditEmployeeFormContent({
   embedded = false,
   onSuccess,
   onCancel,
+  onRefreshEmployee,
   departments,
   subDepartments,
   designations,
@@ -96,9 +101,18 @@ function EditEmployeeFormContent({
   lookupsError,
 }: Props & FormLookups) {
   const router = useRouter();
+  const { hasAnyPermission } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const showOnboardingLink =
+    hasOnboardingPanelAccess(hasAnyPermission) &&
+    !isOnboardingCompleted(employee);
   const [revealErrors, setRevealErrors] = useState(false);
   const onboardingRef = useRef<EmployeeOnboardingProfileEditHandle>(null);
+
+  function revealAllValidationErrors() {
+    setRevealErrors(true);
+    onboardingRef.current?.revealValidationErrors();
+  }
 
   const validRoleIds = useMemo(
     () => roleOptions.map((role) => role.id),
@@ -137,7 +151,7 @@ function EditEmployeeFormContent({
       onSubmit: zodFormFieldErrors(updateSchema),
     },
     onSubmitInvalid: () => {
-      setRevealErrors(true);
+      revealAllValidationErrors();
       setSubmitError("Please fix the highlighted fields before submitting.");
     },
     onSubmit: async ({ value }) => {
@@ -180,7 +194,7 @@ function EditEmployeeFormContent({
           : onboardingRef.current?.validate();
 
         if (!onboardingRef.current?.isEmpty() && !onboardingPayload) {
-          setRevealErrors(true);
+          revealAllValidationErrors();
           setSubmitError(
             "Please fix the onboarding profile fields before submitting.",
           );
@@ -245,6 +259,17 @@ function EditEmployeeFormContent({
           {submitError && (
             <div className={employeeListErrorBannerClass}>{submitError}</div>
           )}
+        </div>
+      )}
+
+      {showOnboardingLink && (
+        <div className="flex justify-end">
+          <Link
+            className={employeeListBtnOutlineClass}
+            href={`/employees/${employee.id}/onboarding`}
+          >
+            Manage onboarding review
+          </Link>
         </div>
       )}
 
@@ -522,7 +547,10 @@ function EditEmployeeFormContent({
         </EmployeeFormSection>
 
       <EmployeeOnboardingProfileEdit
+        employeeId={employee.id}
         inGrid
+        onboardingSubmittedAt={employee.onboardingSubmittedAt}
+        onDocumentsChanged={() => void onRefreshEmployee?.()}
         profile={employee.profile}
         ref={onboardingRef}
       />
@@ -569,6 +597,7 @@ export default function EditEmployeeForm({
   embedded = false,
   onSuccess,
   onCancel,
+  onRefreshEmployee,
 }: Props) {
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
@@ -623,6 +652,7 @@ export default function EditEmployeeForm({
       lookupsError={lookupsError}
       roleOptions={roleOptions}
       onCancel={onCancel}
+      onRefreshEmployee={onRefreshEmployee}
       onSuccess={onSuccess}
     />
   );

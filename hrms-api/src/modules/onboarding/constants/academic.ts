@@ -12,7 +12,7 @@ export const ACADEMIC_QUALIFICATIONS = [
   QUAL_OTHER,
 ] as const;
 
-export const MAX_ACADEMIC_RECORDS = 10;
+export const MAX_ACADEMIC_RECORDS = 7;
 
 export function isKnownAcademicQualification(value: string): boolean {
   return (ACADEMIC_QUALIFICATIONS as readonly string[]).includes(value);

@@ -36,6 +36,7 @@ import {
   type MyRegularisationRow,
   type UpcomingHoliday,
   cancelLeaveRequest,
+  getHrmsErrorMessage,
   submitLeaveRequest,
   submitRegularisationRequest,
 } from "@/lib/hrms-client";
@@ -153,7 +154,7 @@ export default function RoleAttendance({
         setRegHistory(regs);
         setTodayAttendance(todayRecord);
       } catch (e) {
-        if (!cancelled) setLoadError((e as Error).message);
+        if (!cancelled) setLoadError(getHrmsErrorMessage(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -175,24 +176,19 @@ export default function RoleAttendance({
       setData(merged);
       setHolidays(monthHolidays);
     } catch (e) {
-      setLoadError((e as Error).message);
+      setLoadError(getHrmsErrorMessage(e));
     }
   }
 
   async function handleSubmitLeave(input: LeaveSubmission) {
-    try {
-      await submitLeaveRequest(input);
-      const [fresh, bal] = await Promise.all([
-        refreshDays(calYear, calMonth0),
-        adapters.fetchLeaveBalances(),
-      ]);
-      setData(fresh);
-      setBalances(bal);
-      toast.success(adapters.leaveSuccessMessage);
-    } catch (e) {
-      toast.error(`Failed to apply: ${(e as Error).message}`);
-      throw e;
-    }
+    await submitLeaveRequest(input);
+    const [fresh, bal] = await Promise.all([
+      refreshDays(calYear, calMonth0),
+      adapters.fetchLeaveBalances(),
+    ]);
+    setData(fresh);
+    setBalances(bal);
+    toast.success(adapters.leaveSuccessMessage);
   }
 
   async function handleCancelLeave(id: string) {
@@ -206,21 +202,16 @@ export default function RoleAttendance({
       setBalances(bal);
       toast.success("Leave request cancelled");
     } catch (e) {
-      toast.error(`Failed to cancel: ${(e as Error).message}`);
+      toast.error(getHrmsErrorMessage(e));
       throw e;
     }
   }
 
   async function handleSubmitRegularisation(input: RegularisationSubmission) {
-    try {
-      await submitRegularisationRequest(input, adapters.regScope);
-      const fresh = await fetchMyRegularisationRequests(adapters.regScope);
-      setRegHistory(fresh);
-      toast.success("Regularisation submitted — pending approval");
-    } catch (e) {
-      toast.error(`Failed to submit: ${(e as Error).message}`);
-      throw e;
-    }
+    await submitRegularisationRequest(input, adapters.regScope);
+    const fresh = await fetchMyRegularisationRequests(adapters.regScope);
+    setRegHistory(fresh);
+    toast.success("Regularisation submitted — pending approval");
   }
 
   async function handleTodayPunchChange(record: AttendanceRecord) {
@@ -229,7 +220,7 @@ export default function RoleAttendance({
       const merged = await refreshDays(calYear, calMonth0);
       setData(merged);
     } catch (e) {
-      toast.error(`Failed to refresh attendance: ${(e as Error).message}`);
+      toast.error(getHrmsErrorMessage(e));
     }
   }
 

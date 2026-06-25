@@ -36,6 +36,11 @@ import { useAuth } from "@/lib/auth-context";
 import type { Role } from "@/lib/roles";
 import { navSectionsForRole } from "@/lib/role-config";
 import {
+  MY_CLEARANCES_PERMISSIONS,
+  NAV_ENTRY_PERMISSIONS,
+  navEntryAllowed,
+} from "@/lib/nav-permissions";
+import {
   enterpriseNavActiveCollapsedClass,
   enterpriseSectionToggleActiveClass,
   enterpriseSectionToggleClass,
@@ -79,37 +84,37 @@ const USER_MGMT_SECTION: NavSection = {
       icon: Users,
       label: "Employees",
       href: "/employees",
-      requiredPermission: "employees.view",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.employeesView,
     },
     {
       icon: GitBranch,
       label: "Org Config",
       href: "/departments/hierarchy",
-      requiredPermission: "employees.view",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.employeesView,
     },
     {
       icon: Network,
       label: "Department Hierarchy",
       href: "/hierarchy",
-      requiredPermission: "employees.view",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.employeesView,
     },
     {
       icon: UserPlus,
       label: "Add Employee",
       href: "/add-employee",
-      requiredPermission: "employees.create",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.employeesCreate,
     },
     {
       icon: ShieldPlus,
       label: "Add Permission",
       href: "/add-permission",
-      requiredPermission: "admin.permissions",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.adminPermissions,
     },
     {
       icon: Shield,
-      label: "User Roles",
+      label: "System Access Roles",
       href: "/user-roles",
-      requiredPermission: "admin.roles",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.adminRoles,
     },
   ],
 };
@@ -129,11 +134,12 @@ const SETTINGS_SECTION: NavSection = {
   collapsedIcon: Settings,
   entries: [
     // Weekly Off lives as a tab inside Leave Policy; Holiday Policy is here.
-    { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
+    { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy", requiredPermission: [...NAV_ENTRY_PERMISSIONS.leavePolicyManage] },
     {
       icon: CalendarDays,
       label: "Holiday Policy",
       href: "/holiday-calendars",
+      requiredPermission: [...NAV_ENTRY_PERMISSIONS.holidayPolicyManage],
     },
     // Leave Credits hidden for now — kept for later re-enable.
     // {
@@ -146,21 +152,10 @@ const SETTINGS_SECTION: NavSection = {
       icon: LogOut,
       label: "Offboarding",
       href: "/offboarding",
-      requiredPermission: "admin.roles",
+      requiredPermission: NAV_ENTRY_PERMISSIONS.adminRoles,
     },
   ],
 };
-
-function navEntryAllowed(
-  entry: NavEntry,
-  hasAnyPermission: (codes: string[]) => boolean,
-): boolean {
-  if (!entry.requiredPermission) return true;
-  const codes = Array.isArray(entry.requiredPermission)
-    ? entry.requiredPermission
-    : [entry.requiredPermission];
-  return hasAnyPermission(codes);
-}
 
 function filterNavSections(
   sections: NavSection[],
@@ -169,7 +164,9 @@ function filterNavSections(
   return sections
     .map((section) => ({
       ...section,
-      entries: section.entries.filter((e) => navEntryAllowed(e, hasAnyPermission)),
+      entries: section.entries.filter((e) =>
+        navEntryAllowed(e.requiredPermission, hasAnyPermission),
+      ),
     }))
     .filter((section) => section.entries.length > 0);
 }
@@ -184,20 +181,20 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         icon: Clock,
         label: "Attendance",
         href: "/attendance",
-        requiredPermission: "attendance.view",
+        requiredPermission: NAV_ENTRY_PERMISSIONS.attendanceView,
       },
       {
         icon: Upload,
         label: "Upload Attendance",
         href: "/attendance/upload",
-        requiredPermission: "attendance.upload",
+        requiredPermission: NAV_ENTRY_PERMISSIONS.attendanceUpload,
       },
       {
         icon: CalendarIcon,
         label: "Leave",
         href: "/leave",
         also: ["/leave/new"],
-        requiredPermission: "leave.view",
+        requiredPermission: NAV_ENTRY_PERMISSIONS.leaveView,
       },
       // {
       //   icon: Receipt,
@@ -221,21 +218,13 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         label: "Approvals",
         href: "/manager/approvals",
         badgeKey: "pendingApprovals",
-        requiredPermission: "leave.approve",
+        requiredPermission: NAV_ENTRY_PERMISSIONS.leaveApprove,
       },
       {
         icon: ClipboardCheck,
         label: "My Clearances",
         href: "/my-clearances",
-        requiredPermission: [
-          "leave.approve",
-          "offboarding.clearance.it",
-          "offboarding.clearance.admin",
-          "offboarding.clearance.finance",
-          "offboarding.clearance.hr",
-          "offboarding.clearance.operations",
-          "admin.roles",
-        ],
+        requiredPermission: [...MY_CLEARANCES_PERMISSIONS],
       },
     ],
   },
@@ -279,7 +268,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/departments/hierarchy": "Org Config",
   "/add-employee": "Add Employee",
   "/add-permission": "Add Permission",
-  "/user-roles": "User Roles",
+  "/user-roles": "System Access Roles",
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
   "/holiday-calendars": "Holiday Policy",
@@ -452,7 +441,7 @@ export default function AppShell({
   }, [pathname, role, hasPermission, user]);
 
   const sections = filterNavSections(
-    navSectionsForRole(role, buildNav()),
+    navSectionsForRole(role, buildNav(), hasAnyPermission),
     hasAnyPermission,
   );
   const activeEntryId = useMemo(

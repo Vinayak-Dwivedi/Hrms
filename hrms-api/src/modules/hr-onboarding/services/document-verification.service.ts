@@ -16,6 +16,8 @@ import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 
+import { notify } from "@/services/notifications";
+
 import * as documentRepo from "@/modules/onboarding/repositories/document.repository";
 
 import * as documentService from "@/modules/onboarding/services/document.service";
@@ -148,6 +150,54 @@ export async function rejectDocument(params: {
 
 
 
+  if (doc.status !== "Uploaded") {
+
+    throw new ApiError(
+
+      400,
+
+      "INVALID_STATUS",
+
+      "Only uploaded documents awaiting review can be rejected.",
+
+    );
+
+  }
+
+
+
+  const columnSupport = await getEmployeeColumnSupport();
+
+  if (columnSupport.onboardingSubmittedAt) {
+
+    const [employeeRow] = await db
+
+      .select({ onboardingSubmittedAt: employees.onboardingSubmittedAt })
+
+      .from(employees)
+
+      .where(eq(employees.id, doc.employeeId))
+
+      .limit(1);
+
+    if (!employeeRow?.onboardingSubmittedAt) {
+
+      throw new ApiError(
+
+        400,
+
+        "NOT_UNDER_REVIEW",
+
+        "Documents can only be rejected while onboarding is under HR review.",
+
+      );
+
+    }
+
+  }
+
+
+
   const support = await getDocumentColumnSupport();
 
   if (!support.rejection) {
@@ -204,8 +254,6 @@ export async function rejectDocument(params: {
 
 
 
-  const columnSupport = await getEmployeeColumnSupport();
-
   if (columnSupport.onboardingSubmittedAt) {
 
     await db
@@ -217,6 +265,20 @@ export async function rejectDocument(params: {
       .where(eq(employees.id, doc.employeeId));
 
   }
+
+
+
+  notify(
+
+    doc.employeeId,
+
+    "hr",
+
+    "Document rejected — re-upload required",
+
+    `${doc.documentType}: ${params.reason}`,
+
+  );
 
 
 

@@ -13,13 +13,20 @@ export type OnboardingWizardStep =
   | "sign-in"
   | "profile"
   | "documents"
+  | "bank"
+  | "review";
+
+export type OnboardingProfileSubStep =
+  | "profile"
+  | "documents"
+  | "bank"
   | "review";
 
 export interface OnboardingProgressState {
   profileComplete: boolean;
   documentsReady: boolean;
-  /** Profile sub-step when on /employee/onboarding/profile */
-  profileSubStep: "profile" | "documents" | "review";
+  bankComplete: boolean;
+  profileSubStep: OnboardingProfileSubStep;
 }
 
 interface OnboardingProgressContextValue extends OnboardingProgressState {
@@ -30,6 +37,7 @@ interface OnboardingProgressContextValue extends OnboardingProgressState {
 const defaultState: OnboardingProgressState = {
   profileComplete: false,
   documentsReady: false,
+  bankComplete: false,
   profileSubStep: "profile",
 };
 

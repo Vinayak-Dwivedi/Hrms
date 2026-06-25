@@ -428,6 +428,20 @@
       "when": 1782057600000,
       "tag": "20260622120000_attendance_uploads_global_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1782061200000,
+      "tag": "20260617100000_marital_status_extend",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1782064800000,
+      "tag": "20260624120000_onboarding_class_certificates",
+      "breakpoints": true
     }
   ]
 }

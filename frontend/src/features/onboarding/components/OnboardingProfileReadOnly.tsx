@@ -15,7 +15,7 @@ import type { OnboardingProfileValues } from "../schemas/onboarding.schema";
 
 interface Props {
   values: OnboardingProfileValues;
-  layout?: "stack" | "grid";
+  layout?: "stack" | "grid" | "page";
 }
 
 function ReadOnlyField({
@@ -44,29 +44,41 @@ export default function OnboardingProfileReadOnly({
   values,
   layout = "stack",
 }: Props) {
+  const isPageLayout = layout === "page";
+  const sectionsClass =
+    layout === "page" || layout === "grid"
+      ? employeeFormSectionsGridClass
+      : "space-y-6";
+  const sectionProps = isPageLayout ? { compact: true as const } : {};
+
   return (
-    <div
-      className={
-        layout === "grid" ? employeeFormSectionsGridClass : "space-y-6"
-      }
-    >
-      <EmployeeFormSection title="Address">
+    <div className={sectionsClass}>
+      <EmployeeFormSection title="Address" {...sectionProps}>
         <ReadOnlyField
           label="Current Address"
           value={values.currentAddress}
+          span={2}
         />
         <ReadOnlyField
           label="Permanent Address"
           value={values.permanentAddress}
+          span={2}
         />
       </EmployeeFormSection>
 
-      <EmployeeFormSection title="Emergency Contact">
+      <EmployeeFormSection title="Emergency Contact" {...sectionProps}>
         <ReadOnlyField label="Contact Name" value={values.emergencyContactName} />
         <ReadOnlyField label="Contact Phone" value={values.emergencyContactPhone} />
       </EmployeeFormSection>
 
-      <EmployeeFormSection title="Personal & Compliance">
+      <div
+        className={
+          isPageLayout || layout === "grid"
+            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4"
+            : "grid grid-cols-1 md:grid-cols-2 gap-4"
+        }
+      >
+      <EmployeeFormSection title="Personal & Compliance" {...sectionProps}>
         <ReadOnlyField label="Marital Status" value={values.maritalStatus} />
         <ReadOnlyField label="Spouse Name" value={values.spouseName} />
         <ReadOnlyField label="Father's Name" value={values.fatherName} />
@@ -79,7 +91,48 @@ export default function OnboardingProfileReadOnly({
         <ReadOnlyField label="ESIC" value={values.esicNo} />
       </EmployeeFormSection>
 
-      <EmployeeFormSection title="Academic Details">
+      <EmployeeFormSection title="Work Information" {...sectionProps}>
+        {values.professional?.[0] ? (
+          <>
+            <ReadOnlyField
+              label="Previous Company"
+              value={values.professional[0].companyName}
+            />
+            <ReadOnlyField
+              label="Designation"
+              value={values.professional[0].designation}
+            />
+            <ReadOnlyField
+              label="From Date"
+              value={values.professional[0].fromDate}
+            />
+            <ReadOnlyField
+              label="To Date"
+              value={values.professional[0].toDate}
+            />
+            {values.professional[0].responsibilities ? (
+              <ReadOnlyField
+                label="Responsibilities"
+                value={values.professional[0].responsibilities}
+                span={2}
+              />
+            ) : null}
+          </>
+        ) : (
+          <ReadOnlyField
+            label="Previous employment"
+            value="No previous employment (Fresher)"
+            span={2}
+          />
+        )}
+      </EmployeeFormSection>
+      </div>
+
+      <EmployeeFormSection
+        title="Academic Details"
+        className={isPageLayout ? "col-span-full" : undefined}
+        {...sectionProps}
+      >
         {values.academic.map((row, index) => {
           const isSchool = isSchoolQualification(row.qualification);
           const isHigherEd = isHigherEdQualification(row.qualification);
@@ -123,7 +176,7 @@ export default function OnboardingProfileReadOnly({
                   value={typeof row.yearTo === "number" ? row.yearTo : null}
                 />
                 <ReadOnlyField
-                  label="Grade / %"
+                  label="Grade"
                   value={row.gradeOrPercentage}
                 />
               </div>
@@ -131,34 +184,6 @@ export default function OnboardingProfileReadOnly({
           );
         })}
       </EmployeeFormSection>
-
-      {(values.professional ?? []).length > 0 ? (
-        <EmployeeFormSection title="Professional Experience">
-          {(values.professional ?? []).map((row, index) => (
-            <div
-              key={`professional-readonly-${index}-${row.id ?? row.companyName}`}
-              className="col-span-full rounded-lg border border-gray-200 bg-gray-50/50 p-4"
-            >
-              <h4 className="text-sm font-semibold text-gray-900 m-0 mb-4">
-                {row.companyName || `Experience ${index + 1}`}
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ReadOnlyField label="Designation" value={row.designation} />
-                <ReadOnlyField label="From" value={row.fromDate} />
-                <ReadOnlyField
-                  label="To"
-                  value={row.isCurrent ? "Present" : row.toDate}
-                />
-                <ReadOnlyField
-                  label="Responsibilities"
-                  value={row.responsibilities}
-                  span={2}
-                />
-              </div>
-            </div>
-          ))}
-        </EmployeeFormSection>
-      ) : null}
 
     </div>
   );

@@ -10,7 +10,8 @@ describe("auth-role mapping", () => {
     assert.equal(rbacCodeToAuthRole("manager"), "manager");
     assert.equal(rbacCodeToAuthRole("hr"), "hr");
     assert.equal(rbacCodeToAuthRole("employee"), "user");
-    assert.equal(rbacCodeToAuthRole("unknown"), "user");
+    assert.equal(rbacCodeToAuthRole("finance_lead"), "finance_lead");
+    assert.equal(rbacCodeToAuthRole("attendance_clerk"), "attendance_clerk");
   });
 
   it("maps jwt auth roles to rbac role codes", () => {
@@ -23,7 +24,14 @@ describe("auth-role mapping", () => {
   });
 
   it("round-trips rbac codes through auth role to rbac code", () => {
-    for (const code of ["master", "admin", "manager", "hr", "employee"] as const) {
+    for (const code of [
+      "master",
+      "admin",
+      "manager",
+      "hr",
+      "employee",
+      "finance_lead",
+    ] as const) {
       assert.equal(authRoleToRbacCode(rbacCodeToAuthRole(code)), code);
     }
   });
