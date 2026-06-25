@@ -23,30 +23,12 @@ import {
 import type { ComponentType } from "react";
 
 import type { Role } from "@/lib/roles";
+import { canSeeMyTeamSection } from "@/lib/nav-permissions";
 
 
 
-/** Section titles gated by UI role before permission filtering. */
-
-const ROLE_NAV_SECTIONS: Record<Role, string[] | "*"> = {
-
-  employee: "*",
-
-  manager: "*",
-
-  hr: "*",
-
-  admin: "*",
-
-};
-
-
-
-/** MY TEAM is manager-only; all other sections are visible to every role. */
-
-const MANAGER_ONLY_SECTIONS = new Set(["MY TEAM"]);
-
-
+/** MY TEAM is shown when the user has team/clearance permissions. */
+const MY_TEAM_SECTION_TITLE = "MY TEAM";
 
 function SlackIcon({
 
@@ -221,7 +203,7 @@ export function quickLinksFor(
 
       { icon: CheckSquare, label: "Approvals", href: approvalsHref() },
 
-      { icon: Shield, label: "User Roles", href: "/user-roles" },
+      { icon: Shield, label: "System Access Roles", href: "/user-roles" },
 
       { icon: CalendarIcon, label: "Leave Policy", href: "/leave-policy" },
 
@@ -259,7 +241,7 @@ export function quickLinksFor(
 
     }
 
-    if (hasPermission("admin.roles")) {
+    if (hasPermission("leave.policy.manage") || hasPermission("admin.roles")) {
 
       links.push({
 
@@ -315,31 +297,25 @@ export type RoleNavSection = {
 
 
 
-/** Filter nav sections by resolved UI role (before permission filtering). */
+/** Filter nav sections by permissions (before per-entry permission filtering). */
 
 export function navSectionsForRole<T extends RoleNavSection>(
 
-  role: Role,
+  _role: Role,
 
   sections: T[],
 
+  hasAnyPermission: (codes: string[]) => boolean,
+
 ): T[] {
 
-  const allowed = ROLE_NAV_SECTIONS[role];
+  const showMyTeam = canSeeMyTeamSection(hasAnyPermission);
 
-  if (allowed === "*") {
+  return sections.filter(
 
-    return sections.filter(
+    (s) => s.title !== MY_TEAM_SECTION_TITLE || showMyTeam,
 
-      (s) =>
-
-        !MANAGER_ONLY_SECTIONS.has(s.title) || role === "manager",
-
-    );
-
-  }
-
-  return sections.filter((s) => allowed.includes(s.title));
+  );
 
 }
 

@@ -1,31 +1,48 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { OnboardingDocumentRow } from "../api/onboarding.client";
+import type {
+  EmployeeProfile,
+  OnboardingDocumentRow,
+  OnboardingStatus,
+} from "../api/onboarding.client";
 import {
   onboardingBtnOutlineClass,
   onboardingBtnPrimaryClass,
+  onboardingReadOnlyLabelClass,
+  onboardingReadOnlyValueClass,
   onboardingStatusPendingClass,
   onboardingStatusRejectedClass,
   onboardingStatusUploadedClass,
   onboardingStatusVerifiedClass,
 } from "../constants/onboarding-theme";
-import { ONBOARDING_DOCUMENT_SECTIONS } from "../constants/documents";
+import {
+  getOnboardingDocumentSections,
+  hasRejectedOnboardingDocuments,
+  isOnboardingDocumentReady,
+} from "../constants/documents";
+import {
+  buildOnboardingSubmitChecklist,
+  isOnboardingSubmitReady,
+} from "../lib/onboarding-checklist";
 import type { OnboardingProfileValues } from "../schemas/onboarding.schema";
+import OnboardingBankReadOnly from "./OnboardingBankReadOnly";
 import OnboardingDocumentPreview from "./OnboardingDocumentPreview";
-import OnboardingProfileReadOnly from "./OnboardingProfileReadOnly";
+import OnboardingReviewSummaryCard from "./OnboardingReviewSummaryCard";
+import OnboardingSubmitChecklist from "./OnboardingSubmitChecklist";
 
 type DocStatus = OnboardingDocumentRow["status"];
 
 interface Props {
   profile: OnboardingProfileValues;
-  documents: OnboardingDocumentRow[];
+  bank: EmployeeProfile["bank"];
+  status: OnboardingStatus;
   completing: boolean;
-  pendingDocuments: string[];
   submitButtonLabel?: string;
   onComplete: () => void;
   onEditProfile?: () => void;
   onEditDocuments?: () => void;
+  onEditBank?: () => void;
   fetchDocument?: (
     documentId: string,
   ) => Promise<{ blob: Blob; mimeType: string; filename: string }>;
@@ -38,22 +55,42 @@ const STATUS_CLASS: Record<DocStatus, string> = {
   Rejected: onboardingStatusRejectedClass,
 };
 
+function ReadOnlyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className={onboardingReadOnlyLabelClass}>{label}</dt>
+      <dd className={onboardingReadOnlyValueClass}>{value || "—"}</dd>
+    </div>
+  );
+}
+
 export default function OnboardingReviewStep({
   profile,
-  documents,
+  bank,
+  status,
   completing,
-  pendingDocuments,
-  submitButtonLabel = "Complete Onboarding",
+  submitButtonLabel = "Submit to HR for Review",
   onComplete,
   onEditProfile,
   onEditDocuments,
+  onEditBank,
   fetchDocument,
 }: Props) {
   const router = useRouter();
+  const hasRejected = hasRejectedOnboardingDocuments(status.documents);
+  const checklistItems = buildOnboardingSubmitChecklist(status);
+  const canSubmit = isOnboardingSubmitReady(checklistItems);
 
   function findDocument(docType: string) {
-    return documents.find((d) => d.documentType === docType);
+    return status.documents.find((document) => document.documentType === docType);
   }
+
+  function goToStep(step: "profile" | "documents" | "bank") {
+    router.replace(`/employee/onboarding/profile?step=${step}`);
+  }
+
+  const documentSections = getOnboardingDocumentSections(status.academic);
+  const docsComplete = status.pendingDocuments.length === 0 && !hasRejected;
 
   return (
     <div className="space-y-8">
@@ -63,18 +100,14 @@ export default function OnboardingReviewStep({
             Review &amp; Submit
           </h2>
           <p className="text-sm text-gray-500 mt-1 mb-0">
-            Review your information before submitting to HR. Nothing on this page
-            can be edited — use the buttons below to make changes.
+            Confirm your profile, documents, and bank details before submitting
+            to HR.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           <button
             type="button"
-            onClick={() =>
-              onEditProfile
-                ? onEditProfile()
-                : router.replace("/employee/onboarding/profile?step=profile")
-            }
+            onClick={() => (onEditProfile ? onEditProfile() : goToStep("profile"))}
             className={onboardingBtnOutlineClass}
           >
             Edit Profile
@@ -82,104 +115,185 @@ export default function OnboardingReviewStep({
           <button
             type="button"
             onClick={() =>
-              onEditDocuments
-                ? onEditDocuments()
-                : router.replace("/employee/onboarding/profile?step=documents")
+              onEditDocuments ? onEditDocuments() : goToStep("documents")
             }
             className={onboardingBtnOutlineClass}
           >
             Edit Documents
           </button>
+          <button
+            type="button"
+            onClick={() => (onEditBank ? onEditBank() : goToStep("bank"))}
+            className={onboardingBtnOutlineClass}
+          >
+            Edit Bank
+          </button>
         </div>
       </div>
 
-      <section className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-900 m-0">
-          Profile details
-        </h3>
-        <OnboardingProfileReadOnly values={profile} />
-      </section>
+      <OnboardingReviewSummaryCard
+        number={1}
+        title="Personal & contact"
+        statusLabel={status.profileComplete ? "Complete" : "Incomplete"}
+        statusTone={status.profileComplete ? "complete" : "pending"}
+        onEdit={() => (onEditProfile ? onEditProfile() : goToStep("profile"))}
+      >
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ReadOnlyRow label="Current address" value={profile.currentAddress} />
+          <ReadOnlyRow
+            label="Permanent address"
+            value={profile.permanentAddress}
+          />
+          <ReadOnlyRow
+            label="Emergency contact"
+            value={profile.emergencyContactName}
+          />
+          <ReadOnlyRow
+            label="Emergency phone"
+            value={profile.emergencyContactPhone}
+          />
+          <ReadOnlyRow label="Marital status" value={profile.maritalStatus} />
+          {profile.maritalStatus === "Married" ? (
+            <ReadOnlyRow label="Spouse name" value={profile.spouseName ?? ""} />
+          ) : null}
+        </dl>
+      </OnboardingReviewSummaryCard>
 
-      <section className="space-y-6">
-        <h3 className="text-sm font-semibold text-gray-900 m-0">Documents</h3>
+      <OnboardingReviewSummaryCard
+        number={2}
+        title="Identity & compliance"
+        statusLabel={status.profileComplete ? "Complete" : "Incomplete"}
+        statusTone={status.profileComplete ? "complete" : "pending"}
+        onEdit={() => (onEditProfile ? onEditProfile() : goToStep("profile"))}
+      >
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ReadOnlyRow label="PAN number" value={profile.panNo} />
+          <ReadOnlyRow label="Aadhaar number" value={profile.aadhaarNo} />
+          <ReadOnlyRow label="UAN" value={profile.uanNo ?? ""} />
+          <ReadOnlyRow label="ESIC" value={profile.esicNo ?? ""} />
+          <ReadOnlyRow label="Nationality" value={profile.nationality} />
+        </dl>
+      </OnboardingReviewSummaryCard>
 
-        {ONBOARDING_DOCUMENT_SECTIONS.map((section) => (
-          <div key={section.id} className="space-y-3">
-            <div>
-              <h4 className="text-sm font-semibold text-gray-800 m-0">
-                {section.title}
-                {section.required ? (
-                  <span className="text-red-500 font-normal"> *</span>
+      <OnboardingReviewSummaryCard
+        number={3}
+        title="Documents & images"
+        statusLabel={docsComplete ? "Complete" : hasRejected ? "Action needed" : "Incomplete"}
+        statusTone={docsComplete ? "complete" : hasRejected ? "warning" : "pending"}
+        onEdit={() =>
+          onEditDocuments ? onEditDocuments() : goToStep("documents")
+        }
+      >
+        {hasRejected ? (
+          <p
+            className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4 m-0"
+            role="alert"
+          >
+            One or more documents were rejected by HR. Upload corrected files
+            before resubmitting.
+          </p>
+        ) : null}
+
+        <div className="space-y-6">
+          {documentSections.map((section) => (
+            <div key={section.id} className="space-y-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 m-0">
+                  {section.title}
+                </h4>
+                {section.description ? (
+                  <p className="text-sm text-gray-500 mt-1 mb-0">
+                    {section.description}
+                  </p>
                 ) : null}
-              </h4>
-              {section.description ? (
-                <p className="text-sm text-gray-500 mt-1 mb-0">
-                  {section.description}
-                </p>
-              ) : null}
-            </div>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {section.types.map((docType) => {
-                const row = findDocument(docType);
-                const uploaded = !!row?.id;
-                const status: DocStatus = row?.status ?? "Pending";
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {section.types.map((docType) => {
+                  const row = findDocument(docType);
+                  const uploaded = !!row?.id;
+                  const docStatus: DocStatus = row?.status ?? "Pending";
+                  const isRejected = docStatus === "Rejected";
+                  const ready = isOnboardingDocumentReady(row);
 
-                return (
-                  <div
-                    key={docType}
-                    className="rounded-lg border border-gray-200 bg-white p-4 space-y-3"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  return (
+                    <div
+                      key={docType}
+                      className={`rounded-lg border p-4 space-y-3 ${
+                        isRejected
+                          ? "border-red-200 bg-red-50/40"
+                          : "border-gray-200 bg-white"
+                      }`}
+                    >
                       <div>
                         <p className="text-sm font-medium text-gray-900 m-0">
                           {docType}
                         </p>
-                        <span className={STATUS_CLASS[uploaded ? "Uploaded" : status]}>
-                          {uploaded ? status : "Pending"}
+                        <span
+                          className={
+                            STATUS_CLASS[ready ? docStatus : "Pending"]
+                          }
+                        >
+                          {ready ? docStatus : "Pending"}
                         </span>
                         {row?.originalFilename ? (
                           <p className="text-xs text-gray-500 mt-1 m-0 truncate">
                             {row.originalFilename}
                           </p>
                         ) : null}
+                        {isRejected && row?.rejectionReason ? (
+                          <p className="text-xs text-red-600 mt-1 m-0">
+                            {row.rejectionReason}
+                          </p>
+                        ) : null}
                       </div>
+
+                      {uploaded && row?.id ? (
+                        <OnboardingDocumentPreview
+                          documentId={row.id}
+                          documentType={docType}
+                          alt={row.originalFilename ?? docType}
+                          fetchDocument={fetchDocument}
+                        />
+                      ) : (
+                        <p className="text-sm text-gray-400 m-0 py-4 text-center border border-dashed border-gray-200 rounded-lg">
+                          Not uploaded
+                        </p>
+                      )}
                     </div>
-
-                    {uploaded && row?.id ? (
-                      <OnboardingDocumentPreview
-                        documentId={row.id}
-                        documentType={docType}
-                        alt={row.originalFilename ?? docType}
-                        fetchDocument={fetchDocument}
-                      />
-                    ) : (
-                      <p className="text-sm text-gray-400 m-0 py-4 text-center border border-dashed border-gray-200 rounded-lg">
-                        Not uploaded
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </section>
+          ))}
+        </div>
+      </OnboardingReviewSummaryCard>
 
-      {pendingDocuments.length > 0 && (
-        <p className="text-sm text-amber-700 m-0">
-          Remaining: {pendingDocuments.join(", ")}
-        </p>
-      )}
-
-      <button
-        type="button"
-        disabled={completing || pendingDocuments.length > 0}
-        onClick={onComplete}
-        className={onboardingBtnPrimaryClass}
+      <OnboardingReviewSummaryCard
+        number={4}
+        title="Bank account details"
+        statusLabel={status.bankComplete ? "Complete" : "Incomplete"}
+        statusTone={status.bankComplete ? "complete" : "pending"}
+        onEdit={() => (onEditBank ? onEditBank() : goToStep("bank"))}
       >
-        {completing ? "Submitting…" : submitButtonLabel}
-      </button>
+        <OnboardingBankReadOnly bank={bank} />
+      </OnboardingReviewSummaryCard>
+
+      <OnboardingSubmitChecklist items={checklistItems} />
+
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600 m-0">
+          By submitting, you confirm the information above is accurate.
+        </p>
+        <button
+          type="button"
+          disabled={completing || !canSubmit}
+          onClick={onComplete}
+          className={onboardingBtnPrimaryClass}
+        >
+          {completing ? "Submitting…" : submitButtonLabel}
+        </button>
+      </div>
     </div>
   );
 }

@@ -27,8 +27,6 @@ export type AttendanceUploadRowError = {
 export type AttendanceUploadResult = {
   attendanceId?: number;
   uploaded: number;
-  synced: number;
-  employeesCreated: number;
   errors: AttendanceUploadRowError[];
 };
 
@@ -45,6 +43,8 @@ export type AttendanceUploadRecord = {
 export type ListAttendanceUploadsParams = {
   month?: string;
   date?: string;
+  fromDate?: string;
+  toDate?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -63,6 +63,8 @@ export async function listAttendanceUploads(
   const qs = new URLSearchParams();
   if (params.month) qs.set("month", params.month);
   if (params.date) qs.set("date", params.date);
+  if (params.fromDate) qs.set("fromDate", params.fromDate);
+  if (params.toDate) qs.set("toDate", params.toDate);
   if (params.search?.trim()) qs.set("search", params.search.trim());
   if (params.page) qs.set("page", String(params.page));
   if (params.limit) qs.set("limit", String(params.limit));
@@ -100,8 +102,6 @@ export async function uploadAttendance(file: File): Promise<AttendanceUploadResu
   const body = (await res.json().catch(() => ({}))) as {
     attendanceId?: number;
     uploaded?: number;
-    synced?: number;
-    employeesCreated?: number;
     errors?: AttendanceUploadRowError[];
     error?: { message?: string; details?: AttendanceUploadRowError[] };
   };
@@ -119,8 +119,6 @@ export async function uploadAttendance(file: File): Promise<AttendanceUploadResu
   return {
     attendanceId: body.attendanceId,
     uploaded: body.uploaded ?? 0,
-    synced: body.synced ?? 0,
-    employeesCreated: body.employeesCreated ?? 0,
     errors: body.errors ?? [],
   };
 }

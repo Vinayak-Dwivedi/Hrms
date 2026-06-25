@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import * as profileService from "@/modules/onboarding/services/employee-profile.service";
 import * as submitService from "@/modules/onboarding/services/onboarding-submit.service";
+import { listRequiredSubmitDocumentTypes } from "@/modules/onboarding/required-documents";
 import * as documentsController from "@/modules/onboarding/controllers/documents.controller";
 import { requireEmployee } from "@/middleware/require-employee";
 import { documentUpload } from "@/middleware/upload.middleware";
@@ -20,8 +21,8 @@ function setDeprecated(res: import("express").Response) {
 }
 
 const legacyProfileSchema = z.object({
-  currentAddress: z.string().trim().min(1).max(5000),
-  permanentAddress: z.string().trim().min(1).max(5000),
+  currentAddress: z.string().trim().min(1).max(200),
+  permanentAddress: z.string().trim().min(1).max(200),
   emergencyContactName: z.string().trim().min(1).max(200),
   emergencyContactPhone: z
     .string()
@@ -44,9 +45,12 @@ meOnboardingRouter.get("/status", async (req, res, next) => {
   try {
     setDeprecated(res);
     const profile = await profileService.getProfile(req.employee!.id);
-    const pendingDocuments = ["Aadhaar Card", "PAN Card", "Resume"].filter(
+    const requiredDocuments = listRequiredSubmitDocumentTypes(profile.academic);
+    const pendingDocuments = requiredDocuments.filter(
       (type) =>
-        !profile.documents.some((d) => d.documentType === type),
+        !profile.documents.some(
+          (d) => d.documentType === type && d.status !== "Rejected",
+        ),
     );
     res.json({
       completed: profile.onboardingStatus === "COMPLETED",

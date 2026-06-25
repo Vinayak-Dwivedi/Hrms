@@ -33,7 +33,6 @@ interface Props {
   managerLabel: string;
   systemAccessRoleLabel?: string;
   variant?: "page" | "modal";
-  onboardingHref?: string;
   onEdit?: () => void;
   onResendInvitation?: () => void;
   resendingInvitation?: boolean;
@@ -87,7 +86,6 @@ export default function EmployeeDetailView({
   managerLabel,
   systemAccessRoleLabel,
   variant = "page",
-  onboardingHref,
   onEdit,
   onResendInvitation,
   resendingInvitation = false,
@@ -132,14 +130,6 @@ export default function EmployeeDetailView({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {onboardingHref && !onboardingComplete && (
-              <Link
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-200 bg-blue-50 text-[lab(52%_28_-70)] hover:bg-blue-100/80 no-underline transition-colors"
-                href={onboardingHref}
-              >
-                Onboarding
-              </Link>
-            )}
             {onResendInvitation &&
               !onboardingComplete &&
               employee.employeeStatus === "Active" && (

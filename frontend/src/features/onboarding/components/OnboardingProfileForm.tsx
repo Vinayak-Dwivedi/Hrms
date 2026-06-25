@@ -1,28 +1,44 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { forwardRef, useImperativeHandle, useState } from "react";
-import { OnboardingRequestError } from "@/features/onboarding/api/onboarding.client";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import {
+  fetchOnboardingFormOptions,
+  OnboardingRequestError,
+} from "@/features/onboarding/api/onboarding.client";
+import { fetchHrOnboardingFormOptions } from "@/features/employees/api/hr-onboarding.client";
+import {
+  firstProfileApiValidationMessage,
+  mapProfileApiIssuesToFieldErrors,
+} from "@/features/onboarding/lib/profile-validation-errors";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
+import {
+  employeeFormControlClass,
+  employeeFormSectionsGridClass,
+  employeeFormSectionsStackClass,
+} from "@/features/employees/employee-theme";
 import { sanitizePhoneInput } from "@/features/employees/schemas/employee.schema";
 import {
   sanitizeAlphaOnlyInput,
-  sanitizeGradeInput,
+  sanitizeNumericGradeInput,
 } from "@/lib/academic-field-validation";
+import { cn } from "@/lib/utils";
 import {
   ADDABLE_ACADEMIC_OPTIONS,
-  academicQualificationFromApi,
   createEmptyAcademicRow,
   DEFAULT_ACADEMIC_ROWS,
+  getPassingYearOptions,
   isFixedDefaultQualification,
   isHigherEdQualification,
   isSchoolQualification,
   MAX_ACADEMIC_RECORDS,
-  QUAL_GRADUATION,
   QUAL_OTHER,
-  QUAL_POST_GRADUATION,
 } from "../constants/academic";
+import {
+  BLOOD_GROUP_OPTIONS,
+  type BloodGroupOption,
+} from "../constants/blood-groups";
 import {
   MARITAL_STATUS_OPTIONS,
   type MaritalStatus,
@@ -36,6 +52,7 @@ import {
   onboardingProfileSchema,
   type AcademicDetailValues,
   type OnboardingProfileValues,
+  type ProfessionalDetailValues,
 } from "../schemas/onboarding.schema";
 
 interface Props {
@@ -43,11 +60,16 @@ interface Props {
   onSubmit?: (values: OnboardingProfileValues) => Promise<void>;
   submitting?: boolean;
   embedded?: boolean;
+  /** Side-by-side sections on wide screens (HR onboarding page). Default stack for employee wizard. */
+  sectionsLayout?: "stack" | "grid";
+  /** Where to load blood group options from (API reads BLOOD_GROUPS env). */
+  formOptionsSource?: "employee" | "hr";
 }
 
 export type OnboardingProfileFormHandle = {
   validate: () => OnboardingProfileValues | null;
   isEmpty: () => boolean;
+  revealErrors: () => void;
 };
 
 const DEFAULT_VALUES: OnboardingProfileValues = {
@@ -69,15 +91,46 @@ const DEFAULT_VALUES: OnboardingProfileValues = {
   professional: [],
 };
 
+function createEmptyProfessionalRow(): ProfessionalDetailValues {
+  return {
+    companyName: "",
+    designation: "",
+    fromDate: "",
+    toDate: "",
+    isCurrent: false,
+    responsibilities: "",
+  };
+}
+
+function normalizeProfileForValidation(
+  values: OnboardingProfileValues,
+  noPreviousEmployment: boolean,
+): OnboardingProfileValues {
+  if (noPreviousEmployment) {
+    return { ...values, professional: [] };
+  }
+  return {
+    ...values,
+    professional: [values.professional?.[0] ?? createEmptyProfessionalRow()],
+  };
+}
+
 function FieldLabel({
   children,
   required,
+  className,
 }: {
   children: React.ReactNode;
   required?: boolean;
+  className?: string;
 }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+    <label
+      className={cn(
+        "block text-sm font-medium text-gray-700 mb-1.5",
+        className,
+      )}
+    >
       {children}
       {required && <span className="text-red-500 ml-0.5">*</span>}
     </label>
@@ -89,8 +142,32 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-xs text-red-600 mt-1 m-0">{message}</p>;
 }
 
+function fieldControlClass(error?: string) {
+  return cn(
+    employeeFormControlClass,
+    "w-full shadow-none",
+    error && "!border-red-500",
+  );
+}
+
+function fieldTextareaClass(error?: string) {
+  return `h-20 w-full resize-y rounded-md border px-3 py-2 text-sm ${
+    error ? "border-red-500" : "border-gray-200"
+  }`;
+}
+
 function FieldHint({ children }: { children: React.ReactNode }) {
   return <p className="text-xs text-gray-500 mt-1 m-0">{children}</p>;
+}
+
+const ADDRESS_MAX_LENGTH = 200;
+
+function FieldCharCount({ value, max }: { value: string; max: number }) {
+  return (
+    <p className="text-xs text-gray-500 mt-1 m-0 text-right">
+      {value.length}/{max}
+    </p>
+  );
 }
 
 function digitsOnly(value: string, maxLen?: number): string {
@@ -125,96 +202,13 @@ function addressesMatch(current: string, permanent: string): boolean {
   return c.length > 0 && p.length > 0 && c === p;
 }
 
-type ApiValidationIssue = {
-  path?: unknown;
-  message?: unknown;
-};
-
-function toIssuePath(path: unknown): (string | number)[] {
-  if (!Array.isArray(path)) return [];
-  return path.filter(
-    (item): item is string | number =>
-      typeof item === "string" || typeof item === "number",
-  );
-}
-
-function toFormFieldKey(path: (string | number)[]): string | null {
-  if (path.length === 0) return null;
-
-  if (path[0] === "personal" && typeof path[1] === "string") {
-    const personalFieldMap: Record<string, string> = {
-      currentAddress: "currentAddress",
-      permanentAddress: "permanentAddress",
-      emergencyContactName: "emergencyContactName",
-      emergencyContactPhone: "emergencyContactPhone",
-      maritalStatus: "maritalStatus",
-      spouseName: "spouseName",
-      fatherName: "fatherName",
-      motherName: "motherName",
-      bloodGroup: "bloodGroup",
-      nationality: "nationality",
-    };
-    return personalFieldMap[path[1]] ?? null;
-  }
-
-  if (path[0] === "identity" && typeof path[1] === "string") {
-    const identityFieldMap: Record<string, string> = {
-      panNumber: "panNo",
-      aadhaarNumber: "aadhaarNo",
-      uanNumber: "uanNo",
-      esicNumber: "esicNo",
-    };
-    return identityFieldMap[path[1]] ?? null;
-  }
-
-  if (
-    path[0] === "academic" &&
-    typeof path[1] === "number" &&
-    typeof path[2] === "string"
-  ) {
-    return `academic.${path[1]}.${path[2]}`;
-  }
-
-  if (
-    typeof path[0] === "string" &&
-    [
-      "currentAddress",
-      "permanentAddress",
-      "emergencyContactName",
-      "emergencyContactPhone",
-      "maritalStatus",
-      "spouseName",
-      "fatherName",
-      "motherName",
-      "bloodGroup",
-      "nationality",
-      "panNo",
-      "aadhaarNo",
-      "uanNo",
-      "esicNo",
-    ].includes(path[0])
-  ) {
-    return path[0];
-  }
-
-  return null;
-}
-
 function getServerFieldErrors(err: unknown): Record<string, string> {
   const details =
     err instanceof OnboardingRequestError
       ? err.details
       : (err as { details?: unknown } | null)?.details;
   if (!Array.isArray(details)) return {};
-
-  const next: Record<string, string> = {};
-  for (const issue of details as ApiValidationIssue[]) {
-    if (typeof issue?.message !== "string") continue;
-    const key = toFormFieldKey(toIssuePath(issue.path));
-    if (!key) continue;
-    if (!next[key]) next[key] = issue.message;
-  }
-  return next;
+  return mapProfileApiIssuesToFieldErrors(details);
 }
 
 function isProfileEmpty(values: OnboardingProfileValues): boolean {
@@ -223,12 +217,12 @@ function isProfileEmpty(values: OnboardingProfileValues): boolean {
     values.permanentAddress.trim() ||
     values.emergencyContactName.trim() ||
     values.emergencyContactPhone.trim() ||
-    values.fatherName.trim() ||
-    values.motherName.trim() ||
+    values.fatherName?.trim() ||
+    values.motherName?.trim() ||
     values.panNo.trim() ||
     values.aadhaarNo.trim() ||
-    values.uanNo.trim() ||
-    values.esicNo.trim();
+    values.uanNo?.trim() ||
+    values.esicNo?.trim();
 
   const hasAcademicData = values.academic.some(
     (row) =>
@@ -242,17 +236,30 @@ function isProfileEmpty(values: OnboardingProfileValues): boolean {
 
 const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
   function OnboardingProfileForm(
-    { initialValues, onSubmit, submitting = false, embedded = false },
+    {
+      initialValues,
+      onSubmit,
+      submitting = false,
+      embedded = false,
+      sectionsLayout = "stack",
+      formOptionsSource = "employee",
+    },
     ref,
   ) {
+  const [bloodGroupOptions, setBloodGroupOptions] =
+    useState<BloodGroupOption[]>(BLOOD_GROUP_OPTIONS);
   const [values, setValues] = useState<OnboardingProfileValues>({
     ...DEFAULT_VALUES,
     ...initialValues,
     academic: initialValues?.academic?.length
       ? initialValues.academic
       : DEFAULT_VALUES.academic,
-    professional: initialValues?.professional ?? [],
+    professional:
+      (initialValues?.professional ?? []).length > 0
+        ? (initialValues?.professional ?? []).slice(0, 1)
+        : [createEmptyProfessionalRow()],
   });
+  const [noPreviousEmployment, setNoPreviousEmployment] = useState(false);
   const [permanentSameAsCurrent, setPermanentSameAsCurrent] = useState(() =>
     addressesMatch(
       initialValues?.currentAddress ?? DEFAULT_VALUES.currentAddress,
@@ -261,6 +268,74 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadOptions =
+      formOptionsSource === "hr"
+        ? fetchHrOnboardingFormOptions
+        : fetchOnboardingFormOptions;
+
+    void loadOptions()
+      .then((options) => {
+        if (!cancelled && options.bloodGroups.length > 0) {
+          setBloodGroupOptions(options.bloodGroups);
+        }
+      })
+      .catch(() => {
+        /* keep build-time / default options */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formOptionsSource]);
+
+  function handleNoPreviousEmploymentChange(checked: boolean) {
+    setNoPreviousEmployment(checked);
+    if (checked) {
+      setValues((prev) => ({ ...prev, professional: [] }));
+      setErrors((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (key.startsWith("professional")) delete next[key];
+        }
+        return next;
+      });
+    } else {
+      setValues((prev) => ({
+        ...prev,
+        professional:
+          (prev.professional ?? []).length > 0
+            ? [(prev.professional ?? [])[0]]
+            : [createEmptyProfessionalRow()],
+      }));
+    }
+  }
+
+  function updateProfessional(patch: Partial<ProfessionalDetailValues>) {
+    setValues((prev) => {
+      const current = (prev.professional ?? [])[0] ?? createEmptyProfessionalRow();
+      return { ...prev, professional: [{ ...current, ...patch }] };
+    });
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (key.startsWith("professional.")) delete next[key];
+      }
+      return next;
+    });
+  }
+
+  function blurProfessionalField(
+    field: keyof ProfessionalDetailValues,
+    nextValues: OnboardingProfileValues,
+  ) {
+    blurField(
+      `professional.0.${field}`,
+      normalizeProfileForValidation(nextValues, noPreviousEmployment),
+    );
+  }
 
   function setCurrentAddress(value: string) {
     setValues((prev) => ({
@@ -353,6 +428,8 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
   }
 
   function removeAcademic(index: number) {
+    const row = values.academic[index];
+    if (!row || isFixedDefaultQualification(row.qualification)) return;
     if (values.academic.length <= 1) return;
     setValues((prev) => ({
       ...prev,
@@ -371,11 +448,17 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
     e.preventDefault();
     setFormError(null);
 
-    const parsed = onboardingProfileSchema.safeParse(values);
+    const payload = normalizeProfileForValidation(values, noPreviousEmployment);
+    const parsed = onboardingProfileSchema.safeParse(payload);
     if (!parsed.success) {
-      setErrors(collectOnboardingProfileErrors(values));
+      setErrors(collectOnboardingProfileErrors(payload));
+      if (!embedded) {
+        setFormError("Please fix the highlighted fields before submitting.");
+      }
       return;
     }
+
+    setErrors({});
 
     try {
       await onSubmit?.(parsed.data);
@@ -386,68 +469,320 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         setFormError(null);
         return;
       }
-      setFormError((err as Error).message ?? "Failed to save profile.");
+      setFormError(
+        firstProfileApiValidationMessage(
+          (err as { details?: unknown }).details,
+        ) ??
+          (err as Error).message ??
+          "Failed to save profile.",
+      );
     }
   }
 
   const canAddMore = canAppendAcademicRow(values.academic);
+  const passingYearOptions = getPassingYearOptions();
+  const professionalRow =
+    (values.professional ?? [])[0] ?? createEmptyProfessionalRow();
+  const schoolAcademicEntries = values.academic
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => isFixedDefaultQualification(row.qualification));
+  const addedAcademicEntries = values.academic
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => !isFixedDefaultQualification(row.qualification));
+
+  function renderAcademicRow(index: number, row: AcademicDetailValues) {
+    const isFixed = isFixedDefaultQualification(row.qualification);
+    const isSchool = isSchoolQualification(row.qualification);
+    const isHigherEd = isHigherEdQualification(row.qualification);
+    const isOther = row.qualification === QUAL_OTHER;
+    const isAddedRow = !isFixed && row.qualification === "";
+
+    return (
+      <div
+        key={`academic-${index}-${row.id ?? row.qualification}`}
+        className="rounded-lg border border-gray-200 bg-gray-50/50 p-4"
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h4 className="text-sm font-semibold text-gray-900 m-0">
+            {isFixed
+              ? row.qualification
+              : row.qualification || "New qualification"}
+          </h4>
+          {!isFixed && (
+            <button
+              type="button"
+              onClick={() => removeAcademic(index)}
+              disabled={values.academic.length <= 1}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Remove qualification"
+            >
+              <Trash2 size={14} />
+              Remove
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          {!isFixed && (
+            <EmployeeFormField>
+              <FieldLabel required>Qualification</FieldLabel>
+              <select
+                className={fieldControlClass(
+                  errors[`academic.${index}.qualification`],
+                )}
+                value={row.qualification}
+                onBlur={() =>
+                  blurAcademicField(index, "qualification", values)
+                }
+                onChange={(e) => {
+                  const next = e.target.value;
+                  updateAcademic(index, {
+                    qualification: next,
+                    qualificationOther:
+                      next === QUAL_OTHER ? row.qualificationOther : "",
+                  });
+                }}
+              >
+                <option value="">
+                  {isAddedRow ? "Select qualification" : "Select…"}
+                </option>
+                {selectableQualificationOptions(
+                  row.qualification,
+                  values.academic,
+                ).map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+                {row.qualification &&
+                  !(ADDABLE_ACADEMIC_OPTIONS as readonly string[]).includes(
+                    row.qualification as (typeof ADDABLE_ACADEMIC_OPTIONS)[number],
+                  ) &&
+                  !isFixedDefaultQualification(row.qualification) && (
+                    <option value={row.qualification}>
+                      {row.qualification}
+                    </option>
+                  )}
+              </select>
+              <FieldError
+                message={errors[`academic.${index}.qualification`]}
+              />
+            </EmployeeFormField>
+          )}
+
+          {isOther && (
+            <EmployeeFormField>
+              <FieldLabel required>Qualification name</FieldLabel>
+              <input
+                className={fieldControlClass(
+                  errors[`academic.${index}.qualificationOther`],
+                )}
+                value={row.qualificationOther ?? ""}
+                onBlur={() =>
+                  blurAcademicField(index, "qualificationOther", values)
+                }
+                onChange={(e) =>
+                  updateAcademic(index, {
+                    qualificationOther: e.target.value,
+                  })
+                }
+                placeholder="e.g. Diploma, Certification"
+              />
+              <FieldError
+                message={errors[`academic.${index}.qualificationOther`]}
+              />
+            </EmployeeFormField>
+          )}
+
+          <EmployeeFormField>
+            <FieldLabel required>
+              {isSchool ? "School name" : "Institution / College"}
+            </FieldLabel>
+            <input
+              className={fieldControlClass(
+                errors[`academic.${index}.institution`],
+              )}
+              value={row.institution}
+              onBlur={() => blurAcademicField(index, "institution", values)}
+              onChange={(e) =>
+                updateAcademic(index, {
+                  institution: sanitizeAlphaOnlyInput(e.target.value),
+                })
+              }
+            />
+            <FieldError message={errors[`academic.${index}.institution`]} />
+          </EmployeeFormField>
+
+          {isSchool && (
+            <EmployeeFormField>
+              <FieldLabel required>Board / University</FieldLabel>
+              <input
+                className={fieldControlClass(
+                  errors[`academic.${index}.boardUniversity`],
+                )}
+                value={row.boardUniversity ?? ""}
+                onBlur={() =>
+                  blurAcademicField(index, "boardUniversity", values)
+                }
+                onChange={(e) =>
+                  updateAcademic(index, {
+                    boardUniversity: sanitizeAlphaOnlyInput(e.target.value),
+                  })
+                }
+                placeholder="e.g. CBSE, ICSE, State Board"
+              />
+              <FieldError
+                message={errors[`academic.${index}.boardUniversity`]}
+              />
+            </EmployeeFormField>
+          )}
+
+          {isHigherEd && (
+            <EmployeeFormField>
+              <FieldLabel>Field of study</FieldLabel>
+              <input
+                className={fieldControlClass(
+                  errors[`academic.${index}.fieldOfStudy`],
+                )}
+                value={row.fieldOfStudy ?? ""}
+                onBlur={() =>
+                  blurAcademicField(index, "fieldOfStudy", values)
+                }
+                onChange={(e) =>
+                  updateAcademic(index, { fieldOfStudy: e.target.value })
+                }
+                placeholder="e.g. Computer Science, Commerce"
+              />
+              <FieldError message={errors[`academic.${index}.fieldOfStudy`]} />
+            </EmployeeFormField>
+          )}
+
+          <EmployeeFormField>
+            <FieldLabel required>Passing year</FieldLabel>
+            <select
+              className={fieldControlClass(errors[`academic.${index}.yearTo`])}
+              value={row.yearTo != null ? String(row.yearTo) : ""}
+              onBlur={() => blurAcademicField(index, "yearTo", values)}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateAcademic(index, {
+                  yearTo: val ? Number(val) : undefined,
+                });
+              }}
+            >
+              <option value="">Select year</option>
+              {passingYearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+            <FieldError message={errors[`academic.${index}.yearTo`]} />
+          </EmployeeFormField>
+
+          <EmployeeFormField>
+            <FieldLabel required>Grade</FieldLabel>
+            <input
+              className={fieldControlClass(
+                errors[`academic.${index}.gradeOrPercentage`],
+              )}
+              value={row.gradeOrPercentage ?? ""}
+              onBlur={() =>
+                blurAcademicField(index, "gradeOrPercentage", values)
+              }
+              onChange={(e) =>
+                updateAcademic(index, {
+                  gradeOrPercentage: sanitizeNumericGradeInput(e.target.value),
+                })
+              }
+              placeholder="e.g. 85 or 9.5"
+              inputMode="decimal"
+            />
+            <FieldHint>Percentage (e.g. 85) or CGPA on a 10-point scale (e.g. 9.5)</FieldHint>
+            <FieldError
+              message={errors[`academic.${index}.gradeOrPercentage`]}
+            />
+          </EmployeeFormField>
+        </div>
+      </div>
+    );
+  }
 
   useImperativeHandle(ref, () => ({
     validate: () => {
-      const parsed = onboardingProfileSchema.safeParse(values);
+      const payload = normalizeProfileForValidation(
+        values,
+        noPreviousEmployment,
+      );
+      const parsed = onboardingProfileSchema.safeParse(payload);
       if (!parsed.success) {
-        setErrors(collectOnboardingProfileErrors(values));
+        setErrors(collectOnboardingProfileErrors(payload));
         return null;
       }
       setErrors({});
       return parsed.data;
     },
     isEmpty: () => isProfileEmpty(values),
+    revealErrors: () => {
+      const payload = normalizeProfileForValidation(
+        values,
+        noPreviousEmployment,
+      );
+      setErrors(collectOnboardingProfileErrors(payload));
+    },
   }));
 
+  const sectionsClass =
+    sectionsLayout === "grid"
+      ? employeeFormSectionsGridClass
+      : employeeFormSectionsStackClass;
+
   const formBody = (
-    <>
-      <EmployeeFormSection title="Address">
-        <EmployeeFormField span={2}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-            <div className="flex min-h-0 flex-col">
-              <div className="mb-1.5 flex min-h-10 items-center [&_label]:mb-0">
-                <FieldLabel required>Current Address</FieldLabel>
-              </div>
-              <textarea
-                className="h-28 w-full resize-y rounded-md border border-gray-200 px-3 py-2 text-sm"
-                value={values.currentAddress}
-                onBlur={() => blurField("currentAddress", values)}
-                onChange={(e) => setCurrentAddress(e.target.value)}
-              />
-              <FieldError message={errors.currentAddress} />
-            </div>
-            <div className="flex min-h-0 flex-col">
-              <div className="mb-1.5 flex min-h-10 items-center justify-between gap-3 [&_label]:mb-0">
-                <FieldLabel required>Permanent Address</FieldLabel>
-                <label className="inline-flex shrink-0 cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-600">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300"
-                    checked={permanentSameAsCurrent}
-                    onChange={(e) =>
-                      handlePermanentSameAsCurrentChange(e.target.checked)
-                    }
-                  />
-                  Same as Current Address
-                </label>
-              </div>
-              <textarea
-                className="h-28 w-full resize-y rounded-md border border-gray-200 px-3 py-2 text-sm disabled:bg-gray-50 disabled:text-gray-400"
-                value={values.permanentAddress}
-                onBlur={() => blurField("permanentAddress", values)}
-                onChange={(e) => setField("permanentAddress", e.target.value)}
-                disabled={permanentSameAsCurrent}
-                readOnly={permanentSameAsCurrent}
-              />
-              <FieldError message={errors.permanentAddress} />
-            </div>
-          </div>
+    <div className={sectionsClass}>
+      <EmployeeFormSection
+        title="Address"
+        headerAction={
+          <label className="inline-flex shrink-0 cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-600">
+            <input
+              type="checkbox"
+              className="rounded border-gray-300"
+              checked={permanentSameAsCurrent}
+              onChange={(e) =>
+                handlePermanentSameAsCurrentChange(e.target.checked)
+              }
+            />
+            Same as Current Address
+          </label>
+        }
+      >
+        <EmployeeFormField>
+          <FieldLabel required>Current Address</FieldLabel>
+          <textarea
+            className={fieldTextareaClass(errors.currentAddress)}
+            value={values.currentAddress}
+            onBlur={() => blurField("currentAddress", values)}
+            onChange={(e) => setCurrentAddress(e.target.value)}
+            maxLength={ADDRESS_MAX_LENGTH}
+          />
+          <FieldCharCount value={values.currentAddress} max={ADDRESS_MAX_LENGTH} />
+          <FieldError message={errors.currentAddress} />
+        </EmployeeFormField>
+        <EmployeeFormField>
+          <FieldLabel required>Permanent Address</FieldLabel>
+          <textarea
+            className={`${fieldTextareaClass(errors.permanentAddress)} disabled:bg-gray-50 disabled:text-gray-400`}
+            value={values.permanentAddress}
+            onBlur={() => blurField("permanentAddress", values)}
+            onChange={(e) => setField("permanentAddress", e.target.value)}
+            disabled={permanentSameAsCurrent}
+            readOnly={permanentSameAsCurrent}
+            maxLength={ADDRESS_MAX_LENGTH}
+          />
+          <FieldCharCount
+            value={values.permanentAddress}
+            max={ADDRESS_MAX_LENGTH}
+          />
+          <FieldError message={errors.permanentAddress} />
         </EmployeeFormField>
       </EmployeeFormSection>
 
@@ -455,7 +790,7 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <EmployeeFormField>
           <FieldLabel required>Contact Name</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass(errors.emergencyContactName)}
             value={values.emergencyContactName}
             onBlur={() => blurField("emergencyContactName", values)}
             onChange={(e) => setField("emergencyContactName", e.target.value)}
@@ -465,7 +800,7 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <EmployeeFormField>
           <FieldLabel required>Contact Phone</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass(errors.emergencyContactPhone)}
             value={values.emergencyContactPhone}
             onBlur={() => blurField("emergencyContactPhone", values)}
             onChange={(e) =>
@@ -485,11 +820,18 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         </EmployeeFormField>
       </EmployeeFormSection>
 
+      <div
+        className={
+          sectionsLayout === "grid"
+            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4"
+            : "grid grid-cols-1 md:grid-cols-2 gap-4"
+        }
+      >
       <EmployeeFormSection title="Personal & Compliance">
         <EmployeeFormField>
           <FieldLabel required>Marital Status</FieldLabel>
           <select
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
+            className={fieldControlClass(errors.maritalStatus)}
             value={values.maritalStatus}
             onChange={(e) => {
               const status = e.target.value as MaritalStatus;
@@ -512,7 +854,7 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
             Spouse Name
           </FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm disabled:bg-gray-50 disabled:text-gray-400"
+            className={`${fieldControlClass(errors.spouseName)} disabled:bg-gray-50 disabled:text-gray-400`}
             value={values.spouseName ?? ""}
             onBlur={() => blurField("spouseName", values)}
             onChange={(e) => setField("spouseName", e.target.value)}
@@ -528,7 +870,7 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <EmployeeFormField>
           <FieldLabel>Father&apos;s Name</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass()}
             value={values.fatherName ?? ""}
             onChange={(e) => setField("fatherName", e.target.value)}
           />
@@ -536,15 +878,32 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <EmployeeFormField>
           <FieldLabel>Mother&apos;s Name</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass()}
             value={values.motherName ?? ""}
             onChange={(e) => setField("motherName", e.target.value)}
           />
         </EmployeeFormField>
         <EmployeeFormField>
+          <FieldLabel>Blood Group</FieldLabel>
+          <select
+            className={fieldControlClass(errors.bloodGroup)}
+            value={values.bloodGroup ?? ""}
+            onBlur={() => blurField("bloodGroup", values)}
+            onChange={(e) => setField("bloodGroup", e.target.value)}
+          >
+            <option value="">Select blood group</option>
+            {bloodGroupOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <FieldError message={errors.bloodGroup} />
+        </EmployeeFormField>
+        <EmployeeFormField>
           <FieldLabel required>PAN Number</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm uppercase"
+            className={`${fieldControlClass(errors.panNo)} uppercase`}
             value={values.panNo}
             onBlur={() => blurField("panNo", values)}
             onChange={(e) =>
@@ -556,13 +915,12 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
             placeholder="ABCPD1234E"
             maxLength={10}
           />
-          <FieldHint>Format: 5 letters, 4 digits, 1 letter</FieldHint>
           <FieldError message={errors.panNo} />
         </EmployeeFormField>
         <EmployeeFormField>
           <FieldLabel required>Aadhaar Number</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass(errors.aadhaarNo)}
             value={values.aadhaarNo}
             onBlur={() => blurField("aadhaarNo", values)}
             onChange={(e) => setField("aadhaarNo", digitsOnly(e.target.value, 12))}
@@ -570,13 +928,12 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
             inputMode="numeric"
             maxLength={12}
           />
-          <FieldHint>12 digits only</FieldHint>
           <FieldError message={errors.aadhaarNo} />
         </EmployeeFormField>
         <EmployeeFormField>
           <FieldLabel>UAN (optional)</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass(errors.uanNo)}
             value={values.uanNo ?? ""}
             onBlur={() => blurField("uanNo", values)}
             onChange={(e) => setField("uanNo", digitsOnly(e.target.value, 12))}
@@ -589,7 +946,7 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <EmployeeFormField>
           <FieldLabel>ESIC (optional)</FieldLabel>
           <input
-            className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm"
+            className={fieldControlClass(errors.esicNo)}
             value={values.esicNo ?? ""}
             onBlur={() => blurField("esicNo", values)}
             onChange={(e) => setField("esicNo", digitsOnly(e.target.value, 17))}
@@ -602,208 +959,108 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
       </EmployeeFormSection>
 
       <EmployeeFormSection
-        title="Academic Details"
-        description="Class 10 and Class 12 are pre-filled. Use + to add Graduation, Post Graduation, or other qualifications."
+        title="Work Information"
+        headerAction={
+          <label className="inline-flex shrink-0 cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-600">
+            <input
+              type="checkbox"
+              className="rounded border-gray-300"
+              checked={noPreviousEmployment}
+              onChange={(e) =>
+                handleNoPreviousEmploymentChange(e.target.checked)
+              }
+            />
+            No previous employment (Fresher)
+          </label>
+        }
       >
-        {values.academic.map((row, index) => {
-          const isFixed = isFixedDefaultQualification(row.qualification);
-          const isSchool = isSchoolQualification(row.qualification);
-          const isHigherEd = isHigherEdQualification(row.qualification);
-          const isOther = row.qualification === QUAL_OTHER;
-          const isAddedRow = !isFixed && row.qualification === "";
+        {!noPreviousEmployment ? (
+          <>
+            <EmployeeFormField>
+              <FieldLabel required>Previous Company</FieldLabel>
+              <input
+                className={fieldControlClass(errors["professional.0.companyName"])}
+                value={professionalRow.companyName ?? ""}
+                onBlur={() => blurProfessionalField("companyName", values)}
+                onChange={(e) =>
+                  updateProfessional({ companyName: e.target.value })
+                }
+                placeholder="Company name"
+              />
+              <FieldError message={errors["professional.0.companyName"]} />
+            </EmployeeFormField>
+            <EmployeeFormField>
+              <FieldLabel required>Designation</FieldLabel>
+              <input
+                className={fieldControlClass(errors["professional.0.designation"])}
+                value={professionalRow.designation ?? ""}
+                onBlur={() => blurProfessionalField("designation", values)}
+                onChange={(e) =>
+                  updateProfessional({ designation: e.target.value })
+                }
+                placeholder="Your role / title"
+              />
+              <FieldError message={errors["professional.0.designation"]} />
+            </EmployeeFormField>
+            <EmployeeFormField>
+              <FieldLabel required>From Date</FieldLabel>
+              <input
+                type="date"
+                className={fieldControlClass(errors["professional.0.fromDate"])}
+                value={professionalRow.fromDate ?? ""}
+                onBlur={() => blurProfessionalField("fromDate", values)}
+                onChange={(e) =>
+                  updateProfessional({ fromDate: e.target.value })
+                }
+              />
+              <FieldError message={errors["professional.0.fromDate"]} />
+            </EmployeeFormField>
+            <EmployeeFormField>
+              <FieldLabel required>To Date</FieldLabel>
+              <input
+                type="date"
+                className={fieldControlClass(errors["professional.0.toDate"])}
+                value={professionalRow.toDate ?? ""}
+                onBlur={() => blurProfessionalField("toDate", values)}
+                onChange={(e) =>
+                  updateProfessional({ toDate: e.target.value })
+                }
+              />
+              <FieldError message={errors["professional.0.toDate"]} />
+            </EmployeeFormField>
+            <EmployeeFormField span={2}>
+              <FieldLabel>Responsibilities (optional)</FieldLabel>
+              <textarea
+                className={fieldTextareaClass()}
+                value={professionalRow.responsibilities ?? ""}
+                onChange={(e) =>
+                  updateProfessional({ responsibilities: e.target.value })
+                }
+                placeholder="Brief summary of key responsibilities"
+                rows={3}
+              />
+            </EmployeeFormField>
+          </>
+        ) : null}
+        <FieldError message={errors.professional} />
+      </EmployeeFormSection>
+      </div>
 
-          return (
-            <div
-              key={`academic-${index}-${row.id ?? row.qualification}`}
-              className="col-span-full rounded-lg border border-gray-200 bg-gray-50/50 p-4 mb-2"
-            >
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h4 className="text-sm font-semibold text-gray-900 m-0">
-                  {isFixed
-                    ? row.qualification
-                    : row.qualification || "New qualification"}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => removeAcademic(index)}
-                  disabled={values.academic.length <= 1}
-                  className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-label="Remove qualification"
-                >
-                  <Trash2 size={14} />
-                  Remove
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {!isFixed && (
-                  <EmployeeFormField>
-                    <FieldLabel required>Qualification</FieldLabel>
-                    <select
-                      className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                      value={row.qualification}
-                      onBlur={() =>
-                        blurAcademicField(index, "qualification", values)
-                      }
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        updateAcademic(index, {
-                          qualification: next,
-                          qualificationOther:
-                            next === QUAL_OTHER ? row.qualificationOther : "",
-                        });
-                      }}
-                    >
-                      <option value="">
-                        {isAddedRow ? "Select qualification" : "Select…"}
-                      </option>
-                      {selectableQualificationOptions(
-                        row.qualification,
-                        values.academic,
-                      ).map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                      {row.qualification &&
-                        !(ADDABLE_ACADEMIC_OPTIONS as readonly string[]).includes(
-                          row.qualification as (typeof ADDABLE_ACADEMIC_OPTIONS)[number],
-                        ) &&
-                        !isFixedDefaultQualification(row.qualification) && (
-                          <option value={row.qualification}>
-                            {row.qualification}
-                          </option>
-                        )}
-                    </select>
-                    <FieldError message={errors[`academic.${index}.qualification`]} />
-                  </EmployeeFormField>
-                )}
-
-                {isOther && (
-                  <EmployeeFormField>
-                    <FieldLabel required>Qualification name</FieldLabel>
-                    <input
-                      className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                      value={row.qualificationOther ?? ""}
-                      onBlur={() =>
-                        blurAcademicField(index, "qualificationOther", values)
-                      }
-                      onChange={(e) =>
-                        updateAcademic(index, {
-                          qualificationOther: e.target.value,
-                        })
-                      }
-                      placeholder="e.g. Diploma, Certification"
-                    />
-                    <FieldError
-                      message={errors[`academic.${index}.qualificationOther`]}
-                    />
-                  </EmployeeFormField>
-                )}
-
-                <EmployeeFormField>
-                  <FieldLabel required>
-                    {isSchool ? "School name" : "Institution / College"}
-                  </FieldLabel>
-                  <input
-                    className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                    value={row.institution}
-                    onBlur={() =>
-                      blurAcademicField(index, "institution", values)
-                    }
-                    onChange={(e) =>
-                      updateAcademic(index, {
-                        institution: sanitizeAlphaOnlyInput(e.target.value),
-                      })
-                    }
-                  />
-                  <FieldError message={errors[`academic.${index}.institution`]} />
-                </EmployeeFormField>
-
-                {isSchool && (
-                  <EmployeeFormField>
-                    <FieldLabel required>Board / University</FieldLabel>
-                    <input
-                      className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                      value={row.boardUniversity ?? ""}
-                      onBlur={() =>
-                        blurAcademicField(index, "boardUniversity", values)
-                      }
-                      onChange={(e) =>
-                        updateAcademic(index, {
-                          boardUniversity: sanitizeAlphaOnlyInput(e.target.value),
-                        })
-                      }
-                      placeholder="e.g. CBSE, ICSE, State Board"
-                    />
-                    <FieldError
-                      message={errors[`academic.${index}.boardUniversity`]}
-                    />
-                  </EmployeeFormField>
-                )}
-
-                {isHigherEd && (
-                  <EmployeeFormField>
-                    <FieldLabel>Field of study</FieldLabel>
-                    <input
-                      className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                      value={row.fieldOfStudy ?? ""}
-                      onBlur={() =>
-                        blurAcademicField(index, "fieldOfStudy", values)
-                      }
-                      onChange={(e) =>
-                        updateAcademic(index, { fieldOfStudy: e.target.value })
-                      }
-                      placeholder="e.g. Computer Science, Commerce"
-                    />
-                    <FieldError
-                      message={errors[`academic.${index}.fieldOfStudy`]}
-                    />
-                  </EmployeeFormField>
-                )}
-
-                <EmployeeFormField>
-                  <FieldLabel required>Passing year</FieldLabel>
-                  <input
-                    className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                    value={row.yearTo != null ? String(row.yearTo) : ""}
-                    onBlur={() => blurAcademicField(index, "yearTo", values)}
-                    onChange={(e) => {
-                      const digits = digitsOnly(e.target.value, 4);
-                      updateAcademic(index, {
-                        yearTo: digits ? Number(digits) : undefined,
-                      });
-                    }}
-                    placeholder="YYYY"
-                    inputMode="numeric"
-                    maxLength={4}
-                  />
-                  <FieldError message={errors[`academic.${index}.yearTo`]} />
-                </EmployeeFormField>
-
-                <EmployeeFormField>
-                  <FieldLabel required>Grade / %</FieldLabel>
-                  <input
-                    className="w-full h-10 rounded-md border border-gray-200 px-3 text-sm bg-white"
-                    value={row.gradeOrPercentage ?? ""}
-                    onBlur={() =>
-                      blurAcademicField(index, "gradeOrPercentage", values)
-                    }
-                    onChange={(e) =>
-                      updateAcademic(index, {
-                        gradeOrPercentage: sanitizeGradeInput(e.target.value),
-                      })
-                    }
-                    placeholder="e.g. 85% or First Division"
-                  />
-                  <FieldError
-                    message={errors[`academic.${index}.gradeOrPercentage`]}
-                  />
-                </EmployeeFormField>
-              </div>
-            </div>
-          );
-        })}
+      <EmployeeFormSection
+        title="Academic Details"
+        description="Class 10 and Class 12 are pre-filled. Use + to add up to 5 more qualifications (Graduation, Post Graduation, or other)."
+        className={sectionsLayout === "grid" ? "col-span-full" : undefined}
+      >
+        <div className="col-span-full grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {schoolAcademicEntries.map(({ row, index }) =>
+            renderAcademicRow(index, row),
+          )}
+        </div>
+        {addedAcademicEntries.map(({ row, index }) => (
+          <div key={`academic-added-${index}`} className="col-span-full">
+            {renderAcademicRow(index, row)}
+          </div>
+        ))}
 
         <div className="col-span-full">
           <button
@@ -819,22 +1076,30 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         <FieldError message={errors.academic} />
       </EmployeeFormSection>
 
-      {formError && !embedded && <p className="text-sm text-red-600 mb-4">{formError}</p>}
+      {formError && !embedded && (
+        <p className="text-sm text-red-600 mb-4">{formError}</p>
+      )}
 
       {!embedded ? (
-        <button
-          type="submit"
-          disabled={submitting}
-          className={onboardingBtnPrimaryClass}
+        <div
+          className={
+            sectionsLayout === "grid" ? "col-span-full flex justify-end" : "flex justify-end"
+          }
         >
-          {submitting ? "Saving…" : "Save Profile"}
-        </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className={`${onboardingBtnPrimaryClass} w-fit`}
+          >
+            {submitting ? "Saving…" : "Save Profile"}
+          </button>
+        </div>
       ) : null}
-    </>
+    </div>
   );
 
   if (embedded) {
-    return <div className="contents">{formBody}</div>;
+    return <div className="col-span-full space-y-5">{formBody}</div>;
   }
 
   return (

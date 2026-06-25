@@ -29,6 +29,7 @@ interface Props {
   compact?: boolean;
   headerAction?: ReactNode;
   bodyClassName?: string;
+  className?: string;
   children: ReactNode;
 }
 
@@ -81,6 +82,7 @@ export default function EmployeeFormSection({
   compact = false,
   headerAction,
   bodyClassName,
+  className,
   children,
 }: Props) {
   const sectionHeaderClass = compact
@@ -119,7 +121,7 @@ export default function EmployeeFormSection({
   );
 
   return (
-    <section className={employeeFormSectionClass}>
+    <section className={cn(employeeFormSectionClass, className)}>
       <div className={sectionHeaderClass}>
         {headerAction ? (
           <div className="flex items-center justify-between gap-3">

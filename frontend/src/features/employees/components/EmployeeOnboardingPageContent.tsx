@@ -19,7 +19,6 @@ import {
 } from "../api/employees.client";
 import {
   employeeBtnOutlineSmClass,
-  employeeCardClass,
   employeeErrorBannerClass,
   employeeLoadingClass,
 } from "../employee-theme";
@@ -51,23 +50,21 @@ function SubmittedProfilePanel({
 }) {
   return (
     <section className={onboardingReviewCardClass}>
-      <header className="px-5 py-4 border-b border-slate-100 bg-slate-50/70">
-        <h2 className="text-base font-semibold text-slate-900 m-0">
-          Submitted profile details
-        </h2>
-        <p className="text-xs text-slate-600 mt-1 mb-0">
-          Review personal, compliance, and education details while completing HR
-          checks.
-          {submittedAt && (
-            <>
-              {" "}
-              Submitted {new Date(submittedAt).toLocaleString("en-IN")}.
-            </>
-          )}
+      <header className="px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 m-0">
+          Reference only
         </p>
+        <h2 className="text-sm font-semibold text-slate-900 mt-0.5 mb-0">
+          Employee submission
+        </h2>
+        {submittedAt ? (
+          <p className="text-xs text-slate-500 mt-1 mb-0">
+            Submitted {new Date(submittedAt).toLocaleString("en-IN")}
+          </p>
+        ) : null}
       </header>
-      <div className="p-5">
-        <OnboardingProfileReadOnly values={profileValues} layout="grid" />
+      <div className="p-4">
+        <OnboardingProfileReadOnly values={profileValues} layout="page" />
       </div>
     </section>
   );
@@ -136,7 +133,7 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
     ) : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <Link className={employeeBtnOutlineSmClass} href="/employees">
           ← Back to employees
@@ -159,54 +156,48 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
       )}
 
       {!loading && !loadError && employee && (
-        <div className={`${employeeCardClass} overflow-hidden`}>
-          <div className="border-b border-slate-200 px-5 py-4 bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500 m-0">
-                  Employee onboarding
-                </p>
-                <h1 className="text-xl font-semibold text-slate-900 mt-1 mb-0 tracking-tight">
-                  {formatEmployeeDisplayName(employee)}
-                </h1>
-                <p className="text-sm text-slate-500 mt-1 mb-0">
-                  {employee.empId}
-                </p>
-              </div>
-
-              <span
-                className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full shrink-0 ${statusBadgeClass}`}
-              >
-                {formatOnboardingStatus(employee.onboardingStatus)}
-              </span>
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 m-0">
+                Employee onboarding
+              </p>
+              <h1 className="text-xl font-semibold text-slate-900 mt-1 mb-0 tracking-tight">
+                {formatEmployeeDisplayName(employee)}
+              </h1>
+              <p className="text-sm text-slate-500 mt-1 mb-0">{employee.empId}</p>
             </div>
+
+            <span
+              className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full shrink-0 ${statusBadgeClass}`}
+            >
+              {formatOnboardingStatus(employee.onboardingStatus)}
+            </span>
           </div>
 
-          <div className="p-5 bg-slate-50/40">
-            <OnboardingAdminPanel
-              employeeId={employeeId}
-              variant="page"
-              sideContent={sideContent}
-              onTimelineLoaded={setTimeline}
-              onUpdated={async () => {
-                const [emp, profile, onboarding] = await Promise.all([
-                  fetchEmployeeById(employeeId),
-                  fetchEmployeeOnboardingProfile(employeeId),
-                  fetchEmployeeOnboarding(employeeId),
-                ]);
-                setEmployee(emp);
-                setProfileValues(
-                  computeOnboardingReadiness(profile).formValues,
-                );
-                setTimeline(onboarding);
-              }}
-              onOnboardingCompleted={() => {
-                router.push("/employees");
-                router.refresh();
-              }}
-            />
-          </div>
-        </div>
+          <OnboardingAdminPanel
+            employeeId={employeeId}
+            variant="page"
+            sideContent={sideContent}
+            onTimelineLoaded={setTimeline}
+            onUpdated={async () => {
+              const [emp, profile, onboarding] = await Promise.all([
+                fetchEmployeeById(employeeId),
+                fetchEmployeeOnboardingProfile(employeeId),
+                fetchEmployeeOnboarding(employeeId),
+              ]);
+              setEmployee(emp);
+              setProfileValues(
+                computeOnboardingReadiness(profile).formValues,
+              );
+              setTimeline(onboarding);
+            }}
+            onOnboardingCompleted={() => {
+              router.push("/employees");
+              router.refresh();
+            }}
+          />
+        </>
       )}
     </div>
   );

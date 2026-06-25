@@ -712,6 +712,7 @@ export type StructureJoinRow = {
   designationName: string;
   levelId: number;
   levelCode: string;
+  levelSortOrder: number;
 };
 
 export async function listStructureWithJoins(): Promise<StructureJoinRow[]> {
@@ -727,6 +728,7 @@ export async function listStructureWithJoins(): Promise<StructureJoinRow[]> {
       designationName: orgHierarchyDesignations.name,
       levelId: orgHierarchyLevels.id,
       levelCode: orgHierarchyLevels.code,
+      levelSortOrder: orgHierarchyLevels.sortOrder,
     })
     .from(orgHierarchyStructure)
     .innerJoin(
@@ -762,6 +764,7 @@ export type EmployeeReportingTreeRow = {
   lastName: string;
   profilePhotoUrl: string | null;
   reportingManagerId: number | null;
+  branchId: number | null;
   departmentId: number | null;
   departmentName: string | null;
   departmentCode: string | null;
@@ -785,6 +788,7 @@ export async function listEmployeesForReportingTree(): Promise<
       lastName: employees.lastName,
       profilePhotoUrl: employees.profilePhotoUrl,
       reportingManagerId: employees.reportingManagerId,
+      branchId: employees.branchId,
       departmentId: orgHierarchyDepartments.id,
       departmentName: orgHierarchyDepartments.name,
       departmentCode: orgHierarchyDepartments.code,

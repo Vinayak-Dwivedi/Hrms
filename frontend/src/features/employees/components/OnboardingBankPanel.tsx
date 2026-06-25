@@ -18,6 +18,9 @@ interface Props {
   canManageBank: boolean;
   isSubmitted: boolean;
   stepStatus?: "default" | "active" | "complete";
+  showStepBadge?: boolean;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   onUpdated?: () => void;
 }
 
@@ -26,6 +29,9 @@ export default function OnboardingBankPanel({
   canManageBank,
   isSubmitted,
   stepStatus = "default",
+  showStepBadge = true,
+  collapsible = false,
+  defaultOpen = true,
   onUpdated,
 }: Props) {
   const [state, setState] = useState<OnboardingBankState | null>(null);
@@ -119,12 +125,25 @@ export default function OnboardingBankPanel({
           ],
   };
 
+  const isApproved = Boolean(state?.bankApprovedAt);
+
   return (
     <OnboardingReviewSection
-      step={3}
+      step={showStepBadge ? 3 : undefined}
       title="Bank account details"
       description="Enter and approve payroll bank information."
-      status={state?.bankApprovedAt ? "complete" : stepStatus}
+      status={isApproved ? "complete" : stepStatus}
+      collapsible={collapsible}
+      defaultOpen={defaultOpen}
+      collapsedSummary={
+        isApproved ? (
+          <span className="text-emerald-700">Bank details approved</span>
+        ) : state?.bankValid ? (
+          <span>Saved — approval pending</span>
+        ) : (
+          <span>Enter payroll bank information</span>
+        )
+      }
     >
       <div className="space-y-4">
         {state?.bankApprovedAt && (

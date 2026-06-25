@@ -5,6 +5,22 @@ import {
   type EmployeeProfile,
 } from "@/features/onboarding/api/onboarding.client";
 import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+import {
+  academicDetailSchema,
+  collectOnboardingBankErrors,
+  optionalEsicSchema,
+  optionalUanSchema,
+} from "@/features/onboarding/schemas/onboarding.schema";
+import {
+  QUAL_CLASS_10,
+  QUAL_CLASS_12,
+} from "@/features/onboarding/constants/academic";
+import {
+  indianAadhaarSchema,
+  indianPanSchema,
+} from "@/lib/india-validation";
+import { phoneFieldSchema } from "@/features/employees/schemas/employee.schema";
+import { z } from "zod";
 import { compressImageForUpload } from "@/lib/compress-image";
 import {
   API_BASE,
@@ -50,6 +66,275 @@ export type EmployeeProfilePageData = {
   extended: EmployeeProfile;
   form: ProfileEditableState;
 };
+
+export type ProfileFieldTab =
+  | "contact"
+  | "emergency"
+  | "personal"
+  | "academics"
+  | "bank";
+
+const profileContactSchema = z.object({
+  phone: phoneFieldSchema,
+  personalEmail: z
+    .string()
+    .trim()
+    .min(1, "Personal email is required.")
+    .email("Enter a valid personal email."),
+});
+
+const profileAddressSchema = z.object({
+  currentAddress: z.string().trim().min(1, "Current address is required."),
+  permanentAddress: z.string().trim().min(1, "Permanent address is required."),
+});
+
+const profileEmergencySchema = z.object({
+  emergencyContactName: z
+    .string()
+    .trim()
+    .min(1, "Emergency contact name is required."),
+  emergencyContactPhone: phoneFieldSchema,
+});
+
+function zodIssuesToFieldErrors(issues: z.ZodIssue[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path.map(String).join(".");
+    if (key && !out[key]) out[key] = issue.message;
+  }
+  return out;
+}
+
+function mapOnboardingBankErrors(
+  errors: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const rename: Record<string, string> = {
+    "bank.0.accountNumber": "accountNumber",
+    "bank.0.accountName": "accountName",
+    "bank.0.bankName": "bankName",
+    "bank.0.branchName": "branchName",
+    "bank.0.ifscCode": "ifscCode",
+  };
+  for (const [key, message] of Object.entries(errors)) {
+    if (rename[key]) {
+      out[rename[key]] = message;
+      continue;
+    }
+    out[key] = message;
+  }
+  return out;
+}
+
+export function profileFieldErrorTab(fieldKey: string): ProfileFieldTab {
+  if (fieldKey.startsWith("academics.")) return "academics";
+  if (
+    fieldKey === "accountNumber" ||
+    fieldKey === "accountName" ||
+    fieldKey === "bankName" ||
+    fieldKey === "branchName" ||
+    fieldKey === "ifscCode" ||
+    fieldKey === "bank"
+  ) {
+    return "bank";
+  }
+  if (
+    fieldKey === "emergencyContactName" ||
+    fieldKey === "emergencyContactPhone"
+  ) {
+    return "emergency";
+  }
+  if (
+    fieldKey === "fatherName" ||
+    fieldKey === "motherName" ||
+    fieldKey === "panNumber" ||
+    fieldKey === "aadhaarNumber" ||
+    fieldKey === "uanNumber" ||
+    fieldKey === "esicNumber" ||
+    fieldKey === "maritalStatus" ||
+    fieldKey === "spouseName"
+  ) {
+    return "personal";
+  }
+  return "contact";
+}
+
+export function collectProfilePageFieldErrors(
+  form: ProfileEditableState,
+  extended: EmployeeProfile,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  const contactResult = profileContactSchema.safeParse({
+    phone: form.phone,
+    personalEmail: form.personalEmail,
+  });
+  if (!contactResult.success) {
+    Object.assign(errors, zodIssuesToFieldErrors(contactResult.error.issues));
+  }
+
+  const addressResult = profileAddressSchema.safeParse({
+    currentAddress: form.currentAddress,
+    permanentAddress: form.permanentAddress,
+  });
+  if (!addressResult.success) {
+    Object.assign(errors, zodIssuesToFieldErrors(addressResult.error.issues));
+  }
+
+  const emergencyResult = profileEmergencySchema.safeParse({
+    emergencyContactName: form.emergencyContactName,
+    emergencyContactPhone: form.emergencyContactPhone,
+  });
+  if (!emergencyResult.success) {
+    Object.assign(errors, zodIssuesToFieldErrors(emergencyResult.error.issues));
+  }
+
+  if (!requiresExtendedProfileSections(form, extended)) {
+    return errors;
+  }
+
+  Object.assign(errors, collectProfilePersonalErrors(form, extended));
+  Object.assign(errors, collectProfileAcademicErrors(form.academics));
+  Object.assign(
+    errors,
+    mapOnboardingBankErrors(
+      collectOnboardingBankErrors(bankPayloadForValidation(form, extended)),
+    ),
+  );
+
+  return errors;
+}
+
+function requiresExtendedProfileSections(
+  form: ProfileEditableState,
+  extended: EmployeeProfile,
+): boolean {
+  return (
+    shouldPersistExtendedProfile(form, extended) ||
+    form.academics.some(
+      (row) =>
+        row.qualification === QUAL_CLASS_10 ||
+        row.qualification === QUAL_CLASS_12,
+    )
+  );
+}
+
+function collectProfilePersonalErrors(
+  form: ProfileEditableState,
+  extended: EmployeeProfile,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const base = profileToFormValues(extended);
+
+  const panNo = form.panNumber.trim() || base.panNo;
+  const panResult = indianPanSchema.safeParse(panNo);
+  if (!panResult.success) {
+    errors.panNumber =
+      panResult.error.issues[0]?.message ?? "PAN number is required.";
+  }
+
+  const aadhaarNo = form.aadhaarNumber.trim() || base.aadhaarNo;
+  const aadhaarResult = indianAadhaarSchema.safeParse(aadhaarNo);
+  if (!aadhaarResult.success) {
+    errors.aadhaarNumber =
+      aadhaarResult.error.issues[0]?.message ?? "Aadhaar number is required.";
+  }
+
+  const uanNo = form.uanNumber.trim() || base.uanNo || "";
+  const uanResult = optionalUanSchema.safeParse(uanNo);
+  if (!uanResult.success) {
+    errors.uanNumber =
+      uanResult.error.issues[0]?.message ?? "Enter a valid UAN.";
+  }
+
+  const esicNo = form.esicNumber.trim() || base.esicNo || "";
+  const esicResult = optionalEsicSchema.safeParse(esicNo);
+  if (!esicResult.success) {
+    errors.esicNumber =
+      esicResult.error.issues[0]?.message ?? "Enter a valid ESIC number.";
+  }
+
+  return errors;
+}
+
+function collectProfileAcademicErrors(
+  rows: ProfileQualification[],
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+
+  rows.forEach((row, index) => {
+    const isFixed =
+      row.qualification === QUAL_CLASS_10 ||
+      row.qualification === QUAL_CLASS_12;
+    const hasAnyData =
+      row.qualification.trim() ||
+      row.institution.trim() ||
+      row.boardUniversity.trim() ||
+      row.yearOfPassing.trim() ||
+      row.gradePercentage.trim();
+
+    if (!isFixed && !hasAnyData) {
+      return;
+    }
+
+    const parsed = academicDetailSchema.safeParse({
+      id: parseAcademicId(row.id),
+      qualification: row.qualification,
+      qualificationOther: "",
+      institution: row.institution,
+      boardUniversity: row.boardUniversity,
+      fieldOfStudy: "",
+      yearFrom: undefined,
+      yearTo: parseYear(row.yearOfPassing),
+      gradeOrPercentage: row.gradePercentage,
+    });
+
+    if (parsed.success) {
+      return;
+    }
+
+    for (const issue of parsed.error.issues) {
+      const field = String(issue.path[0] ?? "");
+      const formField =
+        field === "yearTo"
+          ? "yearOfPassing"
+          : field === "gradeOrPercentage"
+            ? "gradePercentage"
+            : field;
+      const key = `academics.${index}.${formField}`;
+      if (!errors[key]) errors[key] = issue.message;
+    }
+  });
+
+  return errors;
+}
+
+function bankPayloadForValidation(
+  form: ProfileEditableState,
+  extended: EmployeeProfile,
+): { bank: OnboardingProfileValues["bank"] } {
+  const base = profileToFormValues(extended);
+  const fromEditable = bankFromEditable(form, base.bank);
+  if (
+    fromEditable.length > 0 &&
+    fromEditable.some((row) => row.accountNumber.trim())
+  ) {
+    return { bank: fromEditable };
+  }
+
+  return {
+    bank: [
+      {
+        accountNumber: form.accountNumber,
+        accountName: form.accountName,
+        bankName: form.bankName,
+        branchName: form.branchName,
+        ifscCode: form.ifscCode,
+        isPrimary: form.isPrimaryAccount,
+      },
+    ],
+  };
+}
 
 function defaultProfileAcademics(): ProfileQualification[] {
   return [

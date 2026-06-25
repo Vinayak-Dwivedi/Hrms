@@ -22,7 +22,9 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import {
+  collectProfilePageFieldErrors,
   loadEmployeeProfilePage,
+  profileFieldErrorTab,
   profilePageToEditable,
   saveEmployeeProfilePage,
   sendPersonalEmailVerificationOtp,
@@ -296,6 +298,11 @@ function CharCount({ value, max }: { value: string; max: number }) {
   );
 }
 
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-red-600 mt-1.5 m-0">{message}</p>;
+}
+
 function EditableField({
   label,
   value,
@@ -305,6 +312,7 @@ function EditableField({
   helper,
   maxLength,
   error,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -314,10 +322,14 @@ function EditableField({
   helper?: string;
   maxLength?: number;
   error?: string;
+  required?: boolean;
 }) {
   return (
     <div>
-      <label className={employeeProfileLabelClass}>{label}</label>
+      <label className={employeeProfileLabelClass}>
+        {label}
+        {required ? <span className="text-red-500"> *</span> : null}
+      </label>
       <input
         className={`${editableInputClass} ${error ? "!border-red-400 focus:!ring-red-100" : ""}`}
         onChange={(e) => onChange(e.target.value)}
@@ -352,6 +364,8 @@ function EditableTextArea({
   placeholder,
   span2 = false,
   maxLength,
+  error,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -359,18 +373,24 @@ function EditableTextArea({
   placeholder?: string;
   span2?: boolean;
   maxLength?: number;
+  error?: string;
+  required?: boolean;
 }) {
   return (
     <div className={span2 ? FORM_GRID_FULL_ROW_CLASS : undefined}>
-      <label className={employeeProfileLabelClass}>{label}</label>
+      <label className={employeeProfileLabelClass}>
+        {label}
+        {required ? <span className="text-red-500"> *</span> : null}
+      </label>
       <textarea
-        className={`${editableInputClass} min-h-[96px] resize-y`}
+        className={`${editableInputClass} min-h-[96px] resize-y ${error ? "border-red-500 focus:ring-red-200" : ""}`}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={3}
         value={value}
         maxLength={maxLength}
       />
+      <FieldError message={error} />
       {maxLength ? (
         <div className="flex justify-end mt-1">
           <CharCount value={value} max={maxLength} />
@@ -512,6 +532,8 @@ export default function ProfileForm() {
     null,
   );
   const [form, setForm] = useState<ProfileEditableState | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
@@ -601,8 +623,18 @@ export default function ProfileForm() {
     void refreshMyExitInterview();
   }, []);
 
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
   function set<K extends StringFieldKey>(key: K, value: string) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+    clearFieldError(key);
   }
 
   function setPrimaryAccount(checked: boolean) {
@@ -610,16 +642,24 @@ export default function ProfileForm() {
   }
 
   function updateAcademic(id: string, patch: Partial<ProfileQualification>) {
-    setForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            academics: prev.academics.map((a) =>
-              a.id === id ? { ...a, ...patch } : a,
-            ),
-          }
-        : prev,
-    );
+    setForm((prev) => {
+      if (!prev) return prev;
+      const index = prev.academics.findIndex((a) => a.id === id);
+      if (index < 0) return prev;
+      setFieldErrors((errors) => {
+        const next = { ...errors };
+        for (const key of Object.keys(patch)) {
+          delete next[`academics.${index}.${key}`];
+        }
+        return next;
+      });
+      return {
+        ...prev,
+        academics: prev.academics.map((a) =>
+          a.id === id ? { ...a, ...patch } : a,
+        ),
+      };
+    });
     setAcademicErrors((prev) => {
       const entry = { ...(prev[id] ?? {}) };
       if ("yearOfPassing" in patch) {
@@ -834,6 +874,56 @@ export default function ProfileForm() {
             <div className="flex-1 px-8 py-5 overflow-y-auto">
               <ProfileSectionHeader tab={activeTab} />
 
+              {submitError ? (
+                <div className={`mb-4 ${employeeErrorBannerClass}`}>
+                  {submitError}
+                </div>
+              ) : null}
+
+              {activeTab === "contact" && (
+                <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
+                  <EditableField
+                    error={fieldErrors.phone}
+                    helper="Used for urgent communication and emergency outreach."
+                    label="Phone Number"
+                    onChange={(v) => set("phone", v)}
+                    placeholder="9999900000"
+                    required
+                    type="tel"
+                    value={form.phone}
+                  />
+                  <EditableField
+                    error={fieldErrors.personalEmail}
+                    label="Personal Email"
+                    onChange={(v) => set("personalEmail", v)}
+                    placeholder="you@example.com"
+                    required
+                    type="email"
+                    value={form.personalEmail}
+                  />
+                  <div
+                    className={`${FORM_GRID_FULL_ROW_CLASS} grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5`}
+                  >
+                    <EditableTextArea
+                      error={fieldErrors.currentAddress}
+                      label="Current Address"
+                      onChange={(v) => set("currentAddress", v)}
+                      placeholder="House / street / city / state / PIN"
+                      required
+                      value={form.currentAddress}
+                    />
+                    <EditableTextArea
+                      error={fieldErrors.permanentAddress}
+                      label="Permanent Address"
+                      onChange={(v) => set("permanentAddress", v)}
+                      placeholder="House / street / city / state / PIN"
+                      required
+                      value={form.permanentAddress}
+                    />
+                  </div>
+                </div>
+              )}
+
               {activeTab === "profile" && (
                 <div className={FORM_PANEL_CLASS}>
                   <div className="rounded-lg border border-gray-100 bg-gradient-to-br from-gray-50/80 to-[#fff1f2]/40 p-5 mb-5">
@@ -996,18 +1086,22 @@ export default function ProfileForm() {
               {activeTab === "emergency" && (
                 <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
+                    error={fieldErrors.emergencyContactName}
                     label="Contact Name"
                     maxLength={200}
                     onChange={(v) => set("emergencyContactName", v)}
                     placeholder="Full Name"
+                    required
                     value={form.emergencyContactName}
                   />
                   <EditableField
+                    error={fieldErrors.emergencyContactPhone}
                     helper="We collect this in case of emergencies."
                     label="Contact Phone"
                     maxLength={20}
                     onChange={(v) => set("emergencyContactPhone", v)}
                     placeholder="9999900000"
+                    required
                     type="tel"
                     value={form.emergencyContactPhone}
                   />
@@ -1031,20 +1125,25 @@ export default function ProfileForm() {
                     value={form.motherName}
                   />
                   <EditableField
+                    error={fieldErrors.panNumber}
                     label="PAN Number"
                     maxLength={10}
                     onChange={(v) => set("panNumber", v)}
                     placeholder="ABCDE1234F"
+                    required
                     value={form.panNumber}
                   />
                   <EditableField
+                    error={fieldErrors.aadhaarNumber}
                     label="Aadhaar Number"
                     maxLength={14}
                     onChange={(v) => set("aadhaarNumber", v)}
                     placeholder="1234 5678 9012"
+                    required
                     value={form.aadhaarNumber}
                   />
                   <EditableField
+                    error={fieldErrors.uanNumber}
                     label="UAN"
                     maxLength={12}
                     onChange={(v) => set("uanNumber", v)}
@@ -1052,6 +1151,7 @@ export default function ProfileForm() {
                     value={form.uanNumber}
                   />
                   <EditableField
+                    error={fieldErrors.esicNumber}
                     label="ESIC"
                     maxLength={17}
                     onChange={(v) => set("esicNumber", v)}
@@ -1086,6 +1186,7 @@ export default function ProfileForm() {
                       </div>
                       <div className={`p-5 ${FORM_GRID_CLASS}`}>
                         <EditableField
+                          error={fieldErrors[`academics.${i}.qualification`]}
                           label="Qualification"
                           maxLength={100}
                           onChange={(v) =>
@@ -1095,21 +1196,28 @@ export default function ProfileForm() {
                           value={a.qualification}
                         />
                         <EditableField
+                          error={fieldErrors[`academics.${i}.institution`]}
                           label="Institution / School"
                           maxLength={200}
                           onChange={(v) =>
                             updateAcademic(a.id, { institution: v })
                           }
                           placeholder="Name"
+                          required
                           value={a.institution}
                         />
                         <EditableField
+                          error={fieldErrors[`academics.${i}.boardUniversity`]}
                           label="Board / University"
                           maxLength={200}
                           onChange={(v) =>
                             updateAcademic(a.id, { boardUniversity: v })
                           }
                           placeholder="e.g. CBSE"
+                          required={
+                            a.qualification === "Class 10" ||
+                            a.qualification === "Class 12"
+                          }
                           value={a.boardUniversity}
                         />
                         <EditableField
@@ -1120,6 +1228,7 @@ export default function ProfileForm() {
                             updateAcademic(a.id, { yearOfPassing: v })
                           }
                           placeholder="2018"
+                          required
                           value={a.yearOfPassing}
                         />
                         <EditableField
@@ -1130,6 +1239,7 @@ export default function ProfileForm() {
                             updateAcademic(a.id, { gradePercentage: v })
                           }
                           placeholder="e.g. 85%"
+                          required
                           value={a.gradePercentage}
                         />
                       </div>
@@ -1149,38 +1259,48 @@ export default function ProfileForm() {
               {activeTab === "bank" && (
                 <div className={`${FORM_PANEL_CLASS} ${FORM_GRID_CLASS}`}>
                   <EditableField
+                    error={fieldErrors.accountNumber}
                     label="Account Number"
                     maxLength={20}
                     onChange={(v) => set("accountNumber", v)}
                     placeholder="Account number"
+                    required
                     value={form.accountNumber}
                   />
                   <EditableField
+                    error={fieldErrors.accountName}
                     label="Account Name"
                     maxLength={100}
                     onChange={(v) => set("accountName", v)}
                     placeholder="As per bank records"
+                    required
                     value={form.accountName}
                   />
                   <EditableField
+                    error={fieldErrors.bankName}
                     label="Bank Name"
                     maxLength={100}
                     onChange={(v) => set("bankName", v)}
                     placeholder="e.g. HDFC Bank"
+                    required
                     value={form.bankName}
                   />
                   <EditableField
+                    error={fieldErrors.branchName}
                     label="Branch"
                     maxLength={100}
                     onChange={(v) => set("branchName", v)}
                     placeholder="Branch name"
+                    required
                     value={form.branchName}
                   />
                   <EditableField
+                    error={fieldErrors.ifscCode}
                     label="IFSC Code"
                     maxLength={11}
                     onChange={(v) => set("ifscCode", v)}
                     placeholder="HDFC0001234"
+                    required
                     value={form.ifscCode}
                   />
                   <div className="flex items-end">

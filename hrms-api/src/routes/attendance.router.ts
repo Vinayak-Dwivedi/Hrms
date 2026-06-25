@@ -33,6 +33,14 @@ const listUploadsQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  fromDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  toDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   search: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(25),
@@ -53,6 +61,13 @@ function buildUploadListFilters(query: z.infer<typeof listUploadsQuerySchema>) {
   const filters = [];
   if (query.date) {
     filters.push(eq(attendanceUploads.attendanceDate, query.date));
+  } else if (query.fromDate || query.toDate) {
+    if (query.fromDate) {
+      filters.push(gte(attendanceUploads.attendanceDate, query.fromDate));
+    }
+    if (query.toDate) {
+      filters.push(lte(attendanceUploads.attendanceDate, query.toDate));
+    }
   } else if (query.month) {
     const { from, to } = monthDateRange(query.month);
     filters.push(gte(attendanceUploads.attendanceDate, from));
@@ -345,8 +360,6 @@ attendanceRouter.post(
 
       const errors: RowError[] = [];
       const validRows: Array<{ rowNum: number; data: z.infer<typeof attendanceUploadRowSchema> }> = [];
-      const employeeCodes = new Set<string>();
-      const empNames = new Map<string, string>();
 
       for (let i = 0; i < rawData.length; i++) {
         const rowNum = i + 2;
@@ -360,18 +373,11 @@ attendanceRouter.post(
           continue;
         }
         validRows.push({ rowNum, data: parsed.data });
-        employeeCodes.add(parsed.data["EMP Code"]);
-        const name = parsed.data["Emp Name"];
-        if (name !== undefined && !empNames.has(parsed.data["EMP Code"])) {
-          empNames.set(parsed.data["EMP Code"], String(name).trim());
-        }
       }
 
-      if (employeeCodes.size === 0) {
+      if (validRows.length === 0) {
         return res.status(400).json({ error: { message: "No valid rows found in the sheet", details: errors } });
       }
-
-      const { empMap, createdCount } = await resolveEmployeeMap(employeeCodes, empNames);
 
       const uploadRows: Array<{
         employeeCode: string;
@@ -379,20 +385,9 @@ attendanceRouter.post(
         outTime: string | null;
         totalHours: string | null;
         attendanceDate: string;
-        employeeId: number;
-        workingMinutes: number;
-        recordPunchOut: string | null;
-        status: "Present" | "Absent" | "Half Day" | "Leave" | "Holiday" | "Weekend";
-        location: string | null;
       }> = [];
 
       for (const { rowNum, data } of validRows) {
-        const employeeId = empMap.get(data["EMP Code"]);
-        if (!employeeId) {
-          errors.push({ row: rowNum, error: `Employee Code '${data["EMP Code"]}' not found in database` });
-          continue;
-        }
-
         let dateObj: Date;
         try {
           dateObj = parseExcelDate(data.Date);
@@ -406,9 +401,6 @@ attendanceRouter.post(
         const inTime = parseTime(data["In Time"]);
         const outTime = parseTime(data["Out Time"]);
         const totalHours = parseTime(data["Wrk Hrs"]);
-        const workingMinutes = resolveWorkingMinutes(inTime, outTime, data["Wrk Hrs"]);
-        const recordPunchOut = punchOutForRecord(inTime, outTime);
-        const status = deriveAttendanceStatus(workingMinutes);
 
         uploadRows.push({
           employeeCode: data["EMP Code"],
@@ -416,11 +408,6 @@ attendanceRouter.post(
           outTime,
           totalHours,
           attendanceDate,
-          employeeId,
-          workingMinutes,
-          recordPunchOut,
-          status,
-          location: data.Location ? String(data.Location) : null,
         });
       }
 
@@ -462,30 +449,6 @@ attendanceRouter.post(
                   createdAt: new Date(),
                 },
               });
-
-            await tx
-              .insert(attendanceRecords)
-              .values({
-                employeeId: row.employeeId,
-                date: row.attendanceDate,
-                punchIn: row.inTime,
-                punchOut: row.recordPunchOut,
-                workingMinutes: row.workingMinutes,
-                status: row.status,
-                location: row.location,
-                isRegularised: false,
-              })
-              .onConflictDoUpdate({
-                target: [attendanceRecords.employeeId, attendanceRecords.date],
-                set: {
-                  punchIn: row.inTime,
-                  punchOut: row.recordPunchOut,
-                  workingMinutes: row.workingMinutes,
-                  status: row.status,
-                  location: row.location,
-                  updatedAt: new Date(),
-                },
-              });
           }
         });
       }
@@ -495,8 +458,6 @@ attendanceRouter.post(
         message: "Attendance upload processed",
         attendanceId,
         uploaded: uploadRows.length,
-        synced: uploadRows.length,
-        employeesCreated: createdCount,
         errors: errors.length > 0 ? errors : undefined,
       });
     } catch (err: unknown) {

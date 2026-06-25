@@ -2,14 +2,18 @@
 
 import { Check } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import type { OnboardingWizardStep } from "../context/onboarding-progress-context";
+import type {
+  OnboardingProfileSubStep,
+  OnboardingWizardStep,
+} from "../context/onboarding-progress-context";
 import { useOnboardingProgress } from "../context/onboarding-progress-context";
 
 const STEPS: { id: OnboardingWizardStep; label: string }[] = [
   { id: "sign-in", label: "Sign In" },
-  { id: "profile", label: "Profile" },
+  { id: "profile", label: "Employee Data" },
   { id: "documents", label: "Documents" },
-  { id: "review", label: "Review" },
+  { id: "bank", label: "Bank Account" },
+  { id: "review", label: "Verify & Submit" },
 ];
 
 function stepIndex(id: OnboardingWizardStep) {
@@ -18,10 +22,11 @@ function stepIndex(id: OnboardingWizardStep) {
 
 function resolveActiveStep(
   pathname: string,
-  profileSubStep: "profile" | "documents" | "review",
+  profileSubStep: OnboardingProfileSubStep,
 ): OnboardingWizardStep {
   if (pathname.startsWith("/employee/onboarding/profile")) {
     if (profileSubStep === "documents") return "documents";
+    if (profileSubStep === "bank") return "bank";
     if (profileSubStep === "review") return "review";
     return "profile";
   }
@@ -32,6 +37,7 @@ function canNavigateTo(
   step: OnboardingWizardStep,
   profileComplete: boolean,
   documentsReady: boolean,
+  bankComplete: boolean,
 ): boolean {
   switch (step) {
     case "sign-in":
@@ -40,17 +46,29 @@ function canNavigateTo(
       return true;
     case "documents":
       return profileComplete;
-    case "review":
+    case "bank":
       return profileComplete && documentsReady;
+    case "review":
+      return profileComplete && documentsReady && bankComplete;
     default:
       return false;
   }
 }
 
+function wizardStepToSubStep(
+  step: OnboardingWizardStep,
+): OnboardingProfileSubStep | null {
+  if (step === "profile") return "profile";
+  if (step === "documents") return "documents";
+  if (step === "bank") return "bank";
+  if (step === "review") return "review";
+  return null;
+}
+
 export default function OnboardingStepper() {
   const router = useRouter();
   const pathname = usePathname();
-  const { profileComplete, documentsReady, profileSubStep } =
+  const { profileComplete, documentsReady, bankComplete, profileSubStep } =
     useOnboardingProgress();
 
   const activeStep = resolveActiveStep(pathname, profileSubStep);
@@ -63,17 +81,13 @@ export default function OnboardingStepper() {
 
   function handleStepClick(step: OnboardingWizardStep) {
     if (!onProfileRoute) return;
-    if (!canNavigateTo(step, profileComplete, documentsReady)) return;
+    if (
+      !canNavigateTo(step, profileComplete, documentsReady, bankComplete)
+    ) {
+      return;
+    }
 
-    const subStep =
-      step === "profile"
-        ? "profile"
-        : step === "documents"
-          ? "documents"
-          : step === "review"
-            ? "review"
-            : null;
-
+    const subStep = wizardStepToSubStep(step);
     if (!subStep) return;
     router.replace(`/employee/onboarding/profile?step=${subStep}`);
   }
@@ -87,7 +101,12 @@ export default function OnboardingStepper() {
           const clickable =
             onProfileRoute &&
             step.id !== "sign-in" &&
-            canNavigateTo(step.id, profileComplete, documentsReady);
+            canNavigateTo(
+              step.id,
+              profileComplete,
+              documentsReady,
+              bankComplete,
+            );
           const isLast = index === STEPS.length - 1;
 
           const circleClass = isActive
@@ -137,7 +156,7 @@ export default function OnboardingStepper() {
                   ) : null}
                 </div>
                 <span
-                  className={`mt-2.5 text-sm text-center leading-tight px-2 ${labelClass}`}
+                  className={`mt-2.5 text-xs sm:text-sm text-center leading-tight px-1 ${labelClass}`}
                 >
                   {step.label}
                 </span>

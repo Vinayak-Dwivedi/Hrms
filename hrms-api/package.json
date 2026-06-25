@@ -37,6 +37,7 @@
     "db:migrate-onboarding-bank-approval": "node scripts/apply-onboarding-bank-approval-schema.mjs",
     "db:migrate-onboarding-phase3": "node scripts/apply-onboarding-phase3-document-rejection.mjs",
     "db:migrate-onboarding-pending": "node scripts/apply-onboarding-pending-migrations.mjs",
+    "db:migrate-marital-status": "node scripts/apply-marital-status-extend.mjs",
     "db:migrate-leave-policy": "node scripts/apply-leave-policy-schema.mjs",
     "db:migrate-holiday-calendar": "node scripts/apply-holiday-calendar-schema.mjs",
     "db:migrate-employee-sub-department": "node scripts/apply-employee-sub-department-schema.mjs",
@@ -45,7 +46,7 @@
     "db:migrate-attendance-upload": "node scripts/apply-attendance-upload-schema.mjs",
     "seed:org-hierarchy": "node scripts/seed-org-hierarchy.mjs",
     "migrate:encrypt-sensitive": "node scripts/apply-sensitive-schema.mjs && node scripts/migrate-encrypt-sensitive-fields.mjs",
-    "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/employee-auth.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts"
+    "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/auth-role.test.ts src/lib/employee-auth.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",

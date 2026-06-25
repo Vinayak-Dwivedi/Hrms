@@ -9,7 +9,7 @@ import {
 } from "@/lib/employee-schema-compat";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import * as profileService from "@/modules/onboarding/services/employee-profile.service";
-import { HR_REQUIRED_VERIFIED_DOCUMENTS } from "@/modules/hr-onboarding/constants";
+import { listRequiredSubmitDocumentTypes } from "@/modules/onboarding/required-documents";
 import * as employeeAdminRepo from "@/modules/hr-onboarding/repositories/employee-admin.repository";
 import * as tokenHistoryRepo from "@/modules/hr-onboarding/repositories/token-history.repository";
 import * as bankOnboarding from "@/modules/hr-onboarding/services/bank-onboarding.service";
@@ -119,7 +119,7 @@ export async function getOnboardingTimeline(employeeId: number) {
     timelineSelect.onboardingReviewNotes = employees.onboardingReviewNotes;
   }
 
-  const [full, tokens, documents, bankState] = await Promise.all([
+  const [full, tokens, documents, bankState, profile] = await Promise.all([
     db
       .select(timelineSelect as {
         id: typeof employees.id;
@@ -141,6 +141,7 @@ export async function getOnboardingTimeline(employeeId: number) {
     tokenHistoryRepo.listTokenHistory(employeeId).catch(() => []),
     documentVerification.listEmployeeDocuments(employeeId).catch(() => []),
     bankOnboarding.getBankOnboardingState(employeeId).catch(() => null),
+    profileService.getProfile(employeeId).catch(() => null),
   ]);
   const submittedAt =
     full && "onboardingSubmittedAt" in full && full.onboardingSubmittedAt
@@ -166,6 +167,12 @@ export async function getOnboardingTimeline(employeeId: number) {
     bankApprovedBy: bankState?.bankApprovedBy ?? null,
     bankValid: bankState?.bankValid ?? false,
     bank: bankState?.bank ?? [],
+    academic:
+      profile?.academic.map((row) => ({ qualification: row.qualification })) ??
+      [],
+    requiredVerificationDocuments: profile
+      ? listRequiredSubmitDocumentTypes(profile.academic)
+      : [],
   };
 }
 
@@ -209,8 +216,12 @@ export async function approveOnboarding(params: {
   }
 
   const support = await getEmployeeColumnSupport();
-  const docs = await documentVerification.listEmployeeDocuments(params.employeeId);
-  const missingVerified = HR_REQUIRED_VERIFIED_DOCUMENTS.filter((type) => {
+  const [docs, profile] = await Promise.all([
+    documentVerification.listEmployeeDocuments(params.employeeId),
+    profileService.getProfile(params.employeeId),
+  ]);
+  const requiredDocuments = listRequiredSubmitDocumentTypes(profile.academic);
+  const missingVerified = requiredDocuments.filter((type) => {
     const row = docs.find((d) => d.documentType === type);
     return !row || row.status !== "Verified";
   });

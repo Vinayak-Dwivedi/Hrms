@@ -13,6 +13,7 @@ import {
   employeeDetailSelect,
   getEmployeeColumnSupport,
 } from "@/lib/employee-schema-compat";
+import { mapDbErrorToApiError } from "@/lib/db-error";
 import {
   decryptEmployeeLegacyRow,
   encryptEmployeeLegacySensitive,
@@ -139,8 +140,9 @@ export async function upsertProfile(
   input: UpsertProfileInput,
   actorUserId?: string,
 ) {
-  const columnSupport = await getEmployeeColumnSupport();
-  await db.transaction(async (tx) => {
+  try {
+    const columnSupport = await getEmployeeColumnSupport();
+    await db.transaction(async (tx) => {
     let currentOnboardingStatus: string | undefined;
     if (columnSupport.onboardingStatus) {
       const [statusRow] = await tx
@@ -192,21 +194,27 @@ export async function upsertProfile(
       .update(employees)
       .set(employeePatch)
       .where(eq(employees.id, employeeId));
-  });
+    });
 
-  await identityRepo.upsertIdentity(employeeId, input.identity);
-  await academicRepo.syncAcademicDetails(employeeId, input.academic);
-  await professionalRepo.syncProfessionalDetails(employeeId, input.professional);
-  if (input.bank !== undefined) {
-    await bankRepo.syncBankDetails(employeeId, input.bank);
+    await identityRepo.upsertIdentity(employeeId, input.identity);
+    await academicRepo.syncAcademicDetails(employeeId, input.academic);
+    await professionalRepo.syncProfessionalDetails(employeeId, input.professional);
+    if (input.bank !== undefined) {
+      await bankRepo.syncBankDetails(employeeId, input.bank);
+    }
+
+    writeAuditLogAsync({
+      actorUserId,
+      action: "PROFILE_UPDATED",
+      entityType: "employee",
+      entityId: String(employeeId),
+    });
+
+    return getProfile(employeeId);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      throw e;
+    }
+    throw mapDbErrorToApiError(e);
   }
-
-  writeAuditLogAsync({
-    actorUserId,
-    action: "PROFILE_UPDATED",
-    entityType: "employee",
-    entityId: String(employeeId),
-  });
-
-  return getProfile(employeeId);
 }

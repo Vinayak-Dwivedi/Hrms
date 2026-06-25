@@ -1,23 +1,25 @@
 import { z } from "zod";
-import { phoneFieldSchema } from "@/features/employees/schemas/employee.schema";
 import {
+  MAX_ACADEMIC_RECORDS,
   QUAL_CLASS_10,
   QUAL_CLASS_12,
   QUAL_OTHER,
 } from "@/features/onboarding/constants/academic";
 import { MARITAL_STATUS_OPTIONS } from "@/features/onboarding/constants/personal";
+import { BLOOD_GROUP_VALUES } from "@/features/onboarding/constants/blood-groups";
 import {
   BOARD_ALPHA_ONLY_MESSAGE,
   GRADE_FORMAT_MESSAGE,
   INSTITUTION_ALPHA_ONLY_MESSAGE,
   isAlphaOnlyBoardUniversity,
   isAlphaOnlyInstitution,
-  isValidGradeOrPercentage,
+  isValidNumericGrade,
 } from "@/lib/academic-field-validation";
 import {
   indianAadhaarSchema,
   indianBankAccountSchema,
   indianIfscSchema,
+  indianMobileSchema,
   indianPanSchema,
   isValidIndianEsic,
   isValidIndianUan,
@@ -31,7 +33,7 @@ const optionalYearSchema = z.preprocess(
     .number()
     .int()
     .min(1950, "Enter a valid year.")
-    .max(new Date().getFullYear() + 1, "Enter a valid year.")
+    .max(new Date().getFullYear(), "Enter a valid year.")
     .optional(),
 );
 
@@ -99,11 +101,11 @@ export const academicDetailSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["gradeOrPercentage"],
-        message: "Grade / % is required.",
+        message: "Grade is required.",
       });
     }
 
-    if (!isValidGradeOrPercentage(row.gradeOrPercentage ?? "")) {
+    if (!isValidNumericGrade(row.gradeOrPercentage ?? "")) {
       ctx.addIssue({
         code: "custom",
         path: ["gradeOrPercentage"],
@@ -120,6 +122,75 @@ export const academicDetailSchema = z
     qualificationOther: undefined,
   }));
 
+export const professionalDetailInputSchema = z.object({
+  id: z.number().optional(),
+  companyName: z.string().optional().default(""),
+  designation: z.string().optional().default(""),
+  fromDate: z.string().optional().default(""),
+  toDate: z.string().optional().default(""),
+  isCurrent: z.boolean().optional().default(false),
+  responsibilities: z.string().optional().default(""),
+});
+
+export type ProfessionalDetailInput = z.infer<
+  typeof professionalDetailInputSchema
+>;
+
+export function refineProfessionalRows(
+  rows: ProfessionalDetailInput[],
+  ctx: z.RefinementCtx,
+  pathPrefix: (string | number)[] = ["professional"],
+) {
+  if (rows.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Only one previous company record is allowed.",
+      path: pathPrefix,
+    });
+    return;
+  }
+  if (rows.length === 0) return;
+
+  const row = rows[0];
+  if (!row.companyName?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...pathPrefix, 0, "companyName"],
+      message: "Company name is required.",
+    });
+  }
+  if (!row.designation?.trim()) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...pathPrefix, 0, "designation"],
+      message: "Designation is required.",
+    });
+  }
+  const fromDate = row.fromDate?.trim() ?? "";
+  if (!fromDate || !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...pathPrefix, 0, "fromDate"],
+      message: "Use YYYY-MM-DD.",
+    });
+  }
+  const toDate = row.toDate?.trim() ?? "";
+  if (!toDate || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...pathPrefix, 0, "toDate"],
+      message: "End date is required.",
+    });
+  } else if (fromDate && toDate < fromDate) {
+    ctx.addIssue({
+      code: "custom",
+      path: [...pathPrefix, 0, "toDate"],
+      message: "End date cannot be before start date.",
+    });
+  }
+}
+
+/** @deprecated Use professionalDetailInputSchema for form state. */
 export const professionalDetailSchema = z.object({
   id: z.number().optional(),
   companyName: z.string().trim().min(1, "Company name is required."),
@@ -144,7 +215,7 @@ export const bankDetailSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
-const optionalUanSchema = z
+export const optionalUanSchema = z
   .string()
   .trim()
   .optional()
@@ -153,7 +224,7 @@ const optionalUanSchema = z
     message: "UAN must be exactly 12 digits.",
   });
 
-const optionalEsicSchema = z
+export const optionalEsicSchema = z
   .string()
   .trim()
   .optional()
@@ -164,20 +235,34 @@ const optionalEsicSchema = z
 
 export const onboardingProfileSchema = z
   .object({
-  currentAddress: z.string().trim().min(1, "Current address is required."),
-  permanentAddress: z.string().trim().min(1, "Permanent address is required."),
+  currentAddress: z
+    .string()
+    .trim()
+    .min(1, "Current address is required.")
+    .max(200, "Current address must be 200 characters or fewer."),
+  permanentAddress: z
+    .string()
+    .trim()
+    .min(1, "Permanent address is required.")
+    .max(200, "Permanent address must be 200 characters or fewer."),
   emergencyContactName: z
     .string()
     .trim()
     .min(1, "Emergency contact name is required."),
-  emergencyContactPhone: phoneFieldSchema,
+  emergencyContactPhone: indianMobileSchema,
   maritalStatus: z.enum(MARITAL_STATUS_OPTIONS, {
     message: "Marital status is required.",
   }),
   spouseName: z.string().trim().max(200).optional(),
   fatherName: z.string().trim().max(200).optional(),
   motherName: z.string().trim().max(200).optional(),
-  bloodGroup: z.string().trim().max(5).optional(),
+  bloodGroup: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || BLOOD_GROUP_VALUES.includes(value), {
+      message: "Select a valid blood group.",
+    }),
   nationality: z.string().trim().max(50).optional(),
   panNo: indianPanSchema,
   aadhaarNo: indianAadhaarSchema,
@@ -186,7 +271,10 @@ export const onboardingProfileSchema = z
   academic: z
     .array(academicDetailSchema)
     .min(1, "Add at least one academic record.")
-    .max(10, "Maximum 10 academic records allowed.")
+    .max(
+      MAX_ACADEMIC_RECORDS,
+      `Maximum ${MAX_ACADEMIC_RECORDS} academic records allowed.`,
+    )
     .superRefine((rows, ctx) => {
       const class10 = rows.filter((r) => r.qualification === QUAL_CLASS_10).length;
       const class12 = rows.filter((r) => r.qualification === QUAL_CLASS_12).length;
@@ -202,8 +290,43 @@ export const onboardingProfileSchema = z
           message: "Only one Class 12 record is allowed.",
         });
       }
+
+      const class10Index = rows.findIndex(
+        (r) => r.qualification === QUAL_CLASS_10,
+      );
+      const class12Index = rows.findIndex(
+        (r) => r.qualification === QUAL_CLASS_12,
+      );
+      if (class10Index === -1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Class 10 details are required.",
+        });
+      }
+      if (class12Index === -1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Class 12 details are required.",
+        });
+      }
+      if (class10Index === -1 || class12Index === -1) return;
+
+      const class10Year = rows[class10Index]?.yearTo;
+      const class12Year = rows[class12Index]?.yearTo;
+      if (class10Year == null || class12Year == null) return;
+
+      if (class12Year < class10Year + 2) {
+        ctx.addIssue({
+          code: "custom",
+          path: [class12Index, "yearTo"],
+          message:
+            class12Year < class10Year
+              ? "Class 12 passing year cannot be before Class 10."
+              : "Class 12 passing year must be at least 2 years after Class 10.",
+        });
+      }
     }),
-  professional: z.array(professionalDetailSchema).default([]),
+  professional: z.array(professionalDetailInputSchema).max(1).default([]),
 })
   .superRefine((data, ctx) => {
     if (data.maritalStatus === "Married" && !data.spouseName?.trim()) {
@@ -213,6 +336,7 @@ export const onboardingProfileSchema = z
         path: ["spouseName"],
       });
     }
+    refineProfessionalRows(data.professional, ctx);
   });
 
 // z.input — this type drives form defaultValues / state. The academic schema
@@ -221,7 +345,7 @@ export const onboardingProfileSchema = z
 // with the empty-string default the form actually holds.
 export type OnboardingProfileValues = z.input<typeof onboardingProfileSchema>;
 export type AcademicDetailValues = z.input<typeof academicDetailSchema>;
-export type ProfessionalDetailValues = z.infer<typeof professionalDetailSchema>;
+export type ProfessionalDetailValues = ProfessionalDetailInput;
 export type BankDetailValues = z.infer<typeof bankDetailSchema>;
 
 export const onboardingBankFormSchema = z.object({
@@ -240,6 +364,16 @@ export function onboardingProfileIssueToFieldKey(
 ): string {
   if (path[0] === "academic" && path.length >= 3) {
     return `academic.${path[1]}.${path[2]}`;
+  }
+  if (
+    path[0] === "professional" &&
+    typeof path[1] === "number" &&
+    typeof path[2] === "string"
+  ) {
+    return `professional.${path[1]}.${path[2]}`;
+  }
+  if (path[0] === "professional") {
+    return "professional";
   }
   return String(path[0] ?? "form");
 }
@@ -293,10 +427,16 @@ export function collectOnboardingBankErrors(
 }
 
 export {
+  CLASS_10_CERTIFICATE,
+  CLASS_12_CERTIFICATE,
   EDUCATIONAL_DOCUMENT_TYPES,
+  getOnboardingDocumentSections,
+  listRequiredOnboardingDocuments,
+  MANDATORY_ONBOARDING_DOCUMENTS,
   ONBOARDING_DOCUMENT_SECTIONS,
   PROFESSIONAL_DOCUMENT_TYPES,
   REQUIRED_ONBOARDING_DOCUMENTS,
+  type AcademicQualificationRef,
   type EducationalDocumentType,
   type OnboardingDocumentType,
   type ProfessionalDocumentType,

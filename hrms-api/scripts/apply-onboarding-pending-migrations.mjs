@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const scripts = [
+  "apply-marital-status-extend.mjs",
   "apply-onboarding-phase3-document-rejection.mjs",
   "apply-onboarding-bank-approval-schema.mjs",
 ];

@@ -3,14 +3,22 @@ import { API_BASE } from "@/lib/hrms-client";
 import { compressImageForUpload } from "@/lib/compress-image";
 import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import {
+  isBankComplete,
   profileToFormValues,
   toProfilePayload,
+  type OnboardingFormOptions,
 } from "@/features/onboarding/api/onboarding.client";
 import type {
   OnboardingBankFormValues,
   OnboardingProfileValues,
 } from "@/features/onboarding/schemas/onboarding.schema";
-import { REQUIRED_ONBOARDING_DOCUMENTS } from "@/features/onboarding/constants/documents";
+import {
+  listPendingRequiredDocuments,
+  listRequiredOnboardingDocuments,
+} from "@/features/onboarding/constants/documents";
+import {
+  firstProfileApiValidationMessage,
+} from "@/features/onboarding/lib/profile-validation-errors";
 import { MARITAL_STATUS_OPTIONS } from "@/features/onboarding/constants/personal";
 
 function buildUrl(path: string): string {
@@ -39,19 +47,33 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {
       error?: {
+        code?: string;
         message?: string;
         details?: {
           message?: string;
           postgresMessage?: string;
-        };
+        } | unknown[];
       };
     };
+    const detailObject =
+      body.error?.details &&
+      typeof body.error.details === "object" &&
+      !Array.isArray(body.error.details)
+        ? body.error.details
+        : null;
     const fallbackDetail =
-      body.error?.details?.postgresMessage ?? body.error?.details?.message;
+      detailObject?.postgresMessage ??
+      detailObject?.message ??
+      undefined;
+    const validationMessage = firstProfileApiValidationMessage(
+      body.error?.details,
+    );
     const message =
-      body.error?.message && body.error.message !== "An unexpected error occurred."
+      validationMessage ??
+      (body.error?.message &&
+      body.error.message !== "An unexpected error occurred."
         ? body.error.message
-        : fallbackDetail ?? body.error?.message ?? res.statusText;
+        : fallbackDetail ?? body.error?.message ?? res.statusText);
     throw new HrOnboardingRequestError(
       message,
       body.error?.details,
@@ -117,6 +139,8 @@ export type OnboardingTimeline = {
   bankApprovedBy?: number | null;
   bankValid?: boolean;
   bank?: OnboardingBankAccount[];
+  academic?: Array<{ qualification: string }>;
+  requiredVerificationDocuments?: string[];
   documents: OnboardingDocument[];
   tokenHistory: Array<{
     id: string;
@@ -207,6 +231,10 @@ export function fetchEmployeeOnboardingProfile(
   employeeId: number,
 ): Promise<EmployeeProfile> {
   return jsonFetch(`/employees/${employeeId}/onboarding/profile`);
+}
+
+export function fetchHrOnboardingFormOptions(): Promise<OnboardingFormOptions> {
+  return jsonFetch("/onboarding/form-options");
 }
 
 export function updateEmployeeOnboardingProfileOnBehalf(
@@ -314,16 +342,26 @@ export type OnboardingPipelineStep = {
   permission: string;
 };
 
+export function listHrVerificationDocuments(
+  timeline: Pick<OnboardingTimeline, "requiredVerificationDocuments" | "academic">,
+): string[] {
+  if (timeline.requiredVerificationDocuments?.length) {
+    return timeline.requiredVerificationDocuments;
+  }
+  return listRequiredOnboardingDocuments(timeline.academic ?? []);
+}
+
 export function computeOnboardingPipeline(timeline: OnboardingTimeline) {
   const isCompleted = timeline.onboardingStatus === "COMPLETED";
   const isSubmitted = timeline.submittedAt != null;
   const hasRejected = timeline.documents.some((d) => d.status === "Rejected");
   const bankApproved = timeline.bankApprovedAt != null;
+  const verificationDocuments = listHrVerificationDocuments(timeline);
 
   const docStatus = (type: string) =>
     timeline.documents.find((d) => d.documentType === type)?.status;
 
-  const missingVerified = HR_VERIFICATION_DOCUMENTS.filter(
+  const missingVerified = verificationDocuments.filter(
     (type) => docStatus(type) !== "Verified",
   );
   const requiredVerified = missingVerified.length === 0;
@@ -387,6 +425,7 @@ export function computeOnboardingPipeline(timeline: OnboardingTimeline) {
     bankApproved,
     canMarkComplete,
     missingVerified: [...missingVerified],
+    verificationDocuments,
     steps,
     currentStep: isCompleted
       ? 4
@@ -401,8 +440,10 @@ export function computeOnboardingPipeline(timeline: OnboardingTimeline) {
 }
 
 export function computeOnboardingReadiness(profile: EmployeeProfile) {
-  const pendingDocuments = REQUIRED_ONBOARDING_DOCUMENTS.filter(
-    (type) => !profile.documents.some((d) => d.documentType === type),
+  const requiredDocuments = listRequiredOnboardingDocuments(profile.academic);
+  const pendingDocuments = listPendingRequiredDocuments(
+    profile.documents,
+    profile.academic,
   );
   const profileComplete =
     !!profile.personal.currentAddress &&
@@ -421,9 +462,12 @@ export function computeOnboardingReadiness(profile: EmployeeProfile) {
 
   return {
     profileComplete,
+    bankComplete: isBankComplete(profile),
+    requiredDocuments,
     pendingDocuments,
     formValues: profileToFormValues(profile),
     documents: profile.documents,
+    academic: profile.academic,
   };
 }
 

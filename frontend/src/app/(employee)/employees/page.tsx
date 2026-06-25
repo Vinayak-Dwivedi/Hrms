@@ -41,8 +41,9 @@ const ALL_ONBOARDING = "All";
 const LIST_PAGE_SIZE = 10;
 
 export default function EmployeesPage() {
-  const { hasAnyPermission } = useAuth();
+  const { hasAnyPermission, hasPermission } = useAuth();
   const showOnboardingAction = hasOnboardingPanelAccess(hasAnyPermission);
+  const canEditEmployees = hasPermission("employees.edit");
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -386,10 +387,12 @@ export default function EmployeesPage() {
         <div className={employeeLoadingClass}>Loading employees…</div>
       ) : (
         <EmployeeTable
+          canEditEmployees={canEditEmployees}
           departmentNames={departmentNames}
           designationNames={designationNames}
           orgLookups={orgLookups}
           employees={employees}
+          onStatusChanged={loadEmployees}
           showOnboardingAction={showOnboardingAction}
           pagination={{
             page,

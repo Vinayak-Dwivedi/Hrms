@@ -8,6 +8,7 @@ import { env } from "@/env";
 import { getRedis } from "@/lib/redis";
 import { errorHandler, notFoundHandler } from "@/middleware/error";
 import { requireAuth } from "@/middleware/auth";
+import { requirePermission } from "@/middleware/require-permission";
 import { auditContext } from "@/middleware/audit-context";
 import { requestId } from "@/middleware/request-id";
 import { authRouter } from "@/routes/auth.router";
@@ -116,20 +117,31 @@ export function createApp() {
     profileEmailVerificationRouter,
   );
 
+  const leavePolicyAccess = requirePermission(
+    "leave.policy.manage",
+    "admin.roles",
+  );
+  const holidayPolicyAccess = requirePermission(
+    "holiday.policy.manage",
+    "admin.roles",
+  );
+  const leaveApproveAccess = requirePermission("leave.approve");
+  const managerZoneAccess = requirePermission("leave.approve", "attendance.view");
+
   app.use("/api/me",      requireAuth, meRouter);
   app.use("/api/comp-off", requireAuth, compOffRouter);
-  app.use("/api/admin/approval-workflows", requireAuth, adminApprovalWorkflowsRouter);
+  app.use("/api/admin/approval-workflows", requireAuth, leavePolicyAccess, adminApprovalWorkflowsRouter);
   app.use("/api/workflow-approvals", requireAuth, workflowApprovalsRouter);
-  app.use("/api/manager", requireAuth, managerRouter);
+  app.use("/api/manager", requireAuth, managerZoneAccess, managerRouter);
   app.use("/api/hrms",    requireAuth, hrmsRouter);
   app.use("/api/attendance", requireAuth, attendanceRouter);
-  app.use("/api/admin/leave-types", requireAuth, adminLeaveTypesRouter);
-  app.use("/api/admin/leave-policies", requireAuth, adminLeavePoliciesRouter);
-  app.use("/api/admin/leave-plans", requireAuth, adminLeavePlansRouter);
-  app.use("/api/admin/holidays", requireAuth, adminHolidaysRouter);
-  app.use("/api/admin/weekly-off-configs", requireAuth, adminWeeklyOffConfigsRouter);
-  app.use("/api/admin/leave-credits", requireAuth, adminLeaveCreditsRouter);
-  app.use("/api/hr/leave-approvals", requireAuth, hrLeaveApprovalsRouter);
+  app.use("/api/admin/leave-types", requireAuth, leavePolicyAccess, adminLeaveTypesRouter);
+  app.use("/api/admin/leave-policies", requireAuth, leavePolicyAccess, adminLeavePoliciesRouter);
+  app.use("/api/admin/leave-plans", requireAuth, leavePolicyAccess, adminLeavePlansRouter);
+  app.use("/api/admin/holidays", requireAuth, holidayPolicyAccess, adminHolidaysRouter);
+  app.use("/api/admin/weekly-off-configs", requireAuth, leavePolicyAccess, adminWeeklyOffConfigsRouter);
+  app.use("/api/admin/leave-credits", requireAuth, leavePolicyAccess, adminLeaveCreditsRouter);
+  app.use("/api/hr/leave-approvals", requireAuth, leaveApproveAccess, hrLeaveApprovalsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

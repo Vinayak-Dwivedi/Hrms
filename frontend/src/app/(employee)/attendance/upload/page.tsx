@@ -58,12 +58,7 @@ export default function AttendanceUploadPage() {
       const result = await uploadAttendance(file);
 
       if (result.uploaded > 0) {
-        const parts = [`Uploaded ${result.uploaded} record(s)`];
-        if (result.synced > 0) parts.push(`synced ${result.synced} to attendance`);
-        if (result.employeesCreated > 0) {
-          parts.push(`created ${result.employeesCreated} stub employee(s)`);
-        }
-        toast.success(parts.join(", ") + ".");
+        toast.success(`Uploaded ${result.uploaded} record(s).`);
         clearFileSelection();
         setRecordsRefreshKey((k) => k + 1);
       }

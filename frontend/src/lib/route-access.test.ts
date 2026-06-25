@@ -99,6 +99,40 @@ describe("route-access", () => {
     );
   });
 
+  it("gates leave policy and holiday policy by permission", () => {
+    assert.equal(
+      canAccessRoute("/leave-policy", {
+        role: "hr",
+        permissions: ["leave.policy.manage"],
+      }),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/holiday-calendars", {
+        role: "hr",
+        permissions: ["holiday.policy.manage"],
+      }),
+      true,
+    );
+    assert.equal(
+      canAccessRoute("/leave-policy", {
+        role: "hr",
+        permissions: ["holiday.policy.manage"],
+      }),
+      false,
+    );
+    assert.equal(canAccessRoute("/leave-policy", adminSession), true);
+    assert.equal(canAccessRoute("/leave-policy", employeeSession), false);
+    assert.equal(
+      canAccessRoute("/my-clearances", {
+        role: "user",
+        permissions: ["offboarding.clearance.it"],
+      }),
+      true,
+    );
+    assert.equal(canAccessRoute("/my-clearances", employeeSession), false);
+  });
+
   it("picks canonical default home for all roles", () => {
     assert.equal(defaultHomeForUser("hr", hrSession.permissions), "/dashboard");
     assert.equal(

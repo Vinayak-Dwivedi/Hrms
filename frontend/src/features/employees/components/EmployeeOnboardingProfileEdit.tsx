@@ -1,8 +1,10 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { CheckCircle2, Eye, XCircle } from "lucide-react";
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { ONBOARDING_PERMISSIONS } from "@/features/onboarding/constants/permissions";
 import {
+  bankFormValuesFromProfile,
   profileToFormValues,
   type EmployeeProfile,
 } from "@/features/onboarding/api/onboarding.client";
@@ -16,9 +18,15 @@ import type {
   OnboardingBankFormValues,
   OnboardingProfileValues,
 } from "@/features/onboarding/schemas/onboarding.schema";
-import type { OnboardingDocument } from "../api/hr-onboarding.client";
+import { useAuth } from "@/lib/auth-context";
+import {
+  verifyDocument,
+  type OnboardingDocument,
+} from "../api/hr-onboarding.client";
+import { onboardingStatusBannerWarningClass } from "../onboarding-admin-theme";
 import EmployeeFormSection from "./EmployeeFormSection";
 import OnboardingDocumentPreviewModal from "./OnboardingDocumentPreviewModal";
+import RejectDocumentDialog from "./RejectDocumentDialog";
 import {
   employeeFormSectionsGridClass,
   employeeIconMd,
@@ -31,11 +39,15 @@ export type EmployeeOnboardingProfileEditHandle = {
     bank: OnboardingBankFormValues | null;
   } | null;
   isEmpty: () => boolean;
+  revealValidationErrors: () => void;
 };
 
 interface Props {
   profile?: EmployeeProfile;
   inGrid?: boolean;
+  employeeId?: number;
+  onboardingSubmittedAt?: string | null;
+  onDocumentsChanged?: () => void;
 }
 
 const DOC_STATUS_CLASS: Record<string, string> = {
@@ -45,43 +57,35 @@ const DOC_STATUS_CLASS: Record<string, string> = {
   Rejected: "bg-red-50 text-red-700",
 };
 
-function bankFormValuesFromProfile(
-  profile?: EmployeeProfile,
-): OnboardingBankFormValues {
-  if (profile?.bank?.length) {
-    return {
-      bank: profile.bank.map((row) => ({
-        id: row.id,
-        accountNumber: row.accountNumber,
-        accountName: row.accountName,
-        bankName: row.bankName,
-        branchName: row.branchName,
-        ifscCode: row.ifscCode,
-        isPrimary: row.isPrimary,
-      })),
-    };
-  }
-  return {
-    bank: [
-      {
-        accountNumber: "",
-        accountName: "",
-        bankName: "",
-        branchName: "",
-        ifscCode: "",
-        isPrimary: true,
-      },
-    ],
-  };
-}
+const denyIconBtnClass =
+  "text-red-600 hover:text-red-700 bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 const EmployeeOnboardingProfileEdit = forwardRef<
   EmployeeOnboardingProfileEditHandle,
   Props
->(function EmployeeOnboardingProfileEdit({ profile, inGrid = false }, ref) {
+>(function EmployeeOnboardingProfileEdit(
+  {
+    profile,
+    inGrid = false,
+    onboardingSubmittedAt,
+    onDocumentsChanged,
+  },
+  ref,
+) {
+  const { hasAnyPermission } = useAuth();
   const profileFormRef = useRef<OnboardingProfileFormHandle>(null);
   const bankFormRef = useRef<OnboardingBankFormHandle>(null);
   const [previewDoc, setPreviewDoc] = useState<OnboardingDocument | null>(null);
+  const [rejectDoc, setRejectDoc] = useState<OnboardingDocument | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const canVerifyDocuments = hasAnyPermission([
+    ONBOARDING_PERMISSIONS.VERIFY_DOCUMENTS,
+  ]);
+  const isSubmitted = !!onboardingSubmittedAt;
+  const hasRejected =
+    profile?.documents?.some((d) => d.status === "Rejected") ?? false;
+  const showReviewActions = canVerifyDocuments && isSubmitted;
 
   const initialProfile = profile ? profileToFormValues(profile) : undefined;
   const initialBank = bankFormValuesFromProfile(profile);
@@ -95,22 +99,71 @@ const EmployeeOnboardingProfileEdit = forwardRef<
         return null;
       }
 
-      const profileValues = profileFormRef.current?.validate();
-      if (!profileValues) {
+      if (!profileEmpty) {
+        const profileValues = profileFormRef.current?.validate();
+        if (!profileValues) {
+          return null;
+        }
+        const bankValues = bankFormRef.current?.validate({ required: true });
+        if (!bankValues) {
+          return null;
+        }
+        return { profile: profileValues, bank: bankValues };
+      }
+
+      const bankValues = bankFormRef.current?.validate();
+      if (!bankValues) {
         return null;
       }
 
-      const bankValues = bankFormRef.current?.validate() ?? null;
-      if (!bankEmpty && !bankValues) {
-        return null;
-      }
-
-      return { profile: profileValues, bank: bankValues };
+      return null;
     },
     isEmpty: () =>
       (profileFormRef.current?.isEmpty() ?? true) &&
       (bankFormRef.current?.isEmpty() ?? true),
+    revealValidationErrors: () => {
+      const profileEmpty = profileFormRef.current?.isEmpty() ?? true;
+      const bankEmpty = bankFormRef.current?.isEmpty() ?? true;
+
+      if (profileEmpty && bankEmpty) {
+        return;
+      }
+
+      if (!profileEmpty) {
+        profileFormRef.current?.revealErrors();
+        bankFormRef.current?.revealErrors({ required: true });
+        return;
+      }
+
+      if (!bankEmpty) {
+        bankFormRef.current?.revealErrors();
+      }
+    },
   }));
+
+  async function runAction(key: string, action: () => Promise<unknown>) {
+    setBusy(key);
+    try {
+      await action();
+      onDocumentsChanged?.();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function handleRejected() {
+    onDocumentsChanged?.();
+  }
+
+  function toPreviewDoc(doc: EmployeeProfile["documents"][number]): OnboardingDocument {
+    return {
+      id: doc.id,
+      documentType: doc.documentType,
+      originalFilename: doc.originalFilename ?? doc.documentType,
+      status: doc.status,
+      rejectionReason: doc.rejectionReason ?? null,
+    };
+  }
 
   const heading = (
     <div className="col-span-full">
@@ -130,72 +183,108 @@ const EmployeeOnboardingProfileEdit = forwardRef<
         ref={profileFormRef}
         embedded
         initialValues={initialProfile}
+        formOptionsSource="hr"
       />
 
       <EmployeeFormSection compact title="Documents">
-            {!profile?.documents?.length ? (
-              <p className="text-sm text-gray-500 m-0 col-span-full">
-                No documents uploaded.
-              </p>
-            ) : (
-              <div className="col-span-full">
-                <div className="overflow-x-auto rounded-md border border-slate-200">
-                  <table className="w-full border-collapse min-w-[280px] text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                        <th className="px-3 py-2 font-medium">Document</th>
-                        <th className="px-3 py-2 font-medium">File</th>
-                        <th className="px-3 py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium text-right">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {profile.documents.map((doc) => (
-                        <tr key={doc.id}>
-                          <td className="px-3 py-2 text-gray-900">
-                            {doc.documentType}
-                          </td>
-                          <td className="px-3 py-2 text-gray-600 truncate max-w-[200px]">
-                            {doc.originalFilename ?? "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${DOC_STATUS_CLASS[doc.status] ?? "bg-gray-100 text-gray-800"}`}
-                            >
-                              {doc.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              aria-label={`View ${doc.documentType}`}
-                              title="View"
-                              className={employeeViewIconBtnClass}
-                              onClick={() =>
-                                setPreviewDoc({
-                                  id: doc.id,
-                                  documentType: doc.documentType,
-                                  originalFilename:
-                                    doc.originalFilename ?? doc.documentType,
-                                  status: doc.status,
-                                })
-                              }
-                            >
-                              <Eye className={employeeIconMd} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-slate-500 mt-2 m-0">
-                  Documents are view-only on this page.
-                </p>
-              </div>
-            )}
+        {hasRejected && !isSubmitted && (
+          <div className={`col-span-full ${onboardingStatusBannerWarningClass}`}>
+            A document was rejected. Update documents and submit again before
+            continuing review.
+          </div>
+        )}
+        {!profile?.documents?.length ? (
+          <p className="text-sm text-gray-500 m-0 col-span-full">
+            No documents uploaded.
+          </p>
+        ) : (
+          <div className="col-span-full">
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full border-collapse min-w-[280px] text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2 font-medium">Document</th>
+                    <th className="px-3 py-2 font-medium">File</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {profile.documents.map((doc) => (
+                    <tr key={doc.id}>
+                      <td className="px-3 py-2 text-gray-900">
+                        <p className="m-0">{doc.documentType}</p>
+                        {doc.status === "Rejected" && doc.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1 m-0">
+                            {doc.rejectionReason}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 truncate max-w-[200px]">
+                        {doc.originalFilename ?? "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${DOC_STATUS_CLASS[doc.status] ?? "bg-gray-100 text-gray-800"}`}
+                        >
+                          {doc.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            aria-label={`View ${doc.documentType}`}
+                            title="View"
+                            className={employeeViewIconBtnClass}
+                            onClick={() => setPreviewDoc(toPreviewDoc(doc))}
+                          >
+                            <Eye className={employeeIconMd} />
+                          </button>
+                          {showReviewActions && doc.status === "Uploaded" && (
+                            <>
+                              <button
+                                type="button"
+                                aria-label={`Approve ${doc.documentType}`}
+                                title="Approve"
+                                disabled={!!busy}
+                                className={employeeViewIconBtnClass}
+                                onClick={() =>
+                                  void runAction(`v-${doc.id}`, () =>
+                                    verifyDocument(doc.id),
+                                  )
+                                }
+                              >
+                                <CheckCircle2 className={employeeIconMd} />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Reject ${doc.documentType}`}
+                                title="Reject"
+                                disabled={!!busy}
+                                className={denyIconBtnClass}
+                                onClick={() => setRejectDoc(toPreviewDoc(doc))}
+                              >
+                                <XCircle className={employeeIconMd} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500 mt-2 m-0">
+              {showReviewActions
+                ? "Approve or reject documents awaiting verification."
+                : "Documents are view-only on this page."}
+            </p>
+          </div>
+        )}
       </EmployeeFormSection>
 
       <OnboardingBankForm
@@ -207,40 +296,40 @@ const EmployeeOnboardingProfileEdit = forwardRef<
       {profile?.professional && profile.professional.length > 0 ? (
         <div className="col-span-full">
           <EmployeeFormSection compact title="Professional experience">
-              <div className="col-span-full overflow-x-auto rounded-md border border-slate-200">
-                <table className="w-full border-collapse min-w-[480px] text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2 font-medium">Company</th>
-                      <th className="px-3 py-2 font-medium">Designation</th>
-                      <th className="px-3 py-2 font-medium">From</th>
-                      <th className="px-3 py-2 font-medium">To</th>
+            <div className="col-span-full overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full border-collapse min-w-[480px] text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-3 py-2 font-medium">Company</th>
+                    <th className="px-3 py-2 font-medium">Designation</th>
+                    <th className="px-3 py-2 font-medium">From</th>
+                    <th className="px-3 py-2 font-medium">To</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {profile.professional.map((row) => (
+                    <tr key={row.id}>
+                      <td className="px-3 py-2 text-gray-900">
+                        {row.companyName}
+                      </td>
+                      <td className="px-3 py-2 text-gray-800">
+                        {row.designation}
+                      </td>
+                      <td className="px-3 py-2 text-gray-800">
+                        {row.fromDate}
+                      </td>
+                      <td className="px-3 py-2 text-gray-800">
+                        {row.isCurrent ? "Present" : (row.toDate ?? "—")}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {profile.professional.map((row) => (
-                      <tr key={row.id}>
-                        <td className="px-3 py-2 text-gray-900">
-                          {row.companyName}
-                        </td>
-                        <td className="px-3 py-2 text-gray-800">
-                          {row.designation}
-                        </td>
-                        <td className="px-3 py-2 text-gray-800">
-                          {row.fromDate}
-                        </td>
-                        <td className="px-3 py-2 text-gray-800">
-                          {row.isCurrent ? "Present" : (row.toDate ?? "—")}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-slate-500 m-0 col-span-full">
-                Professional experience is view-only here.
-              </p>
-            </EmployeeFormSection>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500 m-0 col-span-full">
+              Professional experience is view-only here.
+            </p>
+          </EmployeeFormSection>
         </div>
       ) : null}
     </>
@@ -264,6 +353,13 @@ const EmployeeOnboardingProfileEdit = forwardRef<
         document={previewDoc}
         onClose={() => setPreviewDoc(null)}
         open={previewDoc != null}
+      />
+
+      <RejectDocumentDialog
+        open={rejectDoc !== null}
+        document={rejectDoc}
+        onClose={() => setRejectDoc(null)}
+        onRejected={handleRejected}
       />
     </>
   );

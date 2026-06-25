@@ -17,7 +17,9 @@ import {
   onboardingStatusVerifiedClass,
 } from "../constants/onboarding-theme";
 import {
-  ONBOARDING_DOCUMENT_SECTIONS,
+  getOnboardingDocumentSections,
+  hasRejectedOnboardingDocuments,
+  type AcademicQualificationRef,
   type OnboardingDocumentType,
 } from "../constants/documents";
 
@@ -28,10 +30,12 @@ interface DocRow {
   documentType: string;
   originalFilename?: string;
   status: DocStatus;
+  rejectionReason?: string | null;
 }
 
 interface Props {
   documents: DocRow[];
+  academic?: AcademicQualificationRef[];
   onUploaded: () => void;
   onUpload?: (documentType: OnboardingDocumentType, file: File) => Promise<void>;
   onDelete?: (documentId: string, documentType: string) => Promise<void>;
@@ -49,8 +53,12 @@ const FILE_ACCEPT =
 const MAX_UPLOAD_MB = 3;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 
+const rejectedCardClass =
+  "flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-md border border-red-200 bg-red-50/40";
+
 export default function OnboardingDocumentUpload({
   documents,
+  academic = [],
   onUploaded,
   onUpload,
   onDelete,
@@ -59,6 +67,8 @@ export default function OnboardingDocumentUpload({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const hasRejected = hasRejectedOnboardingDocuments(documents);
 
   function findDocument(docType: string) {
     return documents.find((d) => d.documentType === docType);
@@ -114,14 +124,26 @@ export default function OnboardingDocumentUpload({
     }
   }
 
+  const sections = getOnboardingDocumentSections(academic);
+
   return (
     <div className="space-y-8">
+      {hasRejected && (
+        <p
+          className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 m-0"
+          role="alert"
+        >
+          One or more documents were rejected by HR. Please upload corrected
+          files before resubmitting.
+        </p>
+      )}
+
       <p className="text-sm text-gray-600 m-0">
         Upload PDF or image files (max 3 MB each). Images are compressed
         automatically before upload.
       </p>
 
-      {ONBOARDING_DOCUMENT_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <section key={section.id} className="space-y-3">
           <div>
             <h2 className="text-base font-semibold text-gray-900 m-0">
@@ -142,22 +164,29 @@ export default function OnboardingDocumentUpload({
               const row = findDocument(docType);
               const status: DocStatus = row?.status ?? "Pending";
               const uploaded = !!row?.id;
+              const isRejected = status === "Rejected";
               const busy = uploading === docType || deleting === row?.id;
 
               return (
-                <div key={docType} className={onboardingDocCardClass}>
+                <div
+                  key={docType}
+                  className={isRejected ? rejectedCardClass : onboardingDocCardClass}
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 m-0">
                       {docType}
                     </p>
-                    <span
-                      className={`${STATUS_CLASS[uploaded ? "Uploaded" : status]} mt-1`}
-                    >
-                      {uploaded ? "Uploaded" : status}
+                    <span className={STATUS_CLASS[uploaded ? status : "Pending"]}>
+                      {uploaded ? status : "Pending"}
                     </span>
                     {row?.originalFilename ? (
                       <p className="text-xs text-gray-500 mt-1 m-0 truncate">
                         {row.originalFilename}
+                      </p>
+                    ) : null}
+                    {isRejected && row?.rejectionReason ? (
+                      <p className="text-xs text-red-600 mt-1 m-0">
+                        {row.rejectionReason}
                       </p>
                     ) : null}
                   </div>
@@ -178,7 +207,11 @@ export default function OnboardingDocumentUpload({
                       type="button"
                       disabled={busy}
                       onClick={() => inputRefs.current[docType]?.click()}
-                      className={onboardingBtnOutlineClass}
+                      className={
+                        isRejected
+                          ? onboardingBtnDestructiveClass
+                          : onboardingBtnOutlineClass
+                      }
                     >
                       <Upload size={16} />
                       {uploading === docType
@@ -187,7 +220,7 @@ export default function OnboardingDocumentUpload({
                           ? "Replace"
                           : "Upload"}
                     </button>
-                    {uploaded && row?.id ? (
+                    {uploaded && row?.id && !isRejected ? (
                       <button
                         type="button"
                         disabled={busy}

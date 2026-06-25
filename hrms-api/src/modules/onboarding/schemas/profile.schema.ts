@@ -5,7 +5,7 @@ import {
   INSTITUTION_ALPHA_ONLY_MESSAGE,
   isAlphaOnlyBoardUniversity,
   isAlphaOnlyInstitution,
-  isValidGradeOrPercentage,
+  isValidNumericGrade,
 } from "@/lib/academic-field-validation";
 import {
   indianAadhaarSchema,
@@ -16,8 +16,15 @@ import {
   indianPanSchema,
   indianUanSchema,
 } from "@/lib/india-validation";
-import { MAX_ACADEMIC_RECORDS } from "@/modules/onboarding/constants/academic";
+import {
+  MAX_ACADEMIC_RECORDS,
+  QUAL_CLASS_10,
+  QUAL_CLASS_12,
+} from "@/modules/onboarding/constants/academic";
 import { MARITAL_STATUS_OPTIONS } from "@/modules/onboarding/constants/personal";
+import { BLOOD_GROUP_VALUES } from "@/modules/onboarding/constants/blood-groups";
+
+const CURRENT_PASSING_YEAR = new Date().getFullYear();
 
 export const academicDetailSchema = z
   .object({
@@ -26,8 +33,8 @@ export const academicDetailSchema = z
     institution: z.string().trim().min(1).max(200),
     boardUniversity: z.string().trim().max(200).optional().nullable(),
     fieldOfStudy: z.string().trim().max(100).optional().nullable(),
-    yearFrom: z.number().int().min(1950).max(2100).optional().nullable(),
-    yearTo: z.number().int().min(1950).max(2100).optional().nullable(),
+    yearFrom: z.number().int().min(1950).max(CURRENT_PASSING_YEAR).optional().nullable(),
+    yearTo: z.number().int().min(1950).max(CURRENT_PASSING_YEAR).optional().nullable(),
     gradeOrPercentage: z.string().trim().max(20).optional().nullable(),
   })
   .superRefine((row, ctx) => {
@@ -70,11 +77,11 @@ export const academicDetailSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["gradeOrPercentage"],
-        message: "Grade / % is required.",
+        message: "Grade is required.",
       });
     }
 
-    if (!isValidGradeOrPercentage(row.gradeOrPercentage ?? "")) {
+    if (!isValidNumericGrade(row.gradeOrPercentage ?? "")) {
       ctx.addIssue({
         code: "custom",
         path: ["gradeOrPercentage"],
@@ -123,15 +130,23 @@ export const identitySchema = z.object({
 
 export const personalSchema = z
   .object({
-    currentAddress: z.string().trim().min(1).max(5000),
-    permanentAddress: z.string().trim().min(1).max(5000),
+    currentAddress: z.string().trim().min(1).max(200),
+    permanentAddress: z.string().trim().min(1).max(200),
     emergencyContactName: z.string().trim().min(1).max(200),
     emergencyContactPhone: indianMobileSchema,
     maritalStatus: z.enum(MARITAL_STATUS_OPTIONS),
     spouseName: z.string().trim().max(200).optional().nullable(),
     fatherName: z.string().trim().max(200).optional().nullable(),
     motherName: z.string().trim().max(200).optional().nullable(),
-    bloodGroup: z.string().trim().max(5).optional().nullable(),
+    bloodGroup: z
+      .string()
+      .trim()
+      .max(5)
+      .optional()
+      .nullable()
+      .refine((value) => !value || BLOOD_GROUP_VALUES.includes(value), {
+        message: "Select a valid blood group.",
+      }),
     nationality: z.string().trim().max(50).optional(),
   })
   .superRefine((data, ctx) => {
@@ -153,8 +168,93 @@ export const upsertProfileSchema = z.object({
   personalEmail: z.string().trim().email().max(255).optional(),
   personal: personalSchema,
   identity: identitySchema,
-  academic: z.array(academicDetailSchema).max(MAX_ACADEMIC_RECORDS).default([]),
-  professional: z.array(professionalDetailSchema).default([]),
+  academic: z
+    .array(academicDetailSchema)
+    .max(MAX_ACADEMIC_RECORDS)
+    .default([])
+    .superRefine((rows, ctx) => {
+      const isClass10 = (q: string) =>
+        q === QUAL_CLASS_10 || /^Class 10\b/.test(q);
+      const isClass12 = (q: string) =>
+        q === QUAL_CLASS_12 || /^Class 12\b/.test(q);
+
+      const class10Count = rows.filter((r) =>
+        isClass10(r.qualification.trim()),
+      ).length;
+      const class12Count = rows.filter((r) =>
+        isClass12(r.qualification.trim()),
+      ).length;
+
+      if (class10Count > 1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Only one Class 10 record is allowed.",
+        });
+      }
+      if (class12Count > 1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Only one Class 12 record is allowed.",
+        });
+      }
+
+      const class10Index = rows.findIndex((r) =>
+        isClass10(r.qualification.trim()),
+      );
+      const class12Index = rows.findIndex((r) =>
+        isClass12(r.qualification.trim()),
+      );
+      if (class10Index === -1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Class 10 details are required.",
+        });
+      }
+      if (class12Index === -1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Class 12 details are required.",
+        });
+      }
+      if (class10Index === -1 || class12Index === -1) return;
+
+      const class10Year = rows[class10Index]?.yearTo;
+      const class12Year = rows[class12Index]?.yearTo;
+      if (class10Year == null || class12Year == null) return;
+
+      if (class12Year < class10Year + 2) {
+        ctx.addIssue({
+          code: "custom",
+          path: [class12Index, "yearTo"],
+          message:
+            class12Year < class10Year
+              ? "Class 12 passing year cannot be before Class 10."
+              : "Class 12 passing year must be at least 2 years after Class 10.",
+        });
+      }
+    }),
+  professional: z
+    .array(professionalDetailSchema)
+    .max(1, "Only one previous company record is allowed.")
+    .default([])
+    .superRefine((rows, ctx) => {
+      if (rows.length !== 1) return;
+      const row = rows[0];
+      if (!row.toDate) {
+        ctx.addIssue({
+          code: "custom",
+          path: [0, "toDate"],
+          message: "End date is required.",
+        });
+      }
+      if (row.toDate && row.fromDate && row.toDate < row.fromDate) {
+        ctx.addIssue({
+          code: "custom",
+          path: [0, "toDate"],
+          message: "End date cannot be before start date.",
+        });
+      }
+    }),
   bank: z.array(bankDetailSchema).optional(),
 });
 

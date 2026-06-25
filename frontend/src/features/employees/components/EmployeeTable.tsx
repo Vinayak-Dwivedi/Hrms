@@ -1,11 +1,12 @@
 ﻿"use client";
 
-import { ClipboardList, Eye, Pencil } from "lucide-react";
+import { Ban, CheckCircle2, ClipboardList, Eye, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   formatEmployeeDisplayName,
   formatOnboardingStatus,
+  setEmployeeStatus,
   type EmployeeListItem,
   type EmployeeStatus,
 } from "../api/employees.client";
@@ -35,6 +36,8 @@ interface Props {
   departmentNames: Map<number, string>;
   designationNames: Map<number, string>;
   showOnboardingAction?: boolean;
+  canEditEmployees?: boolean;
+  onStatusChanged?: () => void | Promise<void>;
   pagination?: EmployeeTablePagination;
 }
 
@@ -63,9 +66,12 @@ export default function EmployeeTable({
   departmentNames,
   designationNames,
   showOnboardingAction = false,
+  canEditEmployees = false,
+  onStatusChanged,
   pagination,
 }: Props) {
   const [internalPage, setInternalPage] = useState(1);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
 
   const pageSize = pagination?.pageSize ?? PAGE_SIZE;
   const totalCount = pagination?.totalCount ?? employees.length;
@@ -84,6 +90,38 @@ export default function EmployeeTable({
   const rangeEnd = pagination
     ? Math.min(start + pageRows.length, totalCount)
     : Math.min(start + pageSize, employees.length);
+
+  async function handleToggleEmployeeStatus(emp: EmployeeListItem) {
+    if (emp.employeeStatus === "Exited") return;
+
+    const nextStatus: "Active" | "Inactive" =
+      emp.employeeStatus === "Inactive" ? "Active" : "Inactive";
+    const displayName = formatEmployeeDisplayName(emp);
+
+    if (nextStatus === "Inactive") {
+      if (
+        !window.confirm(
+          `Mark ${displayName} as inactive? They will no longer be able to sign in.`,
+        )
+      ) {
+        return;
+      }
+    } else if (
+      !window.confirm(`Reactivate ${displayName}? They will be able to sign in again.`)
+    ) {
+      return;
+    }
+
+    setStatusUpdatingId(emp.id);
+    try {
+      await setEmployeeStatus(emp.id, nextStatus);
+      await onStatusChanged?.();
+    } catch (e) {
+      window.alert((e as Error).message ?? "Could not update employee status.");
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  }
 
   return (
     <div className={`${employeeCardClass} overflow-hidden`}>
@@ -196,6 +234,35 @@ export default function EmployeeTable({
                         >
                           <ClipboardList className={employeeIconSm} />
                         </Link>
+                      )}
+                      {canEditEmployees && emp.employeeStatus !== "Exited" && (
+                        <button
+                          aria-label={
+                            emp.employeeStatus === "Inactive"
+                              ? `Activate ${emp.firstName} ${emp.lastName}`
+                              : `Mark ${emp.firstName} ${emp.lastName} inactive`
+                          }
+                          className={cn(
+                            "bg-transparent border-0 cursor-pointer p-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
+                            emp.employeeStatus === "Inactive"
+                              ? "text-emerald-600 hover:text-emerald-800"
+                              : "text-amber-600 hover:text-amber-800",
+                          )}
+                          disabled={statusUpdatingId === emp.id}
+                          onClick={() => void handleToggleEmployeeStatus(emp)}
+                          title={
+                            emp.employeeStatus === "Inactive"
+                              ? "Activate"
+                              : "Mark inactive"
+                          }
+                          type="button"
+                        >
+                          {emp.employeeStatus === "Inactive" ? (
+                            <CheckCircle2 className={employeeIconSm} />
+                          ) : (
+                            <Ban className={employeeIconSm} />
+                          )}
+                        </button>
                       )}
                     </div>
                   </td>

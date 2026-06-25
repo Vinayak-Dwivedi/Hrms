@@ -12,8 +12,6 @@ import {
   employeeErrorBannerClass,
   employeeLoadingClass,
 } from "../employee-theme";
-import { hasOnboardingPanelAccess } from "./OnboardingAdminPanel";
-import { useAuth } from "@/lib/auth-context";
 import {
   fetchBranches,
   fetchEmployeeById,
@@ -31,9 +29,6 @@ interface Props {
 }
 
 export default function ViewEmployeePageContent({ employeeId }: Props) {
-  const { hasAnyPermission } = useAuth();
-  const showOnboardingLink = hasOnboardingPanelAccess(hasAnyPermission);
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
@@ -120,16 +115,6 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
         <Link className={employeeBtnOutlineSmClass} href="/employees">
           ← Back to employees
         </Link>
-        {showOnboardingLink &&
-          employee &&
-          !isOnboardingCompleted(employee) && (
-            <Link
-              className={employeeBtnOutlineSmClass}
-              href={`/employees/${employeeId}/onboarding`}
-            >
-              Manage onboarding
-            </Link>
-          )}
       </div>
 
       {loading && <div className={employeeLoadingClass}>Loading employee…</div>}
@@ -149,11 +134,6 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
             managerLabel={managerLabel}
             orgLookups={orgLookups}
             systemAccessRoleLabel={systemAccessRoleLabel}
-            onboardingHref={
-              showOnboardingLink && !isOnboardingCompleted(employee)
-                ? `/employees/${employee.id}/onboarding`
-                : undefined
-            }
             onResendInvitation={
               !isOnboardingCompleted(employee)
                 ? () => void handleResendInvitation()

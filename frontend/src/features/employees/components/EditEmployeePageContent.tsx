@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import EditEmployeeForm from "./EditEmployeeForm";
 import {
   employeeBtnOutlineSmClass,
@@ -24,27 +24,28 @@ export default function EditEmployeePageContent({ employeeId }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-
-    (async () => {
-      try {
-        const emp = await fetchEmployeeById(employeeId);
-        if (cancelled) return;
-        setEmployee(emp);
-      } catch (e) {
-        if (!cancelled) setLoadError((e as Error).message);
-      } finally {
-        if (!cancelled) setLoading(false);
+  const loadEmployee = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
+    try {
+      const emp = await fetchEmployeeById(employeeId);
+      setEmployee(emp);
+    } catch (e) {
+      if (!options?.silent) {
+        setLoadError((e as Error).message);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      if (!options?.silent) {
+        setLoading(false);
+      }
+    }
   }, [employeeId]);
+
+  useEffect(() => {
+    void loadEmployee();
+  }, [loadEmployee]);
 
   return (
     <>
@@ -61,6 +62,7 @@ export default function EditEmployeePageContent({ employeeId }: Props) {
       {!loading && !loadError && employee && (
         <EditEmployeeForm
           employee={employee}
+          onRefreshEmployee={() => loadEmployee({ silent: true })}
           onSuccess={() => router.push("/employees")}
         />
       )}

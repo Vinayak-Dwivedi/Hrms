@@ -25,7 +25,10 @@ import { employeeListQuerySchema } from "@/modules/hr-onboarding/schemas/employe
 import * as employeeAdmin from "@/modules/hr-onboarding/services/employee-admin.service";
 import * as invitationService from "@/modules/hr-onboarding/services/invitation.service";
 import { ONBOARDING_PERMISSIONS } from "@/modules/hr-onboarding/constants/permissions";
-import { requirePermission } from "@/middleware/require-permission";
+import {
+  clearPermissionCache,
+  requirePermission,
+} from "@/middleware/require-permission";
 import { ApiError } from "@/middleware/error";
 import {
   assertValidReportingManagerAssignment,
@@ -196,6 +199,84 @@ const updateEmployeeSchema = z
       });
     }
   });
+
+const updateEmployeeStatusSchema = z.object({
+  employeeStatus: z.enum(["Active", "Inactive"]),
+});
+
+employeesRouter.patch("/:id/status", editEmployees, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    }
+
+    const { employeeStatus } = updateEmployeeStatusSchema.parse(req.body);
+
+    const [existing] = await db
+      .select({
+        id: employees.id,
+        employeeStatus: employees.employeeStatus,
+      })
+      .from(employees)
+      .where(eq(employees.id, id))
+      .limit(1);
+
+    if (!existing) {
+      throw new ApiError(404, "NOT_FOUND", "Employee not found.");
+    }
+
+    if (existing.employeeStatus === "Exited") {
+      throw new ApiError(
+        400,
+        "EMPLOYEE_EXITED",
+        "Exited employees cannot be reactivated from the employee list.",
+      );
+    }
+
+    if (existing.employeeStatus === employeeStatus) {
+      const detail = await employeeAdmin.getEmployeeDetail(id);
+      res.json({
+        data: stripSensitiveEmployeeFields(detail as Record<string, unknown>),
+      });
+      return;
+    }
+
+    const now = new Date();
+    await db
+      .update(employees)
+      .set({ employeeStatus, updatedAt: now })
+      .where(eq(employees.id, id));
+
+    writeAuditLogAsync(
+      {
+        actorUserId: req.user?.id,
+        action:
+          employeeStatus === "Inactive"
+            ? "EMPLOYEE_DEACTIVATED"
+            : "EMPLOYEE_ACTIVATED",
+        entityType: "employee",
+        entityId: String(id),
+        metadata: {
+          previousStatus: existing.employeeStatus,
+          employeeStatus,
+        },
+      },
+      req.auditContext,
+    );
+
+    const detail = await employeeAdmin.getEmployeeDetail(id);
+    res.json({
+      data: stripSensitiveEmployeeFields(detail as Record<string, unknown>),
+    });
+  } catch (e) {
+    if (e instanceof ApiError || e instanceof z.ZodError) {
+      next(e);
+      return;
+    }
+    next(mapDbErrorToApiError(e));
+  }
+});
 
 employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
   try {
@@ -384,6 +465,10 @@ employeesRouter.patch("/:id", editEmployees, async (req, res, next) => {
         }
       }
     });
+
+    if (roleId !== undefined) {
+      clearPermissionCache();
+    }
 
     const detail = await employeeAdmin.getEmployeeDetail(id);
     res.json({
@@ -737,6 +822,7 @@ employeesRouter.post("/create", createEmployees, async (req, res, next) => {
       },
       req.auditContext,
     );
+    clearPermissionCache();
     const fresh = await employeeAdmin.getEmployeeAdminById(result.employee.id);
     res.status(201).json({
       data: stripSensitiveEmployeeFields(

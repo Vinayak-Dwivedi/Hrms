@@ -94,7 +94,6 @@ export default function OrgHierarchyPage({
   }
 
   async function handleDeleteStructure(structureId: number) {
-    if (!window.confirm("Delete this hierarchy mapping?")) return;
     try {
       await deleteOrgStructure(structureId);
       toast.success("Mapping deleted.");
