@@ -24,6 +24,16 @@ import { cn } from "@/lib/utils";
 
 type Branch = { id: number; name: string };
 
+// Only return roots that belong to the given location (or have no location assigned).
+// If locationId is null, return all roots.
+function rootsForLocation(
+  locationId: number | null,
+  roots: EmployeeReportingNode[],
+): EmployeeReportingNode[] {
+  if (locationId == null) return roots;
+  return roots.filter((r) => r.branchId == null || r.branchId === locationId);
+}
+
 type Props = {
   tree: EmployeeReportingTreeDepartment[];
   branches?: Branch[];
@@ -219,11 +229,12 @@ export default function EmployeeHierarchyView({
       id: "departments",
       title: "Department",
       nodes: deptsInLocation.map((dept) => {
-        // Head = first root across all sub-departments.
+        // Head = most senior root in the selected location across all sub-departments.
         let headName: string | undefined;
         for (const sub of dept.subDepartments) {
-          if (sub.roots.length > 0) {
-            headName = sub.roots[0]!.name;
+          const locRoots = rootsForLocation(path.locationId, sub.roots);
+          if (locRoots.length > 0) {
+            headName = locRoots[0]!.name;
             break;
           }
         }
@@ -259,7 +270,7 @@ export default function EmployeeHierarchyView({
         id: `sub-${sub.id}`,
         kind: "subDepartment" as const,
         title: sub.name,
-        subtitle: sub.roots[0]?.name,
+        subtitle: rootsForLocation(path.locationId, sub.roots)[0]?.name,
         count: sub.roots.reduce(
           (n, r) => n + 1 + r.directReports.length,
           0,

@@ -13,6 +13,7 @@ export type EmployeeReportingNode = {
   levelName: string | null;
   levelSortOrder: number | null;
   profilePhotoUrl: string | null;
+  branchId: number | null;
   directReports: EmployeeReportingNode[];
 };
 
@@ -63,6 +64,7 @@ function buildSubtree(
     levelName: emp.levelName,
     levelSortOrder: emp.levelSortOrder,
     profilePhotoUrl: emp.profilePhotoUrl,
+    branchId: emp.branchId,
     directReports: sortNodes(children),
   };
 }

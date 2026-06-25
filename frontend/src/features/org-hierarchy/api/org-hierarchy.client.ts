@@ -60,6 +60,7 @@ export type HierarchyTreeRole = {
   designation: string;
   levelId: number;
   level: string;
+  levelSortOrder: number;
 };
 
 export type HierarchyTreeSubDepartment = {
@@ -84,6 +85,7 @@ export type EmployeeReportingNode = {
   levelName: string | null;
   levelSortOrder: number | null;
   profilePhotoUrl: string | null;
+  branchId: number | null;
   directReports: EmployeeReportingNode[];
 };
 

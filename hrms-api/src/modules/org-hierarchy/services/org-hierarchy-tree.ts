@@ -6,6 +6,7 @@ export type HierarchyTreeRole = {
   designation: string;
   levelId: number;
   level: string;
+  levelSortOrder: number;
 };
 
 export type HierarchyTreeSubDepartment = {
@@ -83,11 +84,19 @@ export function buildHierarchyTree(
       designation: row.designationName,
       levelId: row.levelId,
       level: row.levelCode,
+      levelSortOrder: row.levelSortOrder,
     });
   }
 
   for (const dept of deptMap.values()) {
     dept.subDepartments.sort((a, b) => a.name.localeCompare(b.name));
+    for (const sub of dept.subDepartments) {
+      sub.roles.sort((a, b) => {
+        const diff = a.levelSortOrder - b.levelSortOrder;
+        if (diff !== 0) return diff;
+        return a.designation.localeCompare(b.designation);
+      });
+    }
   }
 
   return Array.from(deptMap.values()).sort((a, b) =>
