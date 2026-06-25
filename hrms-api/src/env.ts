@@ -98,6 +98,21 @@ const schema = z.object({
     .optional()
     .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
 
+  // ── AWS S3 ────────────────────────────────────────────────────────────────
+  AWS_ACCESS_KEY_ID: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  AWS_SECRET_ACCESS_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  AWS_S3_BUCKET: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
+  AWS_REGION: z.string().default("ap-south-1"),
+
   UPLOAD_DIR: z.string().default("./uploads"),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(10_485_760),
   UPLOAD_ALLOWED_MIME_TYPES: z

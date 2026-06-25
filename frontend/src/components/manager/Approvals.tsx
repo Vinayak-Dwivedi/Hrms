@@ -38,6 +38,8 @@ import {
   rejectLeaveRequest,
   rejectRegRequest,
 } from "@/lib/hrms-client";
+import { listManagerResignations } from "@/features/offboarding/api/offboarding.client";
+import { listCompOffApprovals } from "@/features/comp-off/api/comp-off.client";
 import { cn } from "@/lib/utils";
 
 const AVATAR_PALETTE = [
@@ -543,7 +545,7 @@ function SortHeader<K extends string>({
                   <ChevronsUpDown
                     size={13}
                     style={{
-                      color: active ? "#dc143c" : "#cbd5e1",
+                      color: active ? "lab(36.9089% 35.0961 -85.6872)" : "#cbd5e1",
                       transform:
                         active && sort?.dir === "asc"
                           ? "rotate(180deg)"
@@ -1288,9 +1290,9 @@ function Pagination({
               style={{
                 width: 34,
                 height: 34,
-                border: active ? "1.5px solid #dc143c" : "1px solid #e5e7eb",
+                border: active ? "1.5px solid lab(36.9089% 35.0961 -85.6872)" : "1px solid #e5e7eb",
                 background: "#fff",
-                color: active ? "#dc143c" : "#6b7280",
+                color: active ? "lab(36.9089% 35.0961 -85.6872)" : "#6b7280",
                 fontWeight: active ? 700 : 500,
                 fontSize: 13,
                 cursor: "pointer",
@@ -1385,9 +1387,9 @@ function SubTabs<K extends string>({
           onClick={() => onSelect(t.key)}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors"
           style={{
-            color: active === t.key ? "#dc143c" : "#6b7280",
+            color: active === t.key ? "lab(36.9089% 35.0961 -85.6872)" : "#6b7280",
             borderBottom:
-              active === t.key ? "2px solid #dc143c" : "2px solid transparent",
+              active === t.key ? "2px solid lab(36.9089% 35.0961 -85.6872)" : "2px solid transparent",
           }}
         >
           {t.label}
@@ -1488,6 +1490,11 @@ export default function Approvals() {
   const [resignPage, setResignPage] = useState(1);
   const [resignRowsPerPage, setResignRowsPerPage] = useState(10);
 
+  // ── Tab badge counts fetched independently ──
+  const [resignPendingCount, setResignPendingCount] = useState(0);
+  const [discussionPendingCount, setDiscussionPendingCount] = useState(0);
+  const [compOffPendingCount, setCompOffPendingCount] = useState(0);
+
   async function refreshLeaves() {
     setLeaveLoading(true);
     try {
@@ -1515,6 +1522,19 @@ export default function Approvals() {
   useEffect(() => {
     refreshLeaves();
     refreshRegs();
+    listManagerResignations()
+      .then((rows) => {
+        setResignPendingCount(
+          rows.filter((r) => r.status === "Submitted").length,
+        );
+        setDiscussionPendingCount(
+          rows.filter((r) => r.status === "ManagerDiscussion").length,
+        );
+      })
+      .catch(() => {});
+    listCompOffApprovals()
+      .then((rows) => setCompOffPendingCount(rows.length))
+      .catch(() => {});
   }, []);
 
   // ── Leave actions ──
@@ -1804,26 +1824,36 @@ export default function Approvals() {
       <div className="bg-white border-b" style={{ borderColor: "#e5e7eb" }}>
         <div className="flex">
           {[
-            { key: "leave" as MainTab, label: "Leave Approvals" },
-            { key: "regularisation" as MainTab, label: "Regularisation" },
-            { key: "resignation" as MainTab, label: "Resignation" },
-            { key: "discussion" as MainTab, label: "Discussion" },
-            { key: "compoff" as MainTab, label: "Comp-Off" },
+            { key: "leave" as MainTab, label: "Leave Approvals", count: leavePending },
+            { key: "regularisation" as MainTab, label: "Regularisation", count: regPending },
+            { key: "resignation" as MainTab, label: "Resignation", count: resignPendingCount },
+            { key: "discussion" as MainTab, label: "Discussion", count: discussionPendingCount },
+            { key: "compoff" as MainTab, label: "Comp-Off", count: compOffPendingCount },
           ].map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => setMainTab(t.key)}
-              className="px-6 py-4 text-sm font-semibold transition-colors"
+              className="px-6 py-4 text-sm font-semibold transition-colors flex items-center gap-2"
               style={{
-                color: mainTab === t.key ? "#dc143c" : "#6b7280",
+                color: mainTab === t.key ? "lab(36.9089% 35.0961 -85.6872)" : "#6b7280",
                 borderBottom:
                   mainTab === t.key
-                    ? "2px solid #dc143c"
+                    ? "2px solid lab(36.9089% 35.0961 -85.6872)"
                     : "2px solid transparent",
               }}
             >
               {t.label}
+              {t.count > 0 && (
+                <span
+                  className="inline-flex items-center justify-center rounded-full text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] text-white"
+                  style={{
+                    background: mainTab === t.key ? "lab(36.9089% 35.0961 -85.6872)" : "#9ca3af",
+                  }}
+                >
+                  {t.count}
+                </span>
+              )}
             </button>
           ))}
         </div>

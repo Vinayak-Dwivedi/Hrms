@@ -45,12 +45,11 @@ export default function CaseDocumentsDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function generate(item: CaseDocumentItem, print: boolean) {
+  async function generate(item: CaseDocumentItem) {
     setBusyId(item.templateId);
     try {
       const doc = await generateDocument(caseRow.id, item.templateId);
-      toast.success(`${item.name} generated.`);
-      if (print) printDocumentHtml(doc.name, doc.renderedHtml);
+      toast.success(`${doc.name} generated successfully.`);
       await load();
       onChanged?.();
     } catch (e) {
@@ -131,7 +130,7 @@ export default function CaseDocumentsDialog({
                             <button
                               type="button"
                               disabled={busy}
-                              onClick={() => generate(item, true)}
+                              onClick={() => generate(item)}
                               className="px-3 py-1.5 bg-[lab(36.9089%_35.0961_-85.6872)] hover:bg-[lab(30%_38_-90)] text-white text-[12px] font-semibold rounded-lg transition-colors disabled:opacity-60"
                             >
                               {busy ? "…" : "Generate"}
@@ -141,7 +140,7 @@ export default function CaseDocumentsDialog({
                               <IconBtn title="Print / Save PDF" disabled={busy} onClick={() => print(item)}>
                                 <Printer size={15} />
                               </IconBtn>
-                              <IconBtn title="Regenerate" disabled={busy} onClick={() => generate(item, false)}>
+                              <IconBtn title="Regenerate" disabled={busy} onClick={() => generate(item)}>
                                 <RefreshCw size={15} />
                               </IconBtn>
                               {item.document.status !== "Sent" && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, PlusCircle, Trash2 } from "lucide-react";
+import { Pencil, PlusCircle, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
@@ -78,17 +78,31 @@ export default function StructureMappingPanel({
   const [editId, setEditId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: number } | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredStructures = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return structures;
+    return structures.filter((row) => {
+      const dept = String(departments.find((d) => d.id === row.departmentId)?.name ?? "").toLowerCase();
+      const sub = String(allSubDepartments.find((s) => s.id === row.subDepartmentId)?.name ?? "").toLowerCase();
+      const desig = String(designations.find((d) => d.id === row.designationId)?.name ?? "").toLowerCase();
+      const level = String(levels.find((l) => l.id === row.levelId)?.code ?? "").toLowerCase();
+      return dept.includes(q) || sub.includes(q) || desig.includes(q) || level.includes(q);
+    });
+  }, [search, structures, departments, allSubDepartments, designations, levels]);
 
   const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(structures.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(filteredStructures.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * pageSize;
   const pageRows = useMemo(
-    () => structures.slice(start, start + pageSize),
-    [structures, start],
+    () => filteredStructures.slice(start, start + pageSize),
+    [filteredStructures, start],
   );
-  const rangeStart = structures.length === 0 ? 0 : start + 1;
-  const rangeEnd = Math.min(start + pageSize, structures.length);
+  const rangeStart = filteredStructures.length === 0 ? 0 : start + 1;
+  const rangeEnd = Math.min(start + pageSize, filteredStructures.length);
 
   async function reload() {
     try {
@@ -252,7 +266,6 @@ export default function StructureMappingPanel({
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Delete this hierarchy mapping?")) return;
     try {
       await deleteOrgStructure(id);
       toast.success("Mapping deleted.");
@@ -309,7 +322,17 @@ export default function StructureMappingPanel({
   return (
     <>
       <div className={`${employeeCardClass} p-5 mb-6`}>
-        <div className="flex items-center justify-end pt-2">
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search mappings…"
+              className={`${employeeInputClass} pl-9 w-52`}
+            />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+          </div>
           <button className={employeeBtnSmClass} onClick={openAdd} type="button">
             <PlusCircle className={employeeIconXs} />
             Add Mapping
@@ -367,7 +390,7 @@ export default function StructureMappingPanel({
                         <button
                           type="button"
                           className={employeeEditIconBtnClass}
-                          onClick={() => void handleDelete(row.id)}
+                          onClick={() => setConfirmDelete({ id: row.id })}
                           aria-label="Delete mapping"
                           title="Delete"
                         >
@@ -382,12 +405,12 @@ export default function StructureMappingPanel({
           </table>
         </div>
 
-        {structures.length > 0 && (
+        {filteredStructures.length > 0 && (
           <div className={employeeListTableFooterClass}>
             <p className={employeeListTableSummaryClass}>
               Showing <span className="font-medium">{rangeStart}</span> to{" "}
               <span className="font-medium">{rangeEnd}</span> of{" "}
-              <span className="font-medium">{structures.length}</span> results
+              <span className="font-medium">{filteredStructures.length}</span> results
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -426,6 +449,39 @@ export default function StructureMappingPanel({
           </div>
         )}
       </div>
+
+      <EmployeeModalShell
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete Confirmation"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete this mapping? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              className={employeeBtnOutlineSmClass}
+              onClick={() => setConfirmDelete(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-semibold rounded-lg hover:bg-rose-700 transition-colors"
+              onClick={() => {
+                if (confirmDelete) {
+                  void handleDelete(confirmDelete.id);
+                  setConfirmDelete(null);
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </EmployeeModalShell>
 
       <EmployeeModalShell
         open={modalOpen}

@@ -71,9 +71,16 @@ try {
       INSERT INTO grades (code, band_name) VALUES (${code}, ${name})
       ON CONFLICT (code) DO NOTHING
     `;
+    await sql`
+      INSERT INTO org_hierarchy_levels (code, name, sort_order)
+      VALUES (${code}, ${name}, ${code.startsWith("M") ? 10 + Number(code.slice(1)) : Number(code.slice(1))})
+      ON CONFLICT (code) DO NOTHING
+    `;
   }
   const grades = await sql`SELECT id, code FROM grades`;
   const gradeByCode = Object.fromEntries(grades.map((g) => [g.code, g]));
+  const levels = await sql`SELECT id, code FROM org_hierarchy_levels`;
+  const levelByCode = Object.fromEntries(levels.map((l) => [l.code, l]));
 
   await sql`
     INSERT INTO employment_types (name, notice_period_days, active_employee_count)
@@ -90,14 +97,14 @@ try {
     ["Team Leader", "M1", "M1", "TL"],
     ["Quality Analyst", "L2", "L2", "QA"],
   ];
-  for (const [name, gmin, gmax, code] of desigDefs) {
+  for (const [name, gmin, _gmax, code] of desigDefs) {
     await sql`
-      INSERT INTO designations (name, code, department_id, grade_min_id, grade_max_id, employee_count)
-      VALUES (${name}, ${code}, ${dept.id}, ${gradeByCode[gmin].id}, ${gradeByCode[gmax].id}, 1)
+      INSERT INTO org_hierarchy_designations (name, code, level_id, status)
+      VALUES (${name}, ${code}, ${levelByCode[gmin].id}, 'Active')
       ON CONFLICT (name) DO NOTHING
     `;
   }
-  const desigs = await sql`SELECT id, name FROM designations`;
+  const desigs = await sql`SELECT id, name FROM org_hierarchy_designations`;
   const desigByName = Object.fromEntries(desigs.map((d) => [d.name, d]));
 
   // Leave types

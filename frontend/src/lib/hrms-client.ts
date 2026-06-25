@@ -97,8 +97,12 @@ async function jsonFetch<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    redirectToLoginOn401(res);
-    throw await parseHrmsApiError(res);
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    const body = await res.json().catch(() => null) as { error?: { message?: string } } | null;
+    const friendly = body?.error?.message;
+    throw new Error(friendly ?? `Request failed (${res.status}).`);
   }
   return (await res.json()) as T;
 }
@@ -248,6 +252,7 @@ export async function fetchCurrentEmployee(): Promise<UIEmployee> {
     personalEmailVerified: me.personalEmailVerified ?? false,
     phone: me.phone,
     phoneVerified: me.phoneVerified ?? false,
+    reportingManagerName: me.reportingManager ?? null,
   };
 }
 
@@ -786,6 +791,7 @@ export async function fetchCurrentManager(): Promise<UIEmployee> {
     personalEmail: me.personalEmail,
     workEmail: me.workEmail,
     phone: me.phone,
+    reportingManagerName: me.reportingManager ?? null,
   };
 }
 

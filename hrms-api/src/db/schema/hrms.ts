@@ -1587,6 +1587,25 @@ export const attendanceUploads = pgTable(
   ],
 );
 
+export const biometricRawLogs = pgTable(
+  "biometric_raw_logs",
+  {
+    id: serial("id").primaryKey(),
+    deviceSn: varchar("device_sn", { length: 50 }).notNull(),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    rawUserId: varchar("raw_user_id", { length: 50 }).notNull(),
+    punchTime: timestamp("punch_time", { withTimezone: true }).notNull(),
+    punchType: smallint("punch_type").notNull().default(0),
+    verifyType: smallint("verify_type").default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_bio_raw_unique").on(table.deviceSn, table.rawUserId, table.punchTime),
+    index("idx_bio_raw_employee").on(table.employeeId),
+    index("idx_bio_raw_punch_time").on(table.punchTime),
+  ],
+);
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 4 — LEAVE
 // ───────────────────────────────────────────────────────────────────────────
@@ -2228,6 +2247,8 @@ export type Attendance = typeof attendance.$inferSelect;
 export type NewAttendance = typeof attendance.$inferInsert;
 export type AttendanceUpload = typeof attendanceUploads.$inferSelect;
 export type NewAttendanceUpload = typeof attendanceUploads.$inferInsert;
+export type BiometricRawLog = typeof biometricRawLogs.$inferSelect;
+export type NewBiometricRawLog = typeof biometricRawLogs.$inferInsert;
 export type LeaveType = typeof leaveTypes.$inferSelect;
 export type NewLeaveType = typeof leaveTypes.$inferInsert;
 export type LeaveBalance = typeof leaveBalances.$inferSelect;

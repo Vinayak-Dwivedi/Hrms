@@ -11,6 +11,7 @@ export interface Employee {
   personalEmailVerified?: boolean;
   phone?: string | null;
   phoneVerified?: boolean;
+  reportingManagerName?: string | null;
 }
 
 export interface AttendanceRecord {

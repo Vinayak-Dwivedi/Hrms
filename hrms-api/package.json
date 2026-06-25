@@ -49,6 +49,8 @@
     "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/auth-role.test.ts src/lib/employee-auth.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",

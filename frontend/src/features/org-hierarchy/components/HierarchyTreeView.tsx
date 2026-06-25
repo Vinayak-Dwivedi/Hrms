@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
 import type { HierarchyTreeDepartment } from "@/features/org-hierarchy/api/org-hierarchy.client";
 import {
+  employeeBtnOutlineSmClass,
   employeeCardClass,
   employeeEditIconBtnClass,
   employeeIconSm,
@@ -27,6 +30,10 @@ export default function HierarchyTreeView({
   onEditStructure,
   onDeleteStructure,
 }: Props) {
+  const [confirmDelete, setConfirmDelete] = useState<{
+    structureId: number;
+    designation: string;
+  } | null>(null);
   if (tree.length === 0) {
     return (
       <div className={`${employeeCardClass} overflow-hidden`}>
@@ -39,6 +46,7 @@ export default function HierarchyTreeView({
   }
 
   return (
+    <>
     <div className={`${employeeCardClass} p-5 md:p-6`}>
       <div className="space-y-1">
         {tree.map((dept) => (
@@ -92,7 +100,12 @@ export default function HierarchyTreeView({
                           <button
                             type="button"
                             className={employeeEditIconBtnClass}
-                            onClick={() => onDeleteStructure(role.structureId)}
+                            onClick={() =>
+                              setConfirmDelete({
+                                structureId: role.structureId,
+                                designation: role.designation,
+                              })
+                            }
                             aria-label="Delete mapping"
                             title="Delete"
                           >
@@ -119,5 +132,41 @@ export default function HierarchyTreeView({
         ))}
       </div>
     </div>
+
+      <EmployeeModalShell
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Delete Confirmation"
+      >
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to delete the mapping for{" "}
+            <strong className="text-gray-900">{confirmDelete?.designation}</strong>?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              className={employeeBtnOutlineSmClass}
+              onClick={() => setConfirmDelete(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600 text-white text-sm font-semibold rounded-lg hover:bg-rose-700 transition-colors"
+              onClick={() => {
+                if (confirmDelete) {
+                  onDeleteStructure(confirmDelete.structureId);
+                  setConfirmDelete(null);
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </EmployeeModalShell>
+    </>
   );
 }
