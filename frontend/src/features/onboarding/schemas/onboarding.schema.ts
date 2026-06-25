@@ -215,7 +215,7 @@ export const bankDetailSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
-const optionalUanSchema = z
+export const optionalUanSchema = z
   .string()
   .trim()
   .optional()
@@ -224,7 +224,7 @@ const optionalUanSchema = z
     message: "UAN must be exactly 12 digits.",
   });
 
-const optionalEsicSchema = z
+export const optionalEsicSchema = z
   .string()
   .trim()
   .optional()

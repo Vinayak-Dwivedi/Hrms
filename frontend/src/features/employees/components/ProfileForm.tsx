@@ -295,6 +295,7 @@ function EditableField({
   helper,
   maxLength,
   error,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -304,6 +305,7 @@ function EditableField({
   helper?: string;
   maxLength?: number;
   error?: string;
+  required?: boolean;
 }) {
   return (
     <div>
@@ -337,6 +339,8 @@ function EditableTextArea({
   placeholder,
   span2 = false,
   maxLength,
+  error,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -344,6 +348,8 @@ function EditableTextArea({
   placeholder?: string;
   span2?: boolean;
   maxLength?: number;
+  error?: string;
+  required?: boolean;
 }) {
   return (
     <div className={span2 ? FORM_GRID_FULL_ROW_CLASS : undefined}>
@@ -608,14 +614,21 @@ export default function ProfileForm() {
     setForm((prev) => {
       if (!prev) return prev;
       const index = prev.academics.findIndex((a) => a.id === id);
-      if (index >= 0) {
-        setFieldErrors((errors) => {
-          const next = { ...errors };
-          for (const key of Object.keys(patch)) {
-            delete next[`academics.${index}.${key}`];
-          }
-        : prev,
-    );
+      if (index < 0) return prev;
+      setFieldErrors((errors) => {
+        const next = { ...errors };
+        for (const key of Object.keys(patch)) {
+          delete next[`academics.${index}.${key}`];
+        }
+        return next;
+      });
+      return {
+        ...prev,
+        academics: prev.academics.map((a) =>
+          a.id === id ? { ...a, ...patch } : a,
+        ),
+      };
+    });
     setAcademicErrors((prev) => {
       const entry = { ...(prev[id] ?? {}) };
       if ("yearOfPassing" in patch) {
