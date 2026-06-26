@@ -46,9 +46,7 @@ const EXIT_TYPE_LABELS: Record<string, string> = {
 };
 
 const DIRECT_EXIT_TYPES: DirectExitType[] = [
-  "Resigned",
   "ResignedWithoutNotice",
-  "ResignedWithPartialNotice",
   "Absconding",
   "Terminated",
 ];
@@ -283,9 +281,8 @@ function DirectExitDialog({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [exitType, setExitType] = useState<DirectExitType>("Resigned");
+  const [exitType, setExitType] = useState<DirectExitType>("ResignedWithoutNotice");
   const [lwd, setLwd] = useState("");
-  const [effectiveDate, setEffectiveDate] = useState("");
   const [noticeDays, setNoticeDays] = useState("");
   const [servedDays, setServedDays] = useState("");
   const [accessTiming, setAccessTiming] = useState<"Immediate" | "OnLWD">("OnLWD");
@@ -300,9 +297,9 @@ function DirectExitDialog({
       const result = await hrDirectExit(employeeId, {
         exitType,
         lastWorkingDate: lwd,
-        effectiveDate: effectiveDate || lwd,
-        noticeRequiredDays: noticeDays ? Number(noticeDays) : null,
-        noticeServedDays: servedDays ? Number(servedDays) : null,
+        effectiveDate: lwd,
+        noticeRequiredDays: exitType === "Terminated" && noticeDays ? Number(noticeDays) : null,
+        noticeServedDays: exitType === "Terminated" && servedDays ? Number(servedDays) : null,
         terminationReasonCode: terminationCode.trim() || null,
         remarks: remarks.trim() || null,
         accessRevokeTiming: accessTiming,
@@ -351,29 +348,25 @@ function DirectExitDialog({
           </div>
         </div>
 
-        {/* LWD + Effective Date */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>Last Working Date *</label>
-            <input type="date" value={lwd} onChange={(e) => { setLwd(e.target.value); if (!effectiveDate) setEffectiveDate(e.target.value); }} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Effective Exit Date *</label>
-            <input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className={inputClass} />
-          </div>
+        {/* LWD */}
+        <div>
+          <label className={labelClass}>Last Working Date *</label>
+          <input type="date" value={lwd} onChange={(e) => setLwd(e.target.value)} className={inputClass} />
         </div>
 
-        {/* Notice days */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>Notice Required (days)</label>
-            <input type="number" min="0" value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} placeholder="e.g. 30" className={inputClass} />
+        {/* Notice days — only for Terminated */}
+        {exitType === "Terminated" && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Notice Required (days)</label>
+              <input type="number" min="0" value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} placeholder="e.g. 30" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Notice Served (days)</label>
+              <input type="number" min="0" value={servedDays} onChange={(e) => setServedDays(e.target.value)} placeholder="e.g. 0" className={inputClass} />
+            </div>
           </div>
-          <div>
-            <label className={labelClass}>Notice Served (days)</label>
-            <input type="number" min="0" value={servedDays} onChange={(e) => setServedDays(e.target.value)} placeholder="e.g. 0" className={inputClass} />
-          </div>
-        </div>
+        )}
 
         {/* Access revoke */}
         <div>
