@@ -231,20 +231,72 @@ export async function createExitRequest(
 }
 
 export async function listManagerExitRequests(managerId: number) {
-  return db
-    .select()
+  const emp = employees;
+  const rows = await db
+    .select({
+      id: employeeExitRequests.id,
+      employeeId: employeeExitRequests.employeeId,
+      requestedBy: employeeExitRequests.requestedBy,
+      exitType: employeeExitRequests.exitType,
+      requestedLwd: employeeExitRequests.requestedLwd,
+      evidenceNote: employeeExitRequests.evidenceNote,
+      noticeRequiredDays: employeeExitRequests.noticeRequiredDays,
+      noticeServedDays: employeeExitRequests.noticeServedDays,
+      settlementRule: employeeExitRequests.settlementRule,
+      accessRevokeTiming: employeeExitRequests.accessRevokeTiming,
+      status: employeeExitRequests.status,
+      hrActionBy: employeeExitRequests.hrActionBy,
+      hrRemarks: employeeExitRequests.hrRemarks,
+      activeLeavesSnapshot: employeeExitRequests.activeLeavesSnapshot,
+      createdAt: employeeExitRequests.createdAt,
+      updatedAt: employeeExitRequests.updatedAt,
+      empId: emp.empId,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+    })
     .from(employeeExitRequests)
+    .innerJoin(emp, eq(emp.id, employeeExitRequests.employeeId))
     .where(eq(employeeExitRequests.requestedBy, managerId))
     .orderBy(desc(employeeExitRequests.createdAt));
+  return rows.map(({ empId, firstName, lastName, ...req }) => ({
+    ...req,
+    employee: { empId, firstName, lastName },
+  }));
 }
 
 // ── HR: list + approve + reject ──
 
 export async function listHrExitRequests() {
-  return db
-    .select()
+  const emp = employees;
+  const rows = await db
+    .select({
+      id: employeeExitRequests.id,
+      employeeId: employeeExitRequests.employeeId,
+      requestedBy: employeeExitRequests.requestedBy,
+      exitType: employeeExitRequests.exitType,
+      requestedLwd: employeeExitRequests.requestedLwd,
+      evidenceNote: employeeExitRequests.evidenceNote,
+      noticeRequiredDays: employeeExitRequests.noticeRequiredDays,
+      noticeServedDays: employeeExitRequests.noticeServedDays,
+      settlementRule: employeeExitRequests.settlementRule,
+      accessRevokeTiming: employeeExitRequests.accessRevokeTiming,
+      status: employeeExitRequests.status,
+      hrActionBy: employeeExitRequests.hrActionBy,
+      hrRemarks: employeeExitRequests.hrRemarks,
+      activeLeavesSnapshot: employeeExitRequests.activeLeavesSnapshot,
+      createdAt: employeeExitRequests.createdAt,
+      updatedAt: employeeExitRequests.updatedAt,
+      empId: emp.empId,
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+    })
     .from(employeeExitRequests)
+    .innerJoin(emp, eq(emp.id, employeeExitRequests.employeeId))
     .orderBy(desc(employeeExitRequests.createdAt));
+  return rows.map(({ empId, firstName, lastName, ...req }) => ({
+    ...req,
+    employee: { empId, firstName, lastName },
+  }));
 }
 
 export async function getExitRequestById(id: number) {

@@ -6,6 +6,7 @@ import ExitDocumentTemplatesSection from "@/features/offboarding/ExitDocumentTem
 import ExitInterviewTemplatesSection from "@/features/offboarding/ExitInterviewTemplatesSection";
 import ExitReasonsSection from "@/features/offboarding/ExitReasonsSection";
 import FnfSection from "@/features/offboarding/FnfSection";
+import HrExitRequestsSection from "@/features/offboarding/HrExitRequestsSection";
 import HrResignationsSection from "@/features/offboarding/HrResignationsSection";
 import OffboardingCasesSection from "@/features/offboarding/OffboardingCasesSection";
 import ResignationFlowsSection from "@/features/offboarding/ResignationFlowsSection";
@@ -17,6 +18,7 @@ import ResignationFlowsSection from "@/features/offboarding/ResignationFlowsSect
 
 type Tab =
   | "resignations"
+  | "exitrequests"
   | "cases"
   | "fnf"
   | "flows"
@@ -31,6 +33,7 @@ type Tab =
 // configuration/masters (Resignation Flows, Exit Reasons) last.
 const TABS: { key: Tab; label: string }[] = [
   { key: "resignations", label: "Resignations" },
+  { key: "exitrequests", label: "Exit Requests" },
   { key: "cases", label: "Active Cases" },
   { key: "clearance", label: "Clearance Templates" },
   { key: "interviews", label: "Exit Interviews" },
@@ -71,6 +74,7 @@ export default function OffboardingPage() {
 
       <section>
         {tab === "resignations" && <HrResignationsSection />}
+        {tab === "exitrequests" && <HrExitRequestsSection />}
         {tab === "cases" && <OffboardingCasesSection />}
         {tab === "fnf" && <FnfSection />}
         {tab === "flows" && <ResignationFlowsSection />}

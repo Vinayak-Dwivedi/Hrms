@@ -401,6 +401,7 @@ export type EmployeeExitRequest = {
   activeLeavesSnapshot: unknown[];
   createdAt: string;
   updatedAt: string;
+  employee: { empId: string; firstName: string; lastName: string };
 };
 
 export type EmployeeExit = {
