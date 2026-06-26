@@ -519,14 +519,14 @@ export default function HrExitRequestsSection() {
         <TableShell minWidth={980}>
           <thead>
             <tr>
-              {["Employee", "Exit Type", "Requested LWD", "Notice Days", "Active Leaves", "Status", "Raised On", "Actions"].map((h) => (
+              {["Employee", "Exit Type", "Requested LWD", "Notice Days", "Active Leaves", "Status", "Raised On", "HR Remarks", "Actions"].map((h) => (
                 <th key={h} style={headStyle}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {view.length === 0 ? (
-              <EmptyRow colSpan={8} text="No exit requests found." />
+              <EmptyRow colSpan={9} text="No exit requests found." />
             ) : (
               view.map((r) => {
                 const s = STATUS_META[r.status];
@@ -577,6 +577,11 @@ export default function HrExitRequestsSection() {
                     <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
                       {fmtDate(r.createdAt)}
                     </td>
+                    <td style={{ ...cellStyle, maxWidth: 200 }}>
+                      <span className="text-sm" style={{ color: r.hrRemarks ? "#374151" : "#cbd5e1" }}>
+                        {r.hrRemarks ?? "—"}
+                      </span>
+                    </td>
                     <td style={cellStyle}>
                       {isPending ? (
                         <div className="flex items-center gap-2">
@@ -588,9 +593,7 @@ export default function HrExitRequestsSection() {
                           </ActionBtn>
                         </div>
                       ) : (
-                        <span style={{ fontSize: 12, color: r.hrRemarks ? "#374151" : "#cbd5e1" }}>
-                          {r.hrRemarks ?? "—"}
-                        </span>
+                        <span style={{ color: "#cbd5e1", fontSize: 13 }}>—</span>
                       )}
                     </td>
                   </tr>
