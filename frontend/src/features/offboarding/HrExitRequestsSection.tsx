@@ -45,13 +45,6 @@ const EXIT_TYPE_LABELS: Record<string, string> = {
   Terminated: "Terminated",
 };
 
-const SETTLEMENT_OPTIONS = [
-  { value: "EncashLeave", label: "Encash Leave" },
-  { value: "ForfeitLeave", label: "Forfeit Leave" },
-  { value: "PartialEncash", label: "Partial Encash" },
-  { value: "Depends", label: "Case-by-Case" },
-];
-
 const DIRECT_EXIT_TYPES: DirectExitType[] = [
   "Resigned",
   "ResignedWithoutNotice",
@@ -92,7 +85,6 @@ function ApproveDialog({
 }) {
   const [lwd, setLwd] = useState(request.requestedLwd ?? "");
   const [effectiveDate, setEffectiveDate] = useState(request.requestedLwd ?? "");
-  const [settlement, setSettlement] = useState(request.settlementRule ?? "ForfeitLeave");
   const [accessTiming, setAccessTiming] = useState<"Immediate" | "OnLWD">(request.accessRevokeTiming);
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
@@ -106,7 +98,6 @@ function ApproveDialog({
       const result = await hrApproveExitRequest(request.id, {
         lastWorkingDate: lwd,
         effectiveDate: effectiveDate || lwd,
-        settlementRule: settlement,
         accessRevokeTiming: accessTiming,
         hrRemarks: remarks.trim() || null,
       });
@@ -167,16 +158,6 @@ function ApproveDialog({
             <label className={labelClass}>Effective Exit Date *</label>
             <input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className={inputClass} />
           </div>
-        </div>
-
-        {/* Settlement rule */}
-        <div>
-          <label className={labelClass}>Settlement Rule</label>
-          <select value={settlement} onChange={(e) => setSettlement(e.target.value)} className={inputClass} style={{ appearance: "none", cursor: "pointer" }}>
-            {SETTLEMENT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
         </div>
 
         {/* Access revoke timing */}
@@ -307,7 +288,6 @@ function DirectExitDialog({
   const [effectiveDate, setEffectiveDate] = useState("");
   const [noticeDays, setNoticeDays] = useState("");
   const [servedDays, setServedDays] = useState("");
-  const [settlement, setSettlement] = useState("EncashLeave");
   const [accessTiming, setAccessTiming] = useState<"Immediate" | "OnLWD">("OnLWD");
   const [terminationCode, setTerminationCode] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -323,7 +303,6 @@ function DirectExitDialog({
         effectiveDate: effectiveDate || lwd,
         noticeRequiredDays: noticeDays ? Number(noticeDays) : null,
         noticeServedDays: servedDays ? Number(servedDays) : null,
-        settlementRule: settlement,
         terminationReasonCode: terminationCode.trim() || null,
         remarks: remarks.trim() || null,
         accessRevokeTiming: accessTiming,
@@ -394,16 +373,6 @@ function DirectExitDialog({
             <label className={labelClass}>Notice Served (days)</label>
             <input type="number" min="0" value={servedDays} onChange={(e) => setServedDays(e.target.value)} placeholder="e.g. 0" className={inputClass} />
           </div>
-        </div>
-
-        {/* Settlement */}
-        <div>
-          <label className={labelClass}>Settlement Rule</label>
-          <select value={settlement} onChange={(e) => setSettlement(e.target.value)} className={inputClass} style={{ appearance: "none", cursor: "pointer" }}>
-            {SETTLEMENT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
         </div>
 
         {/* Access revoke */}
