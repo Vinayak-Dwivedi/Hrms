@@ -11,4 +11,5 @@ employeeRoutes.use(requireEmployee);
 employeeRoutes.get("/form-options", formOptionsController.getFormOptions);
 employeeRoutes.get("/profile", profileController.getProfile);
 employeeRoutes.put("/profile", profileController.putProfile);
+employeeRoutes.patch("/profile/professional", profileController.patchProfessional);
 employeeRoutes.post("/onboarding/submit", submitController.submitOnboarding);

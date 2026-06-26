@@ -467,16 +467,9 @@ export async function fetchMonthAttendance(
     weeklyOffDates?: string[];
   }>(`/me/attendance/month?year=${year}&month=${month1}`);
 
-  const attendance = data.records.map<DayAttendance>((r) => ({
-    date: r.date,
-    status: mapAttStatus(r.status),
-    punchIn: formatTimeOfDay(r.punchIn) ?? undefined,
-    punchOut: formatTimeOfDay(r.punchOut),
-    hoursWorked: formatMinutes(r.workingMinutes),
-    lateBy: r.lateByMinutes ? `${r.lateByMinutes}m` : undefined,
-    earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
-    location: r.location ?? undefined,
-  }));
+  const holidayByDate = new Map(
+    (data.holidays ?? []).map((h) => [h.date, h.name] as const),
+  );
 
   // Attendance records win over everything.
   const haveRecord = new Set(attendance.map((a) => a.date));
@@ -501,13 +494,24 @@ export async function fetchMonthAttendance(
       status: "Weekend",
     }));
 
-  console.log("[weekly-off-check]", {
-    weeklyOffDatesFromApi: data.weeklyOffDates ?? "FIELD_ABSENT",
-    weeklyOffDaysAdded: weeklyOffDays.map((d) => d.date),
-  });
-
   return [...attendance, ...holidayDays, ...weeklyOffDays].sort((a, b) =>
     a.date.localeCompare(b.date),
+  );
+}
+
+export type MyUploadAttendanceRow = {
+  date: string;
+  inTime: string | null;
+  outTime: string | null;
+  totalHours: string | null;
+};
+
+export async function fetchMyUploadAttendance(
+  year: number,
+  month1: number,
+): Promise<{ employeeId: string; records: MyUploadAttendanceRow[] }> {
+  return jsonFetch<{ employeeId: string; records: MyUploadAttendanceRow[] }>(
+    `/me/attendance/uploads?year=${year}&month=${month1}`,
   );
 }
 

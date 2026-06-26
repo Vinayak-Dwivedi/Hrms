@@ -1,7 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
+import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
+import OnboardingBankDetailsView from "@/features/employees/components/OnboardingBankDetailsView";
+import { WorkInformationView } from "@/features/employees/components/WorkInformationSection";
 import { employeeFormSectionsGridClass } from "@/features/employees/employee-theme";
 import {
   isHigherEdQualification,
@@ -16,6 +20,9 @@ import type { OnboardingProfileValues } from "../schemas/onboarding.schema";
 interface Props {
   values: OnboardingProfileValues;
   layout?: "stack" | "grid" | "page";
+  bank?: EmployeeProfile["bank"];
+  companionSection?: ReactNode;
+  hideSections?: { work?: boolean };
 }
 
 function ReadOnlyField({
@@ -40,9 +47,40 @@ function ReadOnlyField({
   );
 }
 
+function professionalForView(
+  professional: OnboardingProfileValues["professional"],
+): EmployeeProfile["professional"] {
+  return (professional ?? [])
+    .filter(
+      (row) =>
+        row.companyName?.trim() &&
+        row.designation?.trim() &&
+        row.fromDate?.trim(),
+    )
+    .map((row, index) => ({
+      id: row.id ?? index + 1,
+      companyName: row.companyName ?? "",
+      designation: row.designation ?? "",
+      fromDate: row.fromDate ?? "",
+      toDate: row.toDate || null,
+      isCurrent: row.isCurrent ?? false,
+      responsibilities: row.responsibilities?.trim() || null,
+    }));
+}
+
+function gridRowClass(layout: Props["layout"]) {
+  const isPageLayout = layout === "page";
+  return isPageLayout || layout === "grid"
+    ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
+    : "grid grid-cols-1 md:grid-cols-2 gap-4 items-start";
+}
+
 export default function OnboardingProfileReadOnly({
   values,
   layout = "stack",
+  bank,
+  companionSection,
+  hideSections,
 }: Props) {
   const isPageLayout = layout === "page";
   const sectionsClass =
@@ -51,82 +89,69 @@ export default function OnboardingProfileReadOnly({
       : "space-y-6";
   const sectionProps = isPageLayout ? { compact: true as const } : {};
 
+  const bankCompanion =
+    companionSection ??
+    (bank !== undefined ? (
+      <OnboardingBankDetailsView bank={bank} compact />
+    ) : null);
+
+  const workCompanion =
+    !bankCompanion && !hideSections?.work ? (
+      <WorkInformationView
+        compact
+        professional={professionalForView(values.professional)}
+      />
+    ) : null;
+
+  const personalRowCompanion = bankCompanion ?? workCompanion;
+
   return (
     <div className={sectionsClass}>
-      <EmployeeFormSection title="Address" {...sectionProps}>
-        <ReadOnlyField
-          label="Current Address"
-          value={values.currentAddress}
-          span={2}
-        />
-        <ReadOnlyField
-          label="Permanent Address"
-          value={values.permanentAddress}
-          span={2}
-        />
-      </EmployeeFormSection>
-
-      <EmployeeFormSection title="Emergency Contact" {...sectionProps}>
-        <ReadOnlyField label="Contact Name" value={values.emergencyContactName} />
-        <ReadOnlyField label="Contact Phone" value={values.emergencyContactPhone} />
-      </EmployeeFormSection>
-
-      <div
-        className={
-          isPageLayout || layout === "grid"
-            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4"
-            : "grid grid-cols-1 md:grid-cols-2 gap-4"
-        }
-      >
-      <EmployeeFormSection title="Personal & Compliance" {...sectionProps}>
-        <ReadOnlyField label="Marital Status" value={values.maritalStatus} />
-        <ReadOnlyField label="Spouse Name" value={values.spouseName} />
-        <ReadOnlyField label="Father's Name" value={values.fatherName} />
-        <ReadOnlyField label="Mother's Name" value={values.motherName} />
-        <ReadOnlyField label="Blood Group" value={values.bloodGroup} />
-        <ReadOnlyField label="Nationality" value={values.nationality} />
-        <ReadOnlyField label="PAN Number" value={values.panNo} />
-        <ReadOnlyField label="Aadhaar Number" value={values.aadhaarNo} />
-        <ReadOnlyField label="UAN" value={values.uanNo} />
-        <ReadOnlyField label="ESIC" value={values.esicNo} />
-      </EmployeeFormSection>
-
-      <EmployeeFormSection title="Work Information" {...sectionProps}>
-        {values.professional?.[0] ? (
-          <>
-            <ReadOnlyField
-              label="Previous Company"
-              value={values.professional[0].companyName}
-            />
-            <ReadOnlyField
-              label="Designation"
-              value={values.professional[0].designation}
-            />
-            <ReadOnlyField
-              label="From Date"
-              value={values.professional[0].fromDate}
-            />
-            <ReadOnlyField
-              label="To Date"
-              value={values.professional[0].toDate}
-            />
-            {values.professional[0].responsibilities ? (
-              <ReadOnlyField
-                label="Responsibilities"
-                value={values.professional[0].responsibilities}
-                span={2}
-              />
-            ) : null}
-          </>
-        ) : (
+      <div className={gridRowClass(layout)}>
+        <EmployeeFormSection title="Address" {...sectionProps}>
+          <ReadOnlyField label="Current Address" value={values.currentAddress} />
           <ReadOnlyField
-            label="Previous employment"
-            value="No previous employment (Fresher)"
-            span={2}
+            label="Permanent Address"
+            value={values.permanentAddress}
           />
-        )}
-      </EmployeeFormSection>
+        </EmployeeFormSection>
+
+        <EmployeeFormSection title="Emergency Contact" {...sectionProps}>
+          <ReadOnlyField
+            label="Contact Name"
+            value={values.emergencyContactName}
+          />
+          <ReadOnlyField
+            label="Contact Phone"
+            value={values.emergencyContactPhone}
+          />
+        </EmployeeFormSection>
       </div>
+
+      <div className={gridRowClass(layout)}>
+        <EmployeeFormSection title="Personal & Compliance" {...sectionProps}>
+          <ReadOnlyField label="Marital Status" value={values.maritalStatus} />
+          <ReadOnlyField label="Spouse Name" value={values.spouseName} />
+          <ReadOnlyField label="Father's Name" value={values.fatherName} />
+          <ReadOnlyField label="Mother's Name" value={values.motherName} />
+          <ReadOnlyField label="Blood Group" value={values.bloodGroup} />
+          <ReadOnlyField label="Nationality" value={values.nationality} />
+          <ReadOnlyField label="PAN Number" value={values.panNo} />
+          <ReadOnlyField label="Aadhaar Number" value={values.aadhaarNo} />
+          <ReadOnlyField label="UAN (optional)" value={values.uanNo} />
+          <ReadOnlyField label="ESIC (optional)" value={values.esicNo} />
+        </EmployeeFormSection>
+
+        {personalRowCompanion}
+      </div>
+
+      {bankCompanion && !hideSections?.work ? (
+        <WorkInformationView
+          className={isPageLayout ? "col-span-full" : undefined}
+          compact
+          professional={professionalForView(values.professional)}
+        />
+      ) : null}
 
       <EmployeeFormSection
         title="Academic Details"
@@ -184,7 +209,6 @@ export default function OnboardingProfileReadOnly({
           );
         })}
       </EmployeeFormSection>
-
     </div>
   );
 }

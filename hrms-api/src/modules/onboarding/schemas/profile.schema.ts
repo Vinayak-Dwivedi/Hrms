@@ -202,5 +202,12 @@ export const upsertBankDetailsSchema = z.object({
     }),
 });
 
+export const syncProfessionalOnlySchema = z.object({
+  professional: upsertProfileSchema.shape.professional,
+});
+
 export type UpsertProfileInput = z.infer<typeof upsertProfileSchema>;
 export type UpsertBankDetailsInput = z.infer<typeof upsertBankDetailsSchema>;
+export type SyncProfessionalOnlyInput = z.infer<
+  typeof syncProfessionalOnlySchema
+>;

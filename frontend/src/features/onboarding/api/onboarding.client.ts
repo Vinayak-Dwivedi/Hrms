@@ -13,6 +13,7 @@ import {
 import type {
   OnboardingBankFormValues,
   OnboardingProfileValues,
+  ProfessionalDetailValues,
 } from "../schemas/onboarding.schema";
 import type { BloodGroupOption } from "../constants/blood-groups";
 
@@ -279,12 +280,54 @@ export function toProfilePayload(values: OnboardingProfileValues) {
   };
 }
 
+export type ProfessionalApiPayload = {
+  id?: number;
+  companyName: string;
+  designation: string;
+  fromDate: string;
+  toDate: string | null;
+  isCurrent: boolean;
+  responsibilities: string | null;
+};
+
+export function professionalValuesToApiPayload(
+  professional: ProfessionalDetailValues[],
+  noPreviousEmployment: boolean,
+): ProfessionalApiPayload[] {
+  if (noPreviousEmployment) return [];
+  return (professional ?? [])
+    .filter(
+      (row) =>
+        row.companyName.trim().length > 0 &&
+        row.designation.trim().length > 0 &&
+        row.fromDate.trim().length > 0,
+    )
+    .map((row) => ({
+      id: row.id,
+      companyName: row.companyName.trim(),
+      designation: row.designation.trim(),
+      fromDate: row.fromDate.trim(),
+      toDate: row.toDate?.trim() ? row.toDate.trim() : null,
+      isCurrent: row.isCurrent ?? false,
+      responsibilities: row.responsibilities?.trim() || null,
+    }));
+}
+
 export async function updateEmployeeProfile(
   values: OnboardingProfileValues,
 ): Promise<EmployeeProfile> {
   return authJsonFetch<EmployeeProfile>("/api/employee/profile", {
     method: "PUT",
     body: JSON.stringify(toProfilePayload(values)),
+  });
+}
+
+export async function syncEmployeeProfessional(
+  professional: ProfessionalApiPayload[],
+): Promise<EmployeeProfile> {
+  return authJsonFetch<EmployeeProfile>("/api/employee/profile/professional", {
+    method: "PATCH",
+    body: JSON.stringify({ professional }),
   });
 }
 

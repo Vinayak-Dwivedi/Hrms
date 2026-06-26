@@ -31,6 +31,10 @@ import {
 } from "@/middleware/require-permission";
 import { ApiError } from "@/middleware/error";
 import {
+  getEmployeeShiftAssignment,
+  setEmployeeShiftOverride,
+} from "@/services/employee-shift.service";
+import {
   assertValidReportingManagerAssignment,
   buildEmployeeOrgContextFromPayload,
 } from "@/lib/reporting-manager-rules";
@@ -40,6 +44,10 @@ export const employeesRouter = Router();
 const viewEmployees = requirePermission("employees.view", "onboarding.view");
 const createEmployees = requirePermission("employees.create");
 const editEmployees = requirePermission("employees.edit");
+const manageEmployeeShift = requirePermission(
+  "shift.policy.manage",
+  "employees.edit",
+);
 const manageOnboarding = requirePermission(ONBOARDING_PERMISSIONS.MANAGE);
 const manageOnboardingBank = requirePermission(
   ONBOARDING_PERMISSIONS.MANAGE_BANK,
@@ -114,10 +122,46 @@ employeesRouter.post(
 employeesRouter.get("/:id/documents", viewEmployees, employeeAdminCtrl.getEmployeeDocuments);
 
 employeesRouter.patch(
+  "/:id/profile/professional",
+  editEmployees,
+  employeeAdminCtrl.patchEmployeeProfessional,
+);
+employeesRouter.patch(
   "/:id/profile",
   editEmployees,
   employeeAdminCtrl.patchEmployeeProfile,
 );
+
+const employeeShiftBodySchema = z.object({
+  shiftConfigId: z.number().int().positive().nullable(),
+});
+
+employeesRouter.get("/:id/shift", viewEmployees, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    }
+    const data = await getEmployeeShiftAssignment(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+employeesRouter.put("/:id/shift", manageEmployeeShift, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      throw new ApiError(400, "BAD_ID", "Numeric id required.");
+    }
+    const body = employeeShiftBodySchema.parse(req.body);
+    const data = await setEmployeeShiftOverride(id, body.shiftConfigId);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
 
 employeesRouter.get("/:id", viewEmployees, async (req, res, next) => {
   try {

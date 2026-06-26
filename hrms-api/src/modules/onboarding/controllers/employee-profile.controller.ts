@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import * as profileService from "@/modules/onboarding/services/employee-profile.service";
-import { upsertProfileSchema } from "@/modules/onboarding/schemas/profile.schema";
+import {
+  syncProfessionalOnlySchema,
+  upsertProfileSchema,
+} from "@/modules/onboarding/schemas/profile.schema";
 
 export async function getProfile(req: Request, res: Response, next: NextFunction) {
   try {
@@ -17,6 +20,24 @@ export async function putProfile(req: Request, res: Response, next: NextFunction
     const profile = await profileService.upsertProfile(
       req.employee!.id,
       body,
+      req.user?.id,
+    );
+    res.json(profile);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function patchProfessional(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const body = syncProfessionalOnlySchema.parse(req.body);
+    const profile = await profileService.syncProfessional(
+      req.employee!.id,
+      body.professional,
       req.user?.id,
     );
     res.json(profile);

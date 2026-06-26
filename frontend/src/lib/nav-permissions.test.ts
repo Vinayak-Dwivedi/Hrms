@@ -76,4 +76,37 @@ describe("nav-permissions", () => {
       false,
     );
   });
+
+  it("gates attendance report by leave.approve", () => {
+    assert.deepEqual(requiredPermissionsForRoute("/attendance/report"), [
+      "leave.approve",
+    ]);
+    assert.equal(
+      canAccessRouteWithPermissions("/attendance/report", ["leave.approve"]),
+      true,
+    );
+    assert.equal(
+      canAccessRouteWithPermissions("/attendance/report", ["attendance.view"]),
+      false,
+    );
+  });
+
+  it("gates shift configuration by shift.policy.manage", () => {
+    assert.deepEqual(requiredPermissionsForRoute("/shift-configuration"), [
+      "shift.policy.manage",
+      "admin.roles",
+    ]);
+    assert.equal(
+      canAccessRouteWithPermissions("/shift-configuration", [
+        "shift.policy.manage",
+      ]),
+      true,
+    );
+    assert.equal(
+      canAccessRouteWithPermissions("/shift-configuration", [
+        "holiday.policy.manage",
+      ]),
+      false,
+    );
+  });
 });

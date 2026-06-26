@@ -1,14 +1,17 @@
 import path from "node:path";
-import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import {
   attendanceRecords,
+  attendanceUploads,
   branches,
   orgHierarchyDepartments as departments,
   orgHierarchyDesignations as designations,
+  orgHierarchyStructure,
+  orgHierarchySubDepartments,
   employees,
   grades,
   leaveBalances,
@@ -17,7 +20,11 @@ import {
   regularisationRequests,
   resignations,
 } from "@/db/schema/hrms";
+import { shapeAttendanceReportRow, attendanceUploadToEmployeeJoin, type AttendanceReportShiftInfo } from "@/lib/attendance-report";
+import { loadAttendanceDayContextBatch, buildMonthAttendanceFromUploads } from "@/lib/attendance-status";
+import { resolveShiftsForEmployees } from "@/services/shift-resolver";
 import {
+  formatEmployeeFullName,
   loadCurrentManager,
   startEndOfMonth,
   todayYmd,
@@ -46,6 +53,29 @@ export const managerRouter: Router = Router();
 
 // Self-join alias to surface each report's reporting manager (Manager column).
 const reportingMgr = alias(employees, "reporting_mgr");
+const l3Mgr = alias(employees, "l3_mgr");
+const structDept = alias(departments, "struct_dept");
+const legacyDept = alias(departments, "legacy_dept");
+const structSubDept = alias(orgHierarchySubDepartments, "struct_sub_dept");
+const legacySubDept = alias(orgHierarchySubDepartments, "legacy_sub_dept");
+const structDesignation = alias(designations, "struct_designation");
+const legacyDesignation = alias(designations, "legacy_designation");
+const locationBranch = alias(branches, "location_branch");
+const fallbackBranch = alias(branches, "fallback_branch");
+
+const teamAttendanceReportQuerySchema = z.object({
+  fromDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  toDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  search: z.string().trim().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -145,16 +175,13 @@ managerRouter.get("/me/attendance/month", async (req, res, next) => {
     const year = q.year ?? now.getFullYear();
     const month1 = q.month ?? now.getMonth() + 1;
     const { start, end } = startEndOfMonth(year, month1 - 1);
-    const rows = await db
-      .select()
-      .from(attendanceRecords)
-      .where(and(
-        eq(attendanceRecords.employeeId, mgr.id),
-        gte(attendanceRecords.date, start),
-        lte(attendanceRecords.date, end),
-      ))
-      .orderBy(asc(attendanceRecords.date));
-    res.json({ year, month: month1, records: rows });
+    const records = await buildMonthAttendanceFromUploads(
+      mgr.id,
+      mgr.empId,
+      start,
+      end,
+    );
+    res.json({ year, month: month1, records });
   } catch (e) {
     next(e);
   }
@@ -358,6 +385,182 @@ managerRouter.get("/team/attendance", async (req, res, next) => {
         lte(attendanceRecords.date, to),
       ));
     res.json({ from, to, team, records });
+  } catch (e) {
+    next(e);
+  }
+});
+
+managerRouter.get("/team/attendance-report", async (req, res, next) => {
+  try {
+    const query = teamAttendanceReportQuerySchema.parse(req.query);
+    const now = new Date();
+    const { start: defaultFrom, end: defaultTo } = startEndOfMonth(
+      now.getFullYear(),
+      now.getMonth(),
+    );
+    const fromDate = query.fromDate ?? defaultFrom;
+    const toDate = query.toDate ?? defaultTo;
+    const offset = (query.page - 1) * query.limit;
+
+    const employeeFilters = [eq(employees.employeeStatus, "Active")];
+
+    if (query.search) {
+      const term = `%${query.search}%`;
+      employeeFilters.push(
+        or(
+          ilike(employees.empId, term),
+          ilike(employees.firstName, term),
+          ilike(employees.lastName, term),
+          ilike(employees.middleName, term),
+        )!,
+      );
+    }
+
+    const whereClause = and(...employeeFilters);
+
+    const uploadJoin = and(
+      attendanceUploadToEmployeeJoin(),
+      gte(attendanceUploads.attendanceDate, fromDate),
+      lte(attendanceUploads.attendanceDate, toDate),
+    );
+
+    const baseFrom = db
+      .select({
+        uploadId: attendanceUploads.id,
+        employeeInternalId: employees.id,
+        attendanceDate: attendanceUploads.attendanceDate,
+        employeeCode: employees.empId,
+        inTime: attendanceUploads.inTime,
+        outTime: attendanceUploads.outTime,
+        totalHours: attendanceUploads.totalHours,
+        firstName: employees.firstName,
+        middleName: employees.middleName,
+        lastName: employees.lastName,
+        structDepartmentName: structDept.name,
+        legacyDepartmentName: legacyDept.name,
+        structSubDepartmentName: structSubDept.name,
+        legacySubDepartmentName: legacySubDept.name,
+        structDesignationName: structDesignation.name,
+        legacyDesignationName: legacyDesignation.name,
+        locationBranchName: locationBranch.name,
+        fallbackBranchName: fallbackBranch.name,
+        l2FirstName: reportingMgr.firstName,
+        l2MiddleName: reportingMgr.middleName,
+        l2LastName: reportingMgr.lastName,
+        l3FirstName: l3Mgr.firstName,
+        l3MiddleName: l3Mgr.middleName,
+        l3LastName: l3Mgr.lastName,
+      })
+      .from(employees)
+      .leftJoin(attendanceUploads, uploadJoin)
+      .leftJoin(
+        orgHierarchyStructure,
+        eq(employees.orgHierarchyStructureId, orgHierarchyStructure.id),
+      )
+      .leftJoin(structDept, eq(orgHierarchyStructure.departmentId, structDept.id))
+      .leftJoin(legacyDept, eq(employees.departmentId, legacyDept.id))
+      .leftJoin(
+        structSubDept,
+        eq(orgHierarchyStructure.subDepartmentId, structSubDept.id),
+      )
+      .leftJoin(legacySubDept, eq(employees.subDepartmentId, legacySubDept.id))
+      .leftJoin(
+        structDesignation,
+        eq(orgHierarchyStructure.designationId, structDesignation.id),
+      )
+      .leftJoin(
+        legacyDesignation,
+        eq(employees.designationId, legacyDesignation.id),
+      )
+      .leftJoin(locationBranch, eq(employees.locationId, locationBranch.id))
+      .leftJoin(fallbackBranch, eq(employees.branchId, fallbackBranch.id))
+      .leftJoin(reportingMgr, eq(employees.reportingManagerId, reportingMgr.id))
+      .leftJoin(l3Mgr, eq(reportingMgr.reportingManagerId, l3Mgr.id));
+
+    const [rawRows, countRows] = await Promise.all([
+      baseFrom
+        .where(whereClause)
+        .orderBy(
+          asc(employees.lastName),
+          asc(employees.firstName),
+          desc(attendanceUploads.attendanceDate),
+        )
+        .limit(query.limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(employees)
+        .leftJoin(attendanceUploads, uploadJoin)
+        .where(whereClause),
+    ]);
+
+    const shiftMap = await resolveShiftsForEmployees(
+      rawRows.map((row) => row.employeeInternalId),
+    );
+
+    const employeeIds = [
+      ...new Set(rawRows.map((row) => row.employeeInternalId)),
+    ];
+    const dayContextMap = await loadAttendanceDayContextBatch(
+      employeeIds,
+      fromDate,
+      toDate,
+    );
+
+    const rows = rawRows.map((row) => {
+      const resolved = shiftMap.get(row.employeeInternalId);
+      const shift: AttendanceReportShiftInfo | null = resolved
+        ? {
+            name: resolved.name,
+            shiftTiming: resolved.shiftTiming,
+            startTime: resolved.startTime,
+            endTime: resolved.endTime,
+            graceMinutes: resolved.graceMinutes,
+            breakMinutes: resolved.breakMinutes,
+          }
+        : null;
+
+      return shapeAttendanceReportRow({
+        attendanceDate: row.attendanceDate,
+        employeeCode: row.employeeCode,
+        inTime: row.inTime,
+        outTime: row.outTime,
+        totalHours: row.totalHours,
+        hasUploadRecord: row.uploadId != null && row.attendanceDate != null,
+        firstName: row.firstName,
+        middleName: row.middleName,
+        lastName: row.lastName,
+        departmentName: row.structDepartmentName ?? row.legacyDepartmentName,
+        subDepartmentName:
+          row.structSubDepartmentName ?? row.legacySubDepartmentName,
+        designationName:
+          row.structDesignationName ?? row.legacyDesignationName,
+        locationName: row.locationBranchName ?? row.fallbackBranchName,
+        reportingManagerL2: row.l2FirstName
+          ? formatEmployeeFullName({
+              firstName: row.l2FirstName,
+              middleName: row.l2MiddleName,
+              lastName: row.l2LastName,
+            })
+          : null,
+        reportingManagerL3: row.l3FirstName
+          ? formatEmployeeFullName({
+              firstName: row.l3FirstName,
+              middleName: row.l3MiddleName,
+              lastName: row.l3LastName,
+            })
+          : null,
+        shift,
+        dayContext: dayContextMap.get(row.employeeInternalId),
+      });
+    });
+
+    res.json({
+      rows,
+      total: countRows[0]?.count ?? 0,
+      page: query.page,
+      limit: query.limit,
+    });
   } catch (e) {
     next(e);
   }

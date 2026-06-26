@@ -66,9 +66,9 @@ export default function ViewModeToggle({
       <button
         type="button"
         onClick={() => onChange("table")}
-        aria-label="Table view"
+        aria-label="Report view"
         aria-pressed={view === "table"}
-        title="Table view"
+        title="Report view"
         className={btnClass(view === "table")}
       >
         <TableIcon />

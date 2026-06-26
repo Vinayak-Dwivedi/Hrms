@@ -15,6 +15,12 @@ export const HOLIDAY_POLICY_PERMISSIONS = [
   "admin.roles",
 ] as const;
 
+/** Permissions that grant access to Shift Configuration nav, routes, and admin APIs. */
+export const SHIFT_POLICY_PERMISSIONS = [
+  "shift.policy.manage",
+  "admin.roles",
+] as const;
+
 /** Permissions that grant access to My Clearances nav and route. */
 export const MY_CLEARANCES_PERMISSIONS = [
   "leave.approve",
@@ -50,6 +56,7 @@ export const NAV_ENTRY_PERMISSIONS = {
   adminRoles: "admin.roles",
   leavePolicyManage: LEAVE_POLICY_PERMISSIONS,
   holidayPolicyManage: HOLIDAY_POLICY_PERMISSIONS,
+  shiftPolicyManage: SHIFT_POLICY_PERMISSIONS,
   myClearances: MY_CLEARANCES_PERMISSIONS,
 } as const;
 
@@ -105,6 +112,10 @@ const ROUTE_PERMISSION_RULES: RoutePermissionRule[] = [
     permissions: [...HOLIDAY_POLICY_PERMISSIONS],
   },
   {
+    test: (p) => p === "/shift-configuration" || p.startsWith("/shift-configuration/"),
+    permissions: [...SHIFT_POLICY_PERMISSIONS],
+  },
+  {
     test: (p) => p === "/weekly-off" || p.startsWith("/weekly-off/"),
     permissions: [...LEAVE_POLICY_PERMISSIONS],
   },
@@ -146,6 +157,10 @@ const ROUTE_PERMISSION_RULES: RoutePermissionRule[] = [
       NAV_ENTRY_PERMISSIONS.leaveApprove,
       NAV_ENTRY_PERMISSIONS.attendanceView,
     ],
+  },
+  {
+    test: (p) => p === "/attendance/report",
+    permissions: [NAV_ENTRY_PERMISSIONS.leaveApprove],
   },
   {
     test: (p) => p === "/attendance/upload",

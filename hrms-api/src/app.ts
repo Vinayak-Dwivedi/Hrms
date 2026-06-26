@@ -28,6 +28,7 @@ import { adminLeavePoliciesRouter } from "@/routes/admin-leave-policies.router";
 import { adminLeavePlansRouter } from "@/routes/admin-leave-plans.router";
 import { adminHolidaysRouter } from "@/routes/admin-holidays.router";
 import { adminWeeklyOffConfigsRouter } from "@/routes/admin-weekly-off-configs.router";
+import { adminShiftConfigsRouter } from "@/routes/admin-shift-configs.router";
 import { adminLeaveCreditsRouter } from "@/routes/admin-leave-credits.router";
 import { hrLeaveApprovalsRouter } from "@/routes/hr-leave-approvals.router";
 import { onboardingRouter } from "@/routes/onboarding.router";
@@ -125,6 +126,10 @@ export function createApp() {
     "holiday.policy.manage",
     "admin.roles",
   );
+  const shiftPolicyAccess = requirePermission(
+    "shift.policy.manage",
+    "admin.roles",
+  );
   const leaveApproveAccess = requirePermission("leave.approve");
   const managerZoneAccess = requirePermission("leave.approve", "attendance.view");
 
@@ -140,6 +145,7 @@ export function createApp() {
   app.use("/api/admin/leave-plans", requireAuth, leavePolicyAccess, adminLeavePlansRouter);
   app.use("/api/admin/holidays", requireAuth, holidayPolicyAccess, adminHolidaysRouter);
   app.use("/api/admin/weekly-off-configs", requireAuth, leavePolicyAccess, adminWeeklyOffConfigsRouter);
+  app.use("/api/admin/shift-configs", requireAuth, shiftPolicyAccess, adminShiftConfigsRouter);
   app.use("/api/admin/leave-credits", requireAuth, leavePolicyAccess, adminLeaveCreditsRouter);
   app.use("/api/hr/leave-approvals", requireAuth, leaveApproveAccess, hrLeaveApprovalsRouter);
 

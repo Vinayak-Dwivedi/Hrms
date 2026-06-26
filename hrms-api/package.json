@@ -44,9 +44,10 @@
     "db:migrate-weekly-off": "node scripts/apply-weekly-off-schema.mjs",
     "db:migrate-leave-credit": "node scripts/apply-leave-credit-schema.mjs",
     "db:migrate-attendance-upload": "node scripts/apply-attendance-upload-schema.mjs",
+    "db:migrate-shift": "node scripts/apply-shift-schema.mjs",
     "seed:org-hierarchy": "node scripts/seed-org-hierarchy.mjs",
     "migrate:encrypt-sensitive": "node scripts/apply-sensitive-schema.mjs && node scripts/migrate-encrypt-sensitive-fields.mjs",
-    "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/auth-role.test.ts src/lib/employee-auth.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts"
+    "test": "node --import tsx --test src/lib/sensitive-field-crypto.test.ts src/lib/sensitive-employee-fields.test.ts src/lib/auth-credentials.test.ts src/lib/auth-role.test.ts src/lib/employee-auth.test.ts src/lib/attendance-report.test.ts src/lib/attendance-status.test.ts src/lib/me-attendance-uploads.test.ts src/lib/standard-shift-timings.test.ts src/middleware/require-permission.test.ts src/modules/org-hierarchy/services/org-hierarchy-tree.test.ts src/modules/org-hierarchy/services/org-hierarchy-validation.test.ts src/modules/org-hierarchy/services/employee-reporting-tree.test.ts src/services/shift-resolver.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
