@@ -31,6 +31,7 @@ import {
   type LookupItem,
   updateEmployee,
   updateEmployeeProfileByHr,
+  syncEmployeeProfessionalByHr,
 } from "../api/employees.client";
 import {
   createUpdateEmployeeFieldValidators,
@@ -59,15 +60,59 @@ import {
 import EmployeeFormField from "./EmployeeFormField";
 import EmployeeFormSection from "./EmployeeFormSection";
 import { useAuth } from "@/lib/auth-context";
+import {
+  professionalValuesToApiPayload,
+} from "@/features/onboarding/api/onboarding.client";
+import {
+  collectWorkInformationFieldErrors,
+  type OnboardingProfileValues,
+  type ProfessionalDetailValues,
+} from "@/features/onboarding/schemas/onboarding.schema";
 import EmployeeOnboardingProfileEdit, {
   type EmployeeOnboardingProfileEditHandle,
 } from "./EmployeeOnboardingProfileEdit";
+import {
+  normalizeProfessionalForValidation,
+  professionalFromEmployeeProfile,
+  createEmptyProfessionalRow,
+  WorkInformationFields,
+} from "./WorkInformationSection";
 import { hasOnboardingPanelAccess } from "./OnboardingAdminPanel";
 import ReportingManagerField from "./ReportingManagerField";
+import {
+  fetchEmployeeShift,
+  formatEmployeeShiftLabel,
+  updateEmployeeShift,
+  type EmployeeShiftAssignment,
+} from "@/features/shift-configuration/api/employee-shift.client";
+import {
+  listShiftConfigs,
+  type ShiftSummary,
+} from "@/features/shift-configuration/api/shift-configs.client";
 
 const employeeFieldControl = { controlClassName: employeeListFormControlClass };
 const maxDob = maxDateOfBirthForAdult();
 const maxDobDate = new Date(`${maxDob}T23:59:59`);
+
+function collectWorkInformationErrors(
+  professional: ProfessionalDetailValues[],
+  noPreviousEmployment: boolean,
+): Record<string, string> {
+  return collectWorkInformationFieldErrors(professional, noPreviousEmployment);
+}
+
+function workInformationSnapshot(
+  professional: ProfessionalDetailValues[],
+  noPreviousEmployment: boolean,
+) {
+  return JSON.stringify({
+    noPreviousEmployment,
+    professional: normalizeProfessionalForValidation(
+      professional,
+      noPreviousEmployment,
+    ),
+  });
+}
 
 interface Props {
   employee: EmployeeDetail;
@@ -82,6 +127,9 @@ type FormLookups = OrgHierarchyRoleLookups & {
   employees: EmployeeListItem[];
   roleOptions: LookupItem[];
   lookupsError: string | null;
+  publishedShifts: ShiftSummary[];
+  shiftAssignment: EmployeeShiftAssignment | null;
+  canManageShift: boolean;
 };
 
 function EditEmployeeFormContent({
@@ -99,15 +147,70 @@ function EditEmployeeFormContent({
   employees,
   roleOptions,
   lookupsError,
+  publishedShifts,
+  shiftAssignment,
+  canManageShift,
 }: Props & FormLookups) {
   const router = useRouter();
   const { hasAnyPermission } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [shiftOverrideId, setShiftOverrideId] = useState(
+    () =>
+      shiftAssignment?.overrideConfigId != null
+        ? String(shiftAssignment.overrideConfigId)
+        : "",
+  );
+  const initialShiftOverrideId =
+    shiftAssignment?.overrideConfigId != null
+      ? String(shiftAssignment.overrideConfigId)
+      : "";
+
+  useEffect(() => {
+    setShiftOverrideId(initialShiftOverrideId);
+  }, [initialShiftOverrideId]);
+
+  const shiftPreviewLabel = useMemo(() => {
+    if (shiftOverrideId) {
+      const selected = publishedShifts.find(
+        (shift) => String(shift.id) === shiftOverrideId,
+      );
+      if (selected) {
+        return `${selected.name} — ${selected.startTimeDisplay}–${selected.endTimeDisplay}`;
+      }
+    }
+    return formatEmployeeShiftLabel(shiftAssignment);
+  }, [shiftOverrideId, publishedShifts, shiftAssignment]);
   const showOnboardingLink =
     hasOnboardingPanelAccess(hasAnyPermission) &&
     !isOnboardingCompleted(employee);
   const [revealErrors, setRevealErrors] = useState(false);
   const onboardingRef = useRef<EmployeeOnboardingProfileEditHandle>(null);
+  const initialWorkProfessional = useMemo(() => {
+    const fromProfile = professionalFromEmployeeProfile(employee.profile);
+    return fromProfile.length > 0 ? fromProfile : [createEmptyProfessionalRow()];
+  }, [employee.profile]);
+  const initialNoPreviousEmployment = false;
+  const initialWorkSnapshot = useMemo(
+    () =>
+      workInformationSnapshot(
+        initialWorkProfessional,
+        initialNoPreviousEmployment,
+      ),
+    [initialWorkProfessional, initialNoPreviousEmployment],
+  );
+  const [workProfessional, setWorkProfessional] = useState(
+    () => initialWorkProfessional,
+  );
+  const [noPreviousEmployment, setNoPreviousEmployment] = useState(
+    () => initialNoPreviousEmployment,
+  );
+  const [workErrors, setWorkErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setWorkProfessional(initialWorkProfessional);
+    setNoPreviousEmployment(initialNoPreviousEmployment);
+    setWorkErrors({});
+  }, [initialWorkProfessional, initialNoPreviousEmployment]);
 
   function revealAllValidationErrors() {
     setRevealErrors(true);
@@ -189,12 +292,37 @@ function EditEmployeeFormContent({
       }
 
       try {
+        const workFieldErrors = collectWorkInformationErrors(
+          workProfessional,
+          noPreviousEmployment,
+        );
+        if (Object.keys(workFieldErrors).length > 0) {
+          setWorkErrors(workFieldErrors);
+          revealAllValidationErrors();
+          setSubmitError(
+            "Please fix the work information fields before submitting.",
+          );
+          return;
+        }
+        setWorkErrors({});
+
+        const normalizedProfessional = normalizeProfessionalForValidation(
+          workProfessional,
+          noPreviousEmployment,
+        );
+        const workChanged =
+          workInformationSnapshot(workProfessional, noPreviousEmployment) !==
+          initialWorkSnapshot;
+
         const onboardingPayload = onboardingRef.current?.isEmpty()
           ? null
           : onboardingRef.current?.validate();
 
         if (!onboardingRef.current?.isEmpty() && !onboardingPayload) {
           revealAllValidationErrors();
+          document
+            .getElementById("employee-onboarding-profile")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
           setSubmitError(
             "Please fix the onboarding profile fields before submitting.",
           );
@@ -206,11 +334,37 @@ function EditEmployeeFormContent({
           toUpdateApiPayload(parsed.data, structureId),
         );
 
+        if (canManageShift && shiftOverrideId !== initialShiftOverrideId) {
+          await updateEmployeeShift(
+            employee.id,
+            shiftOverrideId ? Number(shiftOverrideId) : null,
+          );
+        }
+
+        let profilePayload: OnboardingProfileValues | null = null;
+        let bankPayload: Parameters<typeof updateEmployeeProfileByHr>[2] = null;
+
         if (onboardingPayload) {
+          profilePayload = {
+            ...onboardingPayload.profile,
+            professional: normalizedProfessional,
+          };
+          bankPayload = onboardingPayload.bank;
+        }
+
+        if (profilePayload) {
           await updateEmployeeProfileByHr(
             employee.id,
-            onboardingPayload.profile,
-            onboardingPayload.bank,
+            profilePayload,
+            bankPayload,
+          );
+        } else if (workChanged) {
+          await syncEmployeeProfessionalByHr(
+            employee.id,
+            professionalValuesToApiPayload(
+              workProfessional,
+              noPreviousEmployment,
+            ),
           );
         }
 
@@ -462,6 +616,29 @@ function EditEmployeeFormContent({
             useNativeSelect
           />
 
+          {canManageShift && (
+            <EmployeeFormField>
+              <label className="block text-[12px] font-medium text-slate-600 mb-1.5">
+                Shift
+              </label>
+              <select
+                className={employeeListFormControlClass}
+                value={shiftOverrideId}
+                onChange={(e) => setShiftOverrideId(e.target.value)}
+              >
+                <option value="">Use org default</option>
+                {publishedShifts.map((shift) => (
+                  <option key={shift.id} value={String(shift.id)}>
+                    {shift.name} — {shift.startTimeDisplay}–{shift.endTimeDisplay}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500 mt-1.5 m-0">
+                Effective: {shiftPreviewLabel !== "—" ? shiftPreviewLabel : "No shift configured"}
+              </p>
+            </EmployeeFormField>
+          )}
+
           <EmployeeFormField>
             <form.Field
               name="employeeStatus"
@@ -484,6 +661,51 @@ function EditEmployeeFormContent({
             </form.Field>
           </EmployeeFormField>
         </EmployeeFormSection>
+
+        <WorkInformationFields
+          compact
+          errors={workErrors}
+          noPreviousEmployment={noPreviousEmployment}
+          onBlurField={(field) => {
+            const nextProfessional = normalizeProfessionalForValidation(
+              workProfessional,
+              noPreviousEmployment,
+            );
+            const errors = collectWorkInformationErrors(
+              workProfessional,
+              noPreviousEmployment,
+            );
+            const key = `professional.0.${field}`;
+            setWorkErrors((prev) => {
+              const next = { ...prev };
+              if (errors[key]) next[key] = errors[key]!;
+              else delete next[key];
+              return next;
+            });
+          }}
+          onNoPreviousEmploymentChange={(checked) => {
+            setNoPreviousEmployment(checked);
+            if (checked) {
+              setWorkProfessional([]);
+            } else {
+              setWorkProfessional((prev) =>
+                prev.length > 0 ? prev : [createEmptyProfessionalRow()],
+              );
+            }
+            setWorkErrors({});
+          }}
+          onProfessionalChange={(professional) => {
+            setWorkProfessional(professional);
+            setWorkErrors((prev) => {
+              const next = { ...prev };
+              for (const key of Object.keys(next)) {
+                if (key.startsWith("professional.")) delete next[key];
+              }
+              return next;
+            });
+          }}
+          professional={workProfessional}
+        />
 
         <EmployeeFormSection compact icon={KeyRound} title="Account & Access">
           <EmployeeFormField>
@@ -548,6 +770,7 @@ function EditEmployeeFormContent({
 
       <EmployeeOnboardingProfileEdit
         employeeId={employee.id}
+        hideSections={{ work: true }}
         inGrid
         onboardingSubmittedAt={employee.onboardingSubmittedAt}
         onDocumentsChanged={() => void onRefreshEmployee?.()}
@@ -599,6 +822,11 @@ export default function EditEmployeeForm({
   onCancel,
   onRefreshEmployee,
 }: Props) {
+  const { hasAnyPermission } = useAuth();
+  const canManageShift = hasAnyPermission([
+    "shift.policy.manage",
+    "employees.edit",
+  ]);
   const [lookupsLoading, setLookupsLoading] = useState(true);
   const [lookupsError, setLookupsError] = useState<string | null>(null);
   const [orgLookups, setOrgLookups] = useState<OrgHierarchyRoleLookups>({
@@ -611,22 +839,36 @@ export default function EditEmployeeForm({
   const [branches, setBranches] = useState<Awaited<ReturnType<typeof fetchBranches>>>([]);
   const [employees, setEmployees] = useState<EmployeeListItem[]>([]);
   const [roleOptions, setRoleOptions] = useState<LookupItem[]>([]);
+  const [publishedShifts, setPublishedShifts] = useState<ShiftSummary[]>([]);
+  const [shiftAssignment, setShiftAssignment] =
+    useState<EmployeeShiftAssignment | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [org, brs, emps, roles] = await Promise.all([
+        const shiftLoads = canManageShift
+          ? Promise.all([
+              listShiftConfigs("Published").catch(() => [] as ShiftSummary[]),
+              fetchEmployeeShift(employee.id).catch(() => null),
+            ])
+          : Promise.resolve([[] as ShiftSummary[], null] as const);
+
+        const [org, brs, emps, roles, shiftData] = await Promise.all([
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
           fetchEmployees(),
           fetchRoleOptions(),
+          shiftLoads,
         ]);
+        const [shifts, assignment] = shiftData;
         if (cancelled) return;
         setOrgLookups(org);
         setBranches(brs);
         setEmployees(emps);
         setRoleOptions(roles);
+        setPublishedShifts(shifts);
+        setShiftAssignment(assignment);
       } catch (e) {
         if (!cancelled) setLookupsError((e as Error).message);
       } finally {
@@ -636,7 +878,7 @@ export default function EditEmployeeForm({
     return () => {
       cancelled = true;
     };
-  }, [employee.id]);
+  }, [employee.id, canManageShift]);
 
   if (lookupsLoading) {
     return <div className={employeeLoadingClass}>Loading form options…</div>;
@@ -650,6 +892,9 @@ export default function EditEmployeeForm({
       embedded={embedded}
       employees={employees}
       lookupsError={lookupsError}
+      publishedShifts={publishedShifts}
+      shiftAssignment={shiftAssignment}
+      canManageShift={canManageShift}
       roleOptions={roleOptions}
       onCancel={onCancel}
       onRefreshEmployee={onRefreshEmployee}

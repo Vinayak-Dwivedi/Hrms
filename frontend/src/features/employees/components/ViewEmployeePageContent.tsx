@@ -6,7 +6,10 @@ import {
   fetchOrgHierarchyRoleLookups,
   type OrgHierarchyRoleLookups,
 } from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
-import EmployeeDetailView from "./EmployeeDetailView";
+import {
+  fetchEmployeeShift,
+  formatEmployeeShiftLabel,
+} from "@/features/shift-configuration/api/employee-shift.client";
 import {
   employeeBtnOutlineSmClass,
   employeeErrorBannerClass,
@@ -23,6 +26,7 @@ import {
   type EmployeeDetail,
   type LookupItem,
 } from "../api/employees.client";
+import EmployeeDetailView from "./EmployeeDetailView";
 
 interface Props {
   employeeId: number;
@@ -48,6 +52,7 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
   const [invitationMessage, setInvitationMessage] = useState<string | null>(
     null,
   );
+  const [shiftLabel, setShiftLabel] = useState<string>("—");
 
   useEffect(() => {
     let cancelled = false;
@@ -56,12 +61,13 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
 
     (async () => {
       try {
-        const [emp, org, brs, roles, emps] = await Promise.all([
+        const [emp, org, brs, roles, emps, shift] = await Promise.all([
           fetchEmployeeById(employeeId),
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
           fetchRoleOptions(),
           fetchEmployees(),
+          fetchEmployeeShift(employeeId).catch(() => null),
         ]);
         if (cancelled) return;
         setEmployee(emp);
@@ -69,6 +75,7 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
         setBranches(brs);
         setRoleOptions(roles);
         setAllEmployees(emps);
+        setShiftLabel(formatEmployeeShiftLabel(shift));
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
       } finally {
@@ -133,6 +140,7 @@ export default function ViewEmployeePageContent({ employeeId }: Props) {
             employee={employee}
             managerLabel={managerLabel}
             orgLookups={orgLookups}
+            shiftLabel={shiftLabel}
             systemAccessRoleLabel={systemAccessRoleLabel}
             onResendInvitation={
               !isOnboardingCompleted(employee)

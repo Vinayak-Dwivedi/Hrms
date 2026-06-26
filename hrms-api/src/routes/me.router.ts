@@ -1,10 +1,11 @@
 import path from "node:path";
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "@/db/runtime";
 import {
   attendanceRecords,
+  attendanceUploads,
   branches,
   employees,
   employmentTypes,
@@ -36,6 +37,17 @@ import { users } from "@/db/schema/auth";
 import { getEmployeeColumnSupport } from "@/lib/employee-schema-compat";
 import { env } from "@/env";
 import { ApiError } from "@/middleware/error";
+import {
+  attendanceUploadMatchesEmpId,
+  shapeAttendanceReportRow,
+  type AttendanceReportShiftInfo,
+} from "@/lib/attendance-report";
+import {
+  loadAttendanceDayContext,
+  buildMonthAttendanceFromUploads,
+} from "@/lib/attendance-status";
+import { resolveShiftsForEmployees } from "@/services/shift-resolver";
+import { mapUploadAttendanceRows } from "@/lib/me-attendance-uploads";
 import {
   PROFILE_PIC_SUBDIR,
   extensionForMime,
@@ -426,28 +438,15 @@ meRouter.get("/attendance/month", async (req, res, next) => {
     const month1 = q.month ?? now.getMonth() + 1;
     const { start, end } = startEndOfMonth(year, month1 - 1);
 
-    // Attendance records + holidays for the same range, in parallel.
-    const [rows, monthHolidays] = await Promise.all([
-      db
-        .select()
-        .from(attendanceRecords)
-        .where(
-          and(
-            eq(attendanceRecords.employeeId, emp.id),
-            gte(attendanceRecords.date, start),
-            lte(attendanceRecords.date, end),
-          ),
-        )
-        .orderBy(asc(attendanceRecords.date)),
+    const [records, monthHolidays] = await Promise.all([
+      buildMonthAttendanceFromUploads(emp.id, emp.empId, start, end),
       holidaysForEmployee(emp.id, start, end),
     ]);
 
     res.json({
       year,
       month: month1,
-      records: rows,
-      // M5 — surface the employee's holidays for the month so the calendar
-      // can render holiday cells alongside attendance cells.
+      records,
       holidays: monthHolidays.map((h) => ({
         id: h.id,
         date: h.date,
@@ -455,6 +454,143 @@ meRouter.get("/attendance/month", async (req, res, next) => {
         type: h.type,
         isHalfDay: h.isHalfDay,
       })),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const meAttendanceReportQuerySchema = z.object({
+  fromDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  toDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+meRouter.get("/attendance/report", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const query = meAttendanceReportQuerySchema.parse(req.query);
+    const now = new Date();
+    const { start: defaultFrom, end: defaultTo } = startEndOfMonth(
+      now.getFullYear(),
+      now.getMonth(),
+    );
+    const fromDate = query.fromDate ?? defaultFrom;
+    const toDate = query.toDate ?? defaultTo;
+    const offset = (query.page - 1) * query.limit;
+
+    const dateFilter = and(
+      attendanceUploadMatchesEmpId(emp.empId),
+      gte(attendanceUploads.attendanceDate, fromDate),
+      lte(attendanceUploads.attendanceDate, toDate),
+    );
+
+    const [uploadRows, countResult] = await Promise.all([
+      db
+        .select({
+          attendanceDate: attendanceUploads.attendanceDate,
+          inTime: attendanceUploads.inTime,
+          outTime: attendanceUploads.outTime,
+          totalHours: attendanceUploads.totalHours,
+        })
+        .from(attendanceUploads)
+        .where(dateFilter)
+        .orderBy(desc(attendanceUploads.attendanceDate))
+        .limit(query.limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(attendanceUploads)
+        .where(dateFilter),
+    ]);
+
+    const shiftMap = await resolveShiftsForEmployees([emp.id]);
+    const resolved = shiftMap.get(emp.id);
+    const shift: AttendanceReportShiftInfo | null = resolved
+      ? {
+          name: resolved.name,
+          shiftTiming: resolved.shiftTiming,
+          startTime: resolved.startTime,
+          endTime: resolved.endTime,
+          graceMinutes: resolved.graceMinutes,
+          breakMinutes: resolved.breakMinutes,
+        }
+      : null;
+
+    const dayContext = await loadAttendanceDayContext(emp.id, fromDate, toDate);
+
+    const rows = uploadRows.map((row) =>
+      shapeAttendanceReportRow({
+        attendanceDate: row.attendanceDate,
+        employeeCode: emp.empId,
+        inTime: row.inTime,
+        outTime: row.outTime,
+        totalHours: row.totalHours,
+        hasUploadRecord: true,
+        firstName: emp.firstName,
+        middleName: emp.middleName,
+        lastName: emp.lastName,
+        departmentName: null,
+        subDepartmentName: null,
+        designationName: null,
+        locationName: null,
+        reportingManagerL2: null,
+        reportingManagerL3: null,
+        shift,
+        dayContext,
+      }),
+    );
+
+    res.json({
+      rows,
+      total: countResult[0]?.count ?? 0,
+      page: query.page,
+      limit: query.limit,
+      employeeId: emp.empId,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+meRouter.get("/attendance/uploads", async (req, res, next) => {
+  try {
+    const emp = await loadCurrentEmployee(req.user!.id);
+    const now = new Date();
+    const q = monthQuery.parse(req.query);
+    const year = q.year ?? now.getFullYear();
+    const month1 = q.month ?? now.getMonth() + 1;
+    const { start, end } = startEndOfMonth(year, month1 - 1);
+
+    const rows = await db
+      .select({
+        attendanceDate: attendanceUploads.attendanceDate,
+        inTime: attendanceUploads.inTime,
+        outTime: attendanceUploads.outTime,
+        totalHours: attendanceUploads.totalHours,
+      })
+      .from(attendanceUploads)
+      .where(
+        and(
+          attendanceUploadMatchesEmpId(emp.empId),
+          gte(attendanceUploads.attendanceDate, start),
+          lte(attendanceUploads.attendanceDate, end),
+        ),
+      )
+      .orderBy(asc(attendanceUploads.attendanceDate));
+
+    res.json({
+      year,
+      month: month1,
+      employeeId: emp.empId,
+      records: mapUploadAttendanceRows(rows),
     });
   } catch (e) {
     next(e);

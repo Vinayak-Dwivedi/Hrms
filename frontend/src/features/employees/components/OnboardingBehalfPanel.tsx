@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   EmployeeProfile,
   OnboardingStatus,
 } from "@/features/onboarding/api/onboarding.client";
+import {
+  bankFormValuesFromProfile,
+} from "@/features/onboarding/api/onboarding.client";
+import OnboardingBankForm, {
+  type OnboardingBankFormHandle,
+} from "@/features/onboarding/components/OnboardingBankForm";
 import OnboardingBankStep from "@/features/onboarding/components/OnboardingBankStep";
 import OnboardingDocumentUpload from "@/features/onboarding/components/OnboardingDocumentUpload";
 import OnboardingProfileForm from "@/features/onboarding/components/OnboardingProfileForm";
@@ -92,6 +98,7 @@ export default function OnboardingBehalfPanel({
       status: "Pending" | "Uploaded" | "Verified" | "Rejected";
     }>
   >([]);
+  const bankFormRef = useRef<OnboardingBankFormHandle>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,14 +151,23 @@ export default function OnboardingBehalfPanel({
         employeeId,
         values,
       );
-      const readiness = computeOnboardingReadiness(profile);
+
+      const bankValues = bankFormRef.current?.isEmpty()
+        ? null
+        : bankFormRef.current?.validate();
+      if (bankValues) {
+        await updateOnboardingBank(employeeId, bankValues);
+      }
+
+      const refreshed = await fetchEmployeeOnboardingProfile(employeeId);
+      const readiness = computeOnboardingReadiness(refreshed);
       setInitialProfile(readiness.formValues);
       setProfileComplete(readiness.profileComplete);
       setBankComplete(readiness.bankComplete);
       setPendingDocuments(readiness.pendingDocuments);
       setDocuments(readiness.documents);
-      setBank(profile.bank);
-      setReviewStatus(toReviewStatus(profile, readiness));
+      setBank(refreshed.bank);
+      setReviewStatus(toReviewStatus(refreshed, readiness));
       setSuccess("Profile saved on behalf of employee.");
       setManualStep(readiness.profileComplete ? "documents" : "profile");
       onUpdated?.();
@@ -224,10 +240,17 @@ export default function OnboardingBehalfPanel({
         <>
           {step === "profile" && initialProfile && (
             <OnboardingProfileForm
+              companionSection={
+                <OnboardingBankForm
+                  ref={bankFormRef}
+                  embedded
+                  initialValues={bankFormValuesFromProfile({ bank })}
+                />
+              }
               initialValues={initialProfile}
               onSubmit={handleProfileSave}
+              sectionsLayout="grid"
               submitting={submittingProfile}
-              sectionsLayout={layout === "flat" ? "grid" : "stack"}
               formOptionsSource="hr"
             />
           )}

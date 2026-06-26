@@ -8,20 +8,14 @@ import type {
   RegularisationSubmission,
 } from "@/components/attendance/AttendanceCalendar";
 import AttendanceCalendar from "@/components/attendance/AttendanceCalendar";
-import AttendanceTable from "@/components/attendance/AttendanceTable";
+import MyAttendanceReport from "@/components/attendance/MyAttendanceReport";
 import ViewModeToggle, {
   type ViewMode,
 } from "@/components/attendance/ViewModeToggle";
 import type {
-  AttendanceRecord,
   DayAttendance,
-  LeaveRequest,
   LeaveType,
 } from "@/lib/dashboard";
-import {
-  mergeHolidaysIntoDays,
-  mergeLeavesIntoDays,
-} from "@/lib/attendance-merge";
 import {
   fetchManagerLeaveBalances,
   fetchManagerLeaveRequests,
@@ -40,7 +34,6 @@ import {
 } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
 import { useReportingManagerAvailable } from "@/lib/use-reporting-manager-available";
-import { useAuth } from "@/lib/auth-context";
 import { enterpriseCardClass, enterpriseLoadingClass } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
@@ -91,7 +84,6 @@ export default function RoleAttendance({
   /** Auto-open the Apply-Leave form (arriving from the "Apply Leave" link). */
   autoApplyLeave?: boolean;
 }) {
-  const { hasPermission } = useAuth();
   const { available: reportingManager, loading: managerProbeLoading } =
     useReportingManagerAvailable();
   const useManagerApis = role === "manager" && reportingManager;
@@ -109,22 +101,13 @@ export default function RoleAttendance({
   const [loading, setLoading] = useState(true);
   const [calYear, setCalYear] = useState(initialYear);
   const [calMonth0, setCalMonth0] = useState(initialMonth0);
-  // View mode — calendar (default 70/30 split) or table (full-width summary).
   const [view, setView] = useState<ViewMode>("calendar");
 
   async function refreshDays(
     year: number,
     month0: number,
   ): Promise<DayAttendance[]> {
-    const monthStart = new Date(year, month0, 1);
-    const monthEnd = new Date(year, month0 + 1, 0);
-    const [days, leaves, monthHolidays] = await Promise.all([
-      adapters.fetchMonth(year, month0 + 1),
-      adapters.fetchLeaveRequests(),
-      fetchMonthHolidays(year, month0 + 1),
-    ]);
-    const withHolidays = mergeHolidaysIntoDays(days, monthHolidays);
-    return mergeLeavesIntoDays(withHolidays, leaves, monthStart, monthEnd);
+    return adapters.fetchMonth(year, month0 + 1);
   }
 
   useEffect(() => {
@@ -205,7 +188,6 @@ export default function RoleAttendance({
     toast.success("Regularisation submitted — pending approval");
   }
 
-
   return (
     <>
       {loadError && (
@@ -267,11 +249,7 @@ export default function RoleAttendance({
                 "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
               )}
             >
-              <AttendanceTable
-                data={data}
-                year={calYear}
-                month0={calMonth0}
-              />
+              <MyAttendanceReport />
             </div>
           )}
         </div>

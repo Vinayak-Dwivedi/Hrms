@@ -2,7 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import { loadCurrentEmployee } from "@/lib/employee";
 import { approveOnboardingSchema } from "@/modules/hr-onboarding/schemas/document-verify.schema";
 import { employeeIdParamSchema } from "@/modules/hr-onboarding/schemas/employee-list.schema";
-import { upsertProfileSchema } from "@/modules/onboarding/schemas/profile.schema";
+import {
+  syncProfessionalOnlySchema,
+  upsertProfileSchema,
+} from "@/modules/onboarding/schemas/profile.schema";
 import * as profileService from "@/modules/onboarding/services/employee-profile.service";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import * as employeeAdmin from "@/modules/hr-onboarding/services/employee-admin.service";
@@ -88,6 +91,34 @@ export async function patchEmployeeProfile(
       {
         actorUserId: req.user!.id,
         action: "EMPLOYEE_PROFILE_UPDATED_BY_HR",
+        entityType: "employee",
+        entityId: String(id),
+      },
+      req.auditContext,
+    );
+    res.json(profile);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function patchEmployeeProfessional(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const { id } = employeeIdParamSchema.parse(req.params);
+    const body = syncProfessionalOnlySchema.parse(req.body);
+    const profile = await profileService.syncProfessional(
+      id,
+      body.professional,
+      req.user!.id,
+    );
+    writeAuditLogAsync(
+      {
+        actorUserId: req.user!.id,
+        action: "EMPLOYEE_PROFILE_PROFESSIONAL_UPDATED_BY_HR",
         entityType: "employee",
         entityId: String(id),
       },

@@ -2109,6 +2109,57 @@ export const weeklyOffRosterEntries = pgTable(
   ],
 );
 
+// ───── Shift Configurations ───────────────────────────────────────────────
+
+export const shiftConfigs = pgTable(
+  "shift_configs",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 150 }).notNull().unique(),
+    description: text("description"),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("Draft"),
+    isDefault: boolean("is_default").notNull().default(false),
+    graceMinutes: integer("grace_minutes").notNull().default(0),
+    breakMinutes: integer("break_minutes").notNull().default(0),
+    createdBy: integer("created_by").references((): AnyPgColumn => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_shift_configs_status").on(table.status),
+    index("idx_shift_configs_updated_at").on(table.updatedAt),
+  ],
+);
+
+export const shiftScope = pgTable(
+  "shift_scope",
+  {
+    id: serial("id").primaryKey(),
+    shiftConfigId: integer("shift_config_id")
+      .notNull()
+      .references(() => shiftConfigs.id, { onDelete: "cascade" }),
+    scopeType: varchar("scope_type", { length: 30 }).notNull(),
+    scopeId: integer("scope_id"),
+    priority: integer("priority").notNull().default(100),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_shift_scope_config").on(table.shiftConfigId),
+    index("idx_shift_scope_lookup").on(table.scopeType, table.scopeId),
+  ],
+);
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 9 — ORG SETUP: LOCATIONS
 // ───────────────────────────────────────────────────────────────────────────
@@ -2247,6 +2298,10 @@ export type Attendance = typeof attendance.$inferSelect;
 export type NewAttendance = typeof attendance.$inferInsert;
 export type AttendanceUpload = typeof attendanceUploads.$inferSelect;
 export type NewAttendanceUpload = typeof attendanceUploads.$inferInsert;
+export type ShiftConfig = typeof shiftConfigs.$inferSelect;
+export type NewShiftConfig = typeof shiftConfigs.$inferInsert;
+export type ShiftScope = typeof shiftScope.$inferSelect;
+export type NewShiftScope = typeof shiftScope.$inferInsert;
 export type BiometricRawLog = typeof biometricRawLogs.$inferSelect;
 export type NewBiometricRawLog = typeof biometricRawLogs.$inferInsert;
 export type LeaveType = typeof leaveTypes.$inferSelect;

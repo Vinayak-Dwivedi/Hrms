@@ -1,6 +1,12 @@
 "use client";
 
-import { type ReactNode, forwardRef, useImperativeHandle, useState } from "react";
+import {
+  type ReactNode,
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
 import { employeeBtnClass } from "@/features/employees/employee-theme";
@@ -24,6 +30,8 @@ interface Props {
 export type OnboardingBankFormHandle = {
   validate: (options?: { required?: boolean }) => OnboardingBankFormValues | null;
   isEmpty: () => boolean;
+  isDirty: () => boolean;
+  getValues: () => OnboardingBankFormValues;
   revealErrors: (options?: { required?: boolean }) => void;
 };
 
@@ -93,14 +101,17 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
     },
     ref,
   ) {
-  const [values, setValues] = useState<OnboardingBankFormValues>({
+  const initialBankState: OnboardingBankFormValues = {
     bank:
       initialValues?.bank?.length && initialValues.bank.length > 0
         ? initialValues.bank
         : [DEFAULT_BANK_ROW],
-  });
+  };
+  const [values, setValues] =
+    useState<OnboardingBankFormValues>(initialBankState);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const initialSnapshotRef = useRef(JSON.stringify(initialBankState));
 
   function updateBank(index: number, patch: Partial<BankDetailValues>) {
     setValues((prev) => ({
@@ -156,6 +167,8 @@ const OnboardingBankForm = forwardRef<OnboardingBankFormHandle, Props>(
       return parsed.data;
     },
     isEmpty: () => isBankEmpty(values),
+    isDirty: () => JSON.stringify(values) !== initialSnapshotRef.current,
+    getValues: () => values,
     revealErrors: (options?: { required?: boolean }) => {
       const required = options?.required ?? false;
       if (!required && isBankEmpty(values)) return;

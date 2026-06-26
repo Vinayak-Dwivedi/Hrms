@@ -7,6 +7,10 @@ import {
   type AttendanceUploadRecord,
 } from "@/features/attendance/api/attendance-upload.client";
 import {
+  attendanceStatusCellClass,
+  formatAttendanceStatusLabel,
+} from "@/features/attendance/lib/attendance-status-ui";
+import {
   employeeCardClass,
   employeeErrorBannerClass,
   employeeFormSectionClass,
@@ -277,7 +281,7 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   {[
@@ -285,6 +289,7 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
                     "Attendance Date",
                     "In Time",
                     "Out Time",
+                    "Attendance Status",
                     "Uploaded At",
                   ].map((h) => (
                     <th key={h} className={employeeListTableHeadClass}>
@@ -296,7 +301,7 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className={employeeListTableEmptyClass}>
+                    <td colSpan={6} className={employeeListTableEmptyClass}>
                       No uploaded records found for the selected filters.
                     </td>
                   </tr>
@@ -322,6 +327,11 @@ export default function AttendanceUploadRecords({ refreshKey = 0 }: Props) {
                         className={`${employeeListTableCellClass} whitespace-nowrap font-mono text-[12px]`}
                       >
                         {formatTimeValue(row.outTime)}
+                      </td>
+                      <td
+                        className={`${employeeListTableCellClass} whitespace-nowrap ${attendanceStatusCellClass(row.attendanceStatus)}`}
+                      >
+                        {formatAttendanceStatusLabel(row.attendanceStatus)}
                       </td>
                       <td className={`${employeeListTableCellClass} whitespace-nowrap`}>
                         {formatUploadedAt(row.uploadedAt)}

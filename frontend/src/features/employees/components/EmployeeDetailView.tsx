@@ -25,12 +25,14 @@ import {
 } from "../employee-theme";
 import EmployeeFormSection from "./EmployeeFormSection";
 import EmployeeOnboardingProfileView from "./EmployeeOnboardingProfileView";
+import { WorkInformationView } from "./WorkInformationSection";
 
 interface Props {
   employee: EmployeeDetail;
   orgLookups: OrgHierarchyRoleLookups;
   branches: LookupItem[];
   managerLabel: string;
+  shiftLabel?: string;
   systemAccessRoleLabel?: string;
   variant?: "page" | "modal";
   onEdit?: () => void;
@@ -84,6 +86,7 @@ export default function EmployeeDetailView({
   orgLookups,
   branches,
   managerLabel,
+  shiftLabel,
   systemAccessRoleLabel,
   variant = "page",
   onEdit,
@@ -210,9 +213,15 @@ export default function EmployeeDetailView({
             <DetailRow label="Designation" value={orgRole.designation} />
             <DetailRow label="Level / grade" value={orgRole.levelGrade} />
             <DetailRow label="Reporting manager" value={managerLabel} />
+            <DetailRow label="Shift" value={shiftLabel ?? "—"} />
             <DetailRow label="Status" value={employee.employeeStatus} />
           </DetailSectionBody>
         </EmployeeFormSection>
+
+        <WorkInformationView
+          professional={employee.profile?.professional ?? []}
+          compact
+        />
 
         <EmployeeFormSection
           bodyClassName="px-4 py-4"

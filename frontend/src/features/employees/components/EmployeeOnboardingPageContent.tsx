@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import type { EmployeeProfile } from "@/features/onboarding/api/onboarding.client";
 import OnboardingProfileReadOnly from "@/features/onboarding/components/OnboardingProfileReadOnly";
 import {
   computeOnboardingPipeline,
@@ -19,6 +20,7 @@ import {
 } from "../api/employees.client";
 import {
   employeeBtnOutlineSmClass,
+  employeeCardClass,
   employeeErrorBannerClass,
   employeeLoadingClass,
 } from "../employee-theme";
@@ -43,9 +45,11 @@ const STATUS_BADGE: Record<string, string> = {
 
 function SubmittedProfilePanel({
   profileValues,
+  bank,
   submittedAt,
 }: {
   profileValues: OnboardingProfileValues;
+  bank: EmployeeProfile["bank"];
   submittedAt?: string | null;
 }) {
   return (
@@ -64,7 +68,11 @@ function SubmittedProfilePanel({
         ) : null}
       </header>
       <div className="p-4">
-        <OnboardingProfileReadOnly values={profileValues} layout="page" />
+        <OnboardingProfileReadOnly
+          bank={bank}
+          layout="page"
+          values={profileValues}
+        />
       </div>
     </section>
   );
@@ -78,6 +86,7 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
   const [employee, setEmployee] = useState<EmployeeDetail | null>(null);
   const [profileValues, setProfileValues] =
     useState<OnboardingProfileValues | null>(null);
+  const [profileBank, setProfileBank] = useState<EmployeeProfile["bank"]>([]);
   const [timeline, setTimeline] = useState<OnboardingTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -93,6 +102,7 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
       ]);
       setEmployee(emp);
       setProfileValues(computeOnboardingReadiness(profile).formValues);
+      setProfileBank(profile.bank);
       setTimeline(onboarding);
     } catch (e) {
       setLoadError((e as Error).message);
@@ -127,77 +137,83 @@ export default function EmployeeOnboardingPageContent({ employeeId }: Props) {
   const sideContent =
     showSubmittedDetails && profileValues ? (
       <SubmittedProfilePanel
+        bank={profileBank}
         profileValues={profileValues}
         submittedAt={timeline?.submittedAt}
       />
     ) : null;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link className={employeeBtnOutlineSmClass} href="/employees">
-          ← Back to employees
-        </Link>
-        {employee && (
-          <Link
-            className={employeeBtnOutlineSmClass}
-            href={`/employees/${employeeId}`}
-          >
-            View employee profile
+    <div className="space-y-6">
+      <section className={`${employeeCardClass} p-[22px] md:p-[30px]`}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link className={employeeBtnOutlineSmClass} href="/employees">
+            ← Back to employees
           </Link>
+          {employee && (
+            <Link
+              className={employeeBtnOutlineSmClass}
+              href={`/employees/${employeeId}`}
+            >
+              View employee profile
+            </Link>
+          )}
+        </div>
+
+        {loading && (
+          <div className={`${employeeLoadingClass} mt-6`}>
+            Loading onboarding…
+          </div>
         )}
-      </div>
+        {loadError && (
+          <div className={`${employeeErrorBannerClass} mt-6`}>{loadError}</div>
+        )}
 
-      {loading && (
-        <div className={employeeLoadingClass}>Loading onboarding…</div>
-      )}
-      {loadError && (
-        <div className={employeeErrorBannerClass}>{loadError}</div>
-      )}
-
-      {!loading && !loadError && employee && (
-        <>
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        {!loading && !loadError && employee && (
+          <div className="flex flex-wrap items-start justify-between gap-6 mt-6 pt-6 border-t border-slate-100">
             <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-wider text-slate-500 m-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 m-0">
                 Employee onboarding
               </p>
-              <h1 className="text-xl font-semibold text-slate-900 mt-1 mb-0 tracking-tight">
+              <h1 className="text-2xl font-semibold text-slate-900 mt-2 mb-0 tracking-tight">
                 {formatEmployeeDisplayName(employee)}
               </h1>
-              <p className="text-sm text-slate-500 mt-1 mb-0">{employee.empId}</p>
+              <p className="text-sm text-slate-500 mt-2 mb-0">{employee.empId}</p>
             </div>
 
             <span
-              className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full shrink-0 ${statusBadgeClass}`}
+              className={`inline-flex px-3 py-1.5 text-xs font-semibold rounded-full shrink-0 ${statusBadgeClass}`}
             >
               {formatOnboardingStatus(employee.onboardingStatus)}
             </span>
           </div>
+        )}
+      </section>
 
-          <OnboardingAdminPanel
-            employeeId={employeeId}
-            variant="page"
-            sideContent={sideContent}
-            onTimelineLoaded={setTimeline}
-            onUpdated={async () => {
-              const [emp, profile, onboarding] = await Promise.all([
-                fetchEmployeeById(employeeId),
-                fetchEmployeeOnboardingProfile(employeeId),
-                fetchEmployeeOnboarding(employeeId),
-              ]);
-              setEmployee(emp);
-              setProfileValues(
-                computeOnboardingReadiness(profile).formValues,
-              );
-              setTimeline(onboarding);
-            }}
-            onOnboardingCompleted={() => {
-              router.push("/employees");
-              router.refresh();
-            }}
-          />
-        </>
+      {!loading && !loadError && employee && (
+        <OnboardingAdminPanel
+          employeeId={employeeId}
+          variant="page"
+          sideContent={sideContent}
+          onTimelineLoaded={setTimeline}
+          onUpdated={async () => {
+            const [emp, profile, onboarding] = await Promise.all([
+              fetchEmployeeById(employeeId),
+              fetchEmployeeOnboardingProfile(employeeId),
+              fetchEmployeeOnboarding(employeeId),
+            ]);
+            setEmployee(emp);
+            setProfileValues(
+              computeOnboardingReadiness(profile).formValues,
+            );
+            setProfileBank(profile.bank);
+            setTimeline(onboarding);
+          }}
+          onOnboardingCompleted={() => {
+            router.push("/employees");
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );

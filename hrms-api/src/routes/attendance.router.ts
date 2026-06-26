@@ -17,6 +17,12 @@ import {
   punchOutForRecord,
   resolveWorkingMinutes,
 } from "@/lib/attendance-import";
+import {
+  emptyAttendanceDayContext,
+  loadAttendanceDayContextBatch,
+  resolveAttendanceStatusForDate,
+} from "@/lib/attendance-status";
+import { startEndOfMonth } from "@/lib/employee";
 import { requirePermission } from "@/middleware/require-permission";
 import { and, desc, eq, gte, ilike, inArray, lte, sql } from "drizzle-orm";
 
@@ -79,6 +85,54 @@ function buildUploadListFilters(query: z.infer<typeof listUploadsQuerySchema>) {
   return filters.length > 0 ? and(...filters) : undefined;
 }
 
+function resolveUploadListDateRange(
+  query: z.infer<typeof listUploadsQuerySchema>,
+  rowDates: string[],
+): { fromDate: string; toDate: string } {
+  if (query.date) {
+    return { fromDate: query.date, toDate: query.date };
+  }
+  if (query.fromDate || query.toDate) {
+    const from = query.fromDate ?? query.toDate!;
+    const to = query.toDate ?? query.fromDate!;
+    return { fromDate: from, toDate: to };
+  }
+  if (query.month) {
+    const { from, to } = monthDateRange(query.month);
+    return { fromDate: from, toDate: to };
+  }
+  if (rowDates.length > 0) {
+    const sorted = [...rowDates].sort();
+    return { fromDate: sorted[0]!, toDate: sorted[sorted.length - 1]! };
+  }
+  const now = new Date();
+  const { start, end } = startEndOfMonth(now.getFullYear(), now.getMonth());
+  return { fromDate: start, toDate: end };
+}
+
+async function resolveEmployeeIdsByCode(
+  codes: string[],
+): Promise<Map<string, number>> {
+  const normalized = [...new Set(codes.map((c) => c.trim().toLowerCase()))];
+  if (normalized.length === 0) return new Map();
+
+  const empRows = await db
+    .select({ id: employees.id, empId: employees.empId })
+    .from(employees)
+    .where(
+      sql`lower(trim(${employees.empId})) in (${sql.join(
+        normalized.map((c) => sql`${c}`),
+        sql`, `,
+      )})`,
+    );
+
+  const map = new Map<string, number>();
+  for (const row of empRows) {
+    map.set(row.empId.trim().toLowerCase(), row.id);
+  }
+  return map;
+}
+
 attendanceRouter.get("/uploads", uploadAttendance, async (req, res, next) => {
   try {
     const query = listUploadsQuerySchema.parse(req.query);
@@ -92,6 +146,7 @@ attendanceRouter.get("/uploads", uploadAttendance, async (req, res, next) => {
         attendanceDate: attendanceUploads.attendanceDate,
         inTime: attendanceUploads.inTime,
         outTime: attendanceUploads.outTime,
+        totalHours: attendanceUploads.totalHours,
         uploadedAt: attendance.createdAt,
         fileName: attendance.fileName,
       })
@@ -111,8 +166,47 @@ attendanceRouter.get("/uploads", uploadAttendance, async (req, res, next) => {
       whereClause ? countQuery.where(whereClause) : countQuery,
     ]);
 
+    const { fromDate, toDate } = resolveUploadListDateRange(
+      query,
+      rows.map((r) => r.attendanceDate),
+    );
+    const codeToEmployeeId = await resolveEmployeeIdsByCode(
+      rows.map((r) => r.employeeCode),
+    );
+    const employeeIds = [
+      ...new Set(
+        rows
+          .map((r) => codeToEmployeeId.get(r.employeeCode.trim().toLowerCase()))
+          .filter((id): id is number => id != null),
+      ),
+    ];
+    const dayContextMap = await loadAttendanceDayContextBatch(
+      employeeIds,
+      fromDate,
+      toDate,
+    );
+
+    const enrichedRows = rows.map((row) => {
+      const employeeId = codeToEmployeeId.get(
+        row.employeeCode.trim().toLowerCase(),
+      );
+      const dayContext = employeeId
+        ? (dayContextMap.get(employeeId) ?? emptyAttendanceDayContext())
+        : emptyAttendanceDayContext();
+      const attendanceStatus = resolveAttendanceStatusForDate(
+        row.attendanceDate,
+        {
+          inTime: row.inTime,
+          outTime: row.outTime,
+          totalHours: row.totalHours,
+        },
+        dayContext,
+      );
+      return { ...row, attendanceStatus };
+    });
+
     res.json({
-      rows,
+      rows: enrichedRows,
       total: countRows[0]?.count ?? 0,
       page: query.page,
       limit: query.limit,
@@ -405,7 +499,7 @@ attendanceRouter.post(
         const totalHours = parseTime(data["Wrk Hrs"]);
 
         uploadRows.push({
-          employeeCode: data["EMP Code"],
+          employeeCode: String(data["EMP Code"] ?? "").trim(),
           inTime,
           outTime,
           totalHours,

@@ -32,6 +32,7 @@ import {
   type ProfileEditableState,
   type ProfileQualification,
 } from "../api/profile.client";
+import { WorkInformationFields, createEmptyProfessionalRow } from "./WorkInformationSection";
 import {
   EmailUnverifiedBadge,
   EmailVerifiedBadge,
@@ -68,6 +69,7 @@ type ProfileTab =
   | "employment"
   | "emergency"
   | "personal"
+  | "work"
   | "academics"
   | "bank";
 
@@ -91,6 +93,7 @@ const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { id: "employment", label: "Employment", icon: Briefcase },
       { id: "personal", label: "Personal & Compliance", icon: FileText },
+      { id: "work", label: "Work Information", icon: Briefcase },
       { id: "academics", label: "Academic Details", icon: GraduationCap },
       { id: "bank", label: "Bank Details", icon: Landmark },
     ],
@@ -127,6 +130,11 @@ const TAB_META: Record<
     title: "Personal & Compliance",
     description:
       "Family details and statutory identifiers required for payroll and compliance.",
+  },
+  work: {
+    title: "Work Information",
+    description:
+      "Previous employment before joining this organization. Select Fresher if you have no prior work experience.",
   },
   academics: {
     title: "Academic Details",
@@ -720,6 +728,18 @@ export default function ProfileForm() {
     e.preventDefault();
     if (!form || !extendedProfile) return;
 
+    const validationErrors = collectProfilePageFieldErrors(form, extendedProfile);
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      const errorTab = profileFieldErrorTab(Object.keys(validationErrors)[0]!);
+      if (errorTab !== activeTab) {
+        setActiveTab(errorTab);
+      }
+      toast.error("Please fix the highlighted fields before saving.");
+      return;
+    }
+    setFieldErrors({});
+
     if (activeTab === "academics") {
       const hasErrors = Object.values(academicErrors).some(
         (e) => e.yearOfPassing || e.gradePercentage,
@@ -1117,6 +1137,50 @@ export default function ProfileForm() {
                     onChange={(v) => set("esicNumber", v)}
                     placeholder="ESIC number"
                     value={form.esicNumber}
+                  />
+                </div>
+              )}
+
+              {activeTab === "work" && (
+                <div className={`${FORM_PANEL_CLASS}`}>
+                  <WorkInformationFields
+                    errors={fieldErrors}
+                    noPreviousEmployment={form.noPreviousEmployment}
+                    onNoPreviousEmploymentChange={(checked) => {
+                      setForm((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          noPreviousEmployment: checked,
+                          professional: checked
+                            ? []
+                            : prev.professional.length > 0
+                              ? prev.professional
+                              : [createEmptyProfessionalRow()],
+                        };
+                      });
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        for (const key of Object.keys(next)) {
+                          if (key.startsWith("professional.")) delete next[key];
+                        }
+                        return next;
+                      });
+                    }}
+                    onProfessionalChange={(professional) => {
+                      setForm((prev) =>
+                        prev ? { ...prev, professional } : prev,
+                      );
+                      setFieldErrors((prev) => {
+                        const next = { ...prev };
+                        for (const key of Object.keys(next)) {
+                          if (key.startsWith("professional.")) delete next[key];
+                        }
+                        return next;
+                      });
+                    }}
+                    professional={form.professional}
+                    wrapInSection={false}
                   />
                 </div>
               )}

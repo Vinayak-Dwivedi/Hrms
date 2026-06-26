@@ -27,11 +27,17 @@ const POLICY_PERMISSIONS = [
     module: "leave",
     description: "Configure organisation holidays and holiday policy",
   },
+  {
+    code: "shift.policy.manage",
+    name: "Manage Shift Configuration",
+    module: "attendance",
+    description: "Configure work shifts and timings",
+  },
 ];
 
 const ROLE_ASSIGNMENTS = {
-  admin: ["leave.policy.manage", "holiday.policy.manage"],
-  hr: ["leave.policy.manage", "holiday.policy.manage"],
+  admin: ["leave.policy.manage", "holiday.policy.manage", "shift.policy.manage"],
+  hr: ["leave.policy.manage", "holiday.policy.manage", "shift.policy.manage"],
 };
 
 try {

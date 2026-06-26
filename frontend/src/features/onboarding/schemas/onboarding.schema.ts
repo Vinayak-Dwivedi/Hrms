@@ -416,6 +416,37 @@ export function collectOnboardingProfileErrors(
   );
 }
 
+const workInformationOnlySchema = z
+  .object({
+    professional: z.array(professionalDetailInputSchema).max(1).default([]),
+  })
+  .superRefine((data, ctx) => {
+    refineProfessionalRows(data.professional, ctx);
+  });
+
+export function collectWorkInformationFieldErrors(
+  professional: ProfessionalDetailValues[],
+  noPreviousEmployment: boolean,
+): Record<string, string> {
+  const rows = noPreviousEmployment
+    ? []
+    : [
+        professional[0] ?? {
+          companyName: "",
+          designation: "",
+          fromDate: "",
+          toDate: "",
+          isCurrent: false,
+          responsibilities: "",
+        },
+      ];
+  return collectSchemaErrors(
+    workInformationOnlySchema,
+    { professional: rows },
+    onboardingProfileIssueToFieldKey,
+  );
+}
+
 export function collectOnboardingBankErrors(
   values: OnboardingBankFormValues,
 ): Record<string, string> {

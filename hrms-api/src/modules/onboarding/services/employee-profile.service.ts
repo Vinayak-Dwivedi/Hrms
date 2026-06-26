@@ -218,3 +218,25 @@ export async function upsertProfile(
     throw mapDbErrorToApiError(e);
   }
 }
+
+export async function syncProfessional(
+  employeeId: number,
+  professional: UpsertProfileInput["professional"],
+  actorUserId?: string | null,
+) {
+  try {
+    await professionalRepo.syncProfessionalDetails(employeeId, professional);
+    writeAuditLogAsync({
+      actorUserId: actorUserId ?? undefined,
+      action: "PROFILE_PROFESSIONAL_UPDATED",
+      entityType: "employee",
+      entityId: String(employeeId),
+    });
+    return getProfile(employeeId);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      throw e;
+    }
+    throw mapDbErrorToApiError(e);
+  }
+}

@@ -1,7 +1,14 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   fetchOnboardingFormOptions,
   OnboardingRequestError,
@@ -13,6 +20,11 @@ import {
 } from "@/features/onboarding/lib/profile-validation-errors";
 import EmployeeFormField from "@/features/employees/components/EmployeeFormField";
 import EmployeeFormSection from "@/features/employees/components/EmployeeFormSection";
+import {
+  WorkInformationFields,
+  createEmptyProfessionalRow,
+  normalizeProfessionalForValidation,
+} from "@/features/employees/components/WorkInformationSection";
 import {
   employeeFormControlClass,
   employeeFormSectionsGridClass,
@@ -64,11 +76,16 @@ interface Props {
   sectionsLayout?: "stack" | "grid";
   /** Where to load blood group options from (API reads BLOOD_GROUPS env). */
   formOptionsSource?: "employee" | "hr";
+  hideSections?: { work?: boolean };
+  /** Renders beside Personal & Compliance (e.g. bank details on HR edit). */
+  companionSection?: ReactNode;
 }
 
 export type OnboardingProfileFormHandle = {
   validate: () => OnboardingProfileValues | null;
   isEmpty: () => boolean;
+  isDirty: () => boolean;
+  getValues: () => OnboardingProfileValues;
   revealErrors: () => void;
 };
 
@@ -91,27 +108,16 @@ const DEFAULT_VALUES: OnboardingProfileValues = {
   professional: [],
 };
 
-function createEmptyProfessionalRow(): ProfessionalDetailValues {
-  return {
-    companyName: "",
-    designation: "",
-    fromDate: "",
-    toDate: "",
-    isCurrent: false,
-    responsibilities: "",
-  };
-}
-
 function normalizeProfileForValidation(
   values: OnboardingProfileValues,
   noPreviousEmployment: boolean,
 ): OnboardingProfileValues {
-  if (noPreviousEmployment) {
-    return { ...values, professional: [] };
-  }
   return {
     ...values,
-    professional: [values.professional?.[0] ?? createEmptyProfessionalRow()],
+    professional: normalizeProfessionalForValidation(
+      values.professional,
+      noPreviousEmployment,
+    ),
   };
 }
 
@@ -211,6 +217,21 @@ function getServerFieldErrors(err: unknown): Record<string, string> {
   return mapProfileApiIssuesToFieldErrors(details);
 }
 
+function profileDirtySnapshot(
+  values: OnboardingProfileValues,
+  options: { noPreviousEmployment: boolean; excludeProfessional?: boolean },
+): string {
+  const normalized = normalizeProfileForValidation(
+    values,
+    options.noPreviousEmployment,
+  );
+  if (options.excludeProfessional) {
+    const { professional: _professional, ...rest } = normalized;
+    return JSON.stringify(rest);
+  }
+  return JSON.stringify(normalized);
+}
+
 function isProfileEmpty(values: OnboardingProfileValues): boolean {
   const hasPersonalData =
     values.currentAddress.trim() ||
@@ -243,6 +264,8 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
       embedded = false,
       sectionsLayout = "stack",
       formOptionsSource = "employee",
+      hideSections,
+      companionSection,
     },
     ref,
   ) {
@@ -268,6 +291,12 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const initialSnapshotRef = useRef(
+    profileDirtySnapshot(values, {
+      noPreviousEmployment: false,
+      excludeProfessional: hideSections?.work,
+    }),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -307,24 +336,10 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         ...prev,
         professional:
           (prev.professional ?? []).length > 0
-            ? [(prev.professional ?? [])[0]]
+            ? [(prev.professional ?? [])[0]!]
             : [createEmptyProfessionalRow()],
       }));
     }
-  }
-
-  function updateProfessional(patch: Partial<ProfessionalDetailValues>) {
-    setValues((prev) => {
-      const current = (prev.professional ?? [])[0] ?? createEmptyProfessionalRow();
-      return { ...prev, professional: [{ ...current, ...patch }] };
-    });
-    setErrors((prev) => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) {
-        if (key.startsWith("professional.")) delete next[key];
-      }
-      return next;
-    });
   }
 
   function blurProfessionalField(
@@ -481,8 +496,6 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
 
   const canAddMore = canAppendAcademicRow(values.academic);
   const passingYearOptions = getPassingYearOptions();
-  const professionalRow =
-    (values.professional ?? [])[0] ?? createEmptyProfessionalRow();
   const schoolAcademicEntries = values.academic
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => isFixedDefaultQualification(row.qualification));
@@ -714,21 +727,36 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         values,
         noPreviousEmployment,
       );
-      const parsed = onboardingProfileSchema.safeParse(payload);
+      const validationPayload = hideSections?.work
+        ? { ...payload, professional: [] }
+        : payload;
+      const parsed = onboardingProfileSchema.safeParse(validationPayload);
       if (!parsed.success) {
-        setErrors(collectOnboardingProfileErrors(payload));
+        setErrors(collectOnboardingProfileErrors(validationPayload));
         return null;
       }
       setErrors({});
-      return parsed.data;
+      return hideSections?.work
+        ? { ...parsed.data, professional: payload.professional }
+        : parsed.data;
     },
     isEmpty: () => isProfileEmpty(values),
+    isDirty: () =>
+      profileDirtySnapshot(values, {
+        noPreviousEmployment,
+        excludeProfessional: hideSections?.work,
+      }) !== initialSnapshotRef.current,
+    getValues: () =>
+      normalizeProfileForValidation(values, noPreviousEmployment),
     revealErrors: () => {
       const payload = normalizeProfileForValidation(
         values,
         noPreviousEmployment,
       );
-      setErrors(collectOnboardingProfileErrors(payload));
+      const validationPayload = hideSections?.work
+        ? { ...payload, professional: [] }
+        : payload;
+      setErrors(collectOnboardingProfileErrors(validationPayload));
     },
   }));
 
@@ -739,6 +767,13 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
 
   const formBody = (
     <div className={sectionsClass}>
+      <div
+        className={
+          sectionsLayout === "grid"
+            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
+            : "grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
+        }
+      >
       <EmployeeFormSection
         title="Address"
         headerAction={
@@ -819,12 +854,13 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
           <FieldError message={errors.emergencyContactPhone} />
         </EmployeeFormField>
       </EmployeeFormSection>
+      </div>
 
       <div
         className={
           sectionsLayout === "grid"
-            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4"
-            : "grid grid-cols-1 md:grid-cols-2 gap-4"
+            ? "col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
+            : "grid grid-cols-1 md:grid-cols-2 gap-4 items-start"
         }
       >
       <EmployeeFormSection title="Personal & Compliance">
@@ -958,93 +994,65 @@ const OnboardingProfileForm = forwardRef<OnboardingProfileFormHandle, Props>(
         </EmployeeFormField>
       </EmployeeFormSection>
 
-      <EmployeeFormSection
-        title="Work Information"
-        headerAction={
-          <label className="inline-flex shrink-0 cursor-pointer select-none items-center gap-2 text-xs font-medium text-gray-600">
-            <input
-              type="checkbox"
-              className="rounded border-gray-300"
-              checked={noPreviousEmployment}
-              onChange={(e) =>
-                handleNoPreviousEmploymentChange(e.target.checked)
+      {companionSection}
+
+      {!companionSection && !hideSections?.work ? (
+        <WorkInformationFields
+          professional={values.professional ?? []}
+          noPreviousEmployment={noPreviousEmployment}
+          onNoPreviousEmploymentChange={handleNoPreviousEmploymentChange}
+          onProfessionalChange={(professional) => {
+            setValues((prev) => ({ ...prev, professional }));
+            setErrors((prev) => {
+              const next = { ...prev };
+              for (const key of Object.keys(next)) {
+                if (key.startsWith("professional.")) delete next[key];
               }
-            />
-            No previous employment (Fresher)
-          </label>
-        }
-      >
-        {!noPreviousEmployment ? (
-          <>
-            <EmployeeFormField>
-              <FieldLabel required>Previous Company</FieldLabel>
-              <input
-                className={fieldControlClass(errors["professional.0.companyName"])}
-                value={professionalRow.companyName ?? ""}
-                onBlur={() => blurProfessionalField("companyName", values)}
-                onChange={(e) =>
-                  updateProfessional({ companyName: e.target.value })
-                }
-                placeholder="Company name"
-              />
-              <FieldError message={errors["professional.0.companyName"]} />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>Designation</FieldLabel>
-              <input
-                className={fieldControlClass(errors["professional.0.designation"])}
-                value={professionalRow.designation ?? ""}
-                onBlur={() => blurProfessionalField("designation", values)}
-                onChange={(e) =>
-                  updateProfessional({ designation: e.target.value })
-                }
-                placeholder="Your role / title"
-              />
-              <FieldError message={errors["professional.0.designation"]} />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>From Date</FieldLabel>
-              <input
-                type="date"
-                className={fieldControlClass(errors["professional.0.fromDate"])}
-                value={professionalRow.fromDate ?? ""}
-                onBlur={() => blurProfessionalField("fromDate", values)}
-                onChange={(e) =>
-                  updateProfessional({ fromDate: e.target.value })
-                }
-              />
-              <FieldError message={errors["professional.0.fromDate"]} />
-            </EmployeeFormField>
-            <EmployeeFormField>
-              <FieldLabel required>To Date</FieldLabel>
-              <input
-                type="date"
-                className={fieldControlClass(errors["professional.0.toDate"])}
-                value={professionalRow.toDate ?? ""}
-                onBlur={() => blurProfessionalField("toDate", values)}
-                onChange={(e) =>
-                  updateProfessional({ toDate: e.target.value })
-                }
-              />
-              <FieldError message={errors["professional.0.toDate"]} />
-            </EmployeeFormField>
-            <EmployeeFormField span={2}>
-              <FieldLabel>Responsibilities (optional)</FieldLabel>
-              <textarea
-                className={fieldTextareaClass()}
-                value={professionalRow.responsibilities ?? ""}
-                onChange={(e) =>
-                  updateProfessional({ responsibilities: e.target.value })
-                }
-                placeholder="Brief summary of key responsibilities"
-                rows={3}
-              />
-            </EmployeeFormField>
-          </>
-        ) : null}
-        <FieldError message={errors.professional} />
-      </EmployeeFormSection>
+              return next;
+            });
+          }}
+          errors={errors}
+          onBlurField={(field) =>
+            blurProfessionalField(field, {
+              ...values,
+              professional: normalizeProfessionalForValidation(
+                values.professional,
+                noPreviousEmployment,
+              ),
+            })
+          }
+        />
+      ) : null}
       </div>
+
+      {companionSection && !hideSections?.work ? (
+        <WorkInformationFields
+          className={sectionsLayout === "grid" ? "col-span-full" : undefined}
+          professional={values.professional ?? []}
+          noPreviousEmployment={noPreviousEmployment}
+          onNoPreviousEmploymentChange={handleNoPreviousEmploymentChange}
+          onProfessionalChange={(professional) => {
+            setValues((prev) => ({ ...prev, professional }));
+            setErrors((prev) => {
+              const next = { ...prev };
+              for (const key of Object.keys(next)) {
+                if (key.startsWith("professional.")) delete next[key];
+              }
+              return next;
+            });
+          }}
+          errors={errors}
+          onBlurField={(field) =>
+            blurProfessionalField(field, {
+              ...values,
+              professional: normalizeProfessionalForValidation(
+                values.professional,
+                noPreviousEmployment,
+              ),
+            })
+          }
+        />
+      ) : null}
 
       <EmployeeFormSection
         title="Academic Details"

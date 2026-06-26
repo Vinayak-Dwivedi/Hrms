@@ -29,6 +29,7 @@ export const SETTINGS_HREFS = [
   "/locations",
   "/leave-policy",
   "/holiday-calendars",
+  "/shift-configuration",
   "/offboarding",
 ];
 

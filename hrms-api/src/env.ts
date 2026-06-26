@@ -137,6 +137,7 @@ const schema = z.object({
   ENCRYPTION_INDEX_KEY: z.string().optional(),
 
   BLOOD_GROUPS: z.string().optional(),
+  SHIFT_TIMINGS: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

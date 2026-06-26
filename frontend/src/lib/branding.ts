@@ -44,6 +44,13 @@ export const enterpriseSectionToggleActiveClass =
 export const enterpriseHeaderClass =
   "bg-white border-b border-slate-200/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
 
+/** Shared height/padding for the sidebar logo row and top header bar. */
+export const enterpriseShellBarClass =
+  "flex items-center min-h-[4.5rem] shrink-0 px-[30px] py-[18px]";
+
+/** Main content area padding below the shell chrome. */
+export const enterpriseMainPaddingClass = "px-[30px] py-[22px] lg:py-[30px]";
+
 export const enterpriseToggleActiveClass =
   "bg-slate-100 text-slate-800 border border-slate-300";
 

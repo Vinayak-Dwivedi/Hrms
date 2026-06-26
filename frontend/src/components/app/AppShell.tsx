@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   Briefcase,
   Calendar as CalendarIcon,
   CalendarDays,
@@ -15,6 +16,7 @@ import {
   Settings,
   Shield,
   ShieldPlus,
+  Timer,
   Upload,
   UserPlus,
   Users,
@@ -41,6 +43,7 @@ import {
   navEntryAllowed,
 } from "@/lib/nav-permissions";
 import {
+  enterpriseMainPaddingClass,
   enterpriseNavActiveCollapsedClass,
   enterpriseSectionToggleActiveClass,
   enterpriseSectionToggleClass,
@@ -141,6 +144,12 @@ const SETTINGS_SECTION: NavSection = {
       href: "/holiday-calendars",
       requiredPermission: [...NAV_ENTRY_PERMISSIONS.holidayPolicyManage],
     },
+    {
+      icon: Timer,
+      label: "Shift Configuration",
+      href: "/shift-configuration",
+      requiredPermission: [...NAV_ENTRY_PERMISSIONS.shiftPolicyManage],
+    },
     // Leave Credits hidden for now — kept for later re-enable.
     // {
     //   icon: Receipt,
@@ -221,6 +230,12 @@ const ALL_NAV_SECTIONS: NavSection[] = [
         requiredPermission: NAV_ENTRY_PERMISSIONS.leaveApprove,
       },
       {
+        icon: BarChart3,
+        label: "Attendance Report",
+        href: "/attendance/report",
+        requiredPermission: NAV_ENTRY_PERMISSIONS.leaveApprove,
+      },
+      {
         icon: ClipboardCheck,
         label: "My Clearances",
         href: "/my-clearances",
@@ -272,9 +287,11 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
   "/holiday-calendars": "Holiday Policy",
+  "/shift-configuration": "Shift Configuration",
   "/employees": "Employees",
   "/employees/bulk-upload": "Bulk Upload",
   "/attendance/upload": "Upload Attendance",
+  "/attendance/report": "Attendance Report",
 };
 
 function breadcrumbFor(pathname: string): string {
@@ -460,7 +477,7 @@ export default function AppShell({
       {/* Sidebar */}
       <aside
         className={[
-          "flex flex-col shrink-0 transition-[width] duration-200 ease-out",
+          "flex flex-col shrink-0 transition-[width] duration-200 ease-out py-2 pb-2",
           enterpriseSidebarClass,
           collapsed ? "w-[72px]" : "w-[248px]",
         ].join(" ")}
@@ -480,7 +497,7 @@ export default function AppShell({
         <nav
           className={[
             "flex flex-col flex-1 gap-4 overflow-y-auto",
-            collapsed ? "p-2" : "py-3 pr-2 pl-0",
+            collapsed ? "p-2" : "py-[14px] pr-3 pl-0",
           ].join(" ")}
         >
           {sections.map((section) => {
@@ -589,7 +606,7 @@ export default function AppShell({
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
         <AppHeader role={role} identity={identity} sessionUser={user} />
-        <main className="flex-1 px-6 py-5">{children}</main>
+        <main className={["flex-1", enterpriseMainPaddingClass].join(" ")}>{children}</main>
       </div>
     </div>
   );

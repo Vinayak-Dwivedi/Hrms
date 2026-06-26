@@ -7,7 +7,7 @@ import NotificationBell from "@/components/app/NotificationBell";
 import type { Employee } from "@/lib/dashboard";
 import { signOut, type LoggedInUser } from "@/lib/hrms-client";
 import type { Role } from "@/lib/roles";
-import { enterpriseHeaderClass } from "@/lib/branding";
+import { enterpriseHeaderClass, enterpriseShellBarClass } from "@/lib/branding";
 
 // Universal app header — breadcrumb on the left, notifications + user menu on
 // the right. Mounted by AppShell so every authenticated page renders the same
@@ -18,6 +18,7 @@ import { enterpriseHeaderClass } from "@/lib/branding";
 const BREADCRUMB_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/attendance": "Attendance",
+  "/attendance/report": "Attendance Report",
   "/leave": "Leave",
   "/leave/new": "Apply Leave",
   "/payslips": "My Payslips",
@@ -34,6 +35,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   "/locations": "Location",
   "/leave-policy": "Leave Policy",
   "/holiday-calendars": "Holiday Policy",
+  "/shift-configuration": "Shift Configuration",
   "/weekly-off": "Weekly Off",
   "/hierarchy": "Department Hierarchy",
   "/departments/hierarchy": "Org Config",
@@ -158,8 +160,8 @@ export default function AppHeader({
 
   return (
     <>
-      <header className={["flex items-center justify-between px-6 h-14 shrink-0", enterpriseHeaderClass].join(" ")}>
-        <nav className="flex items-center gap-2 text-[13px]">
+      <header className={[enterpriseShellBarClass, "justify-between", enterpriseHeaderClass].join(" ")}>
+        <nav className="flex items-center gap-2 text-sm leading-relaxed">
           <span className="font-semibold text-slate-800">{crumb}</span>
         </nav>
         <div className="flex items-center gap-3">

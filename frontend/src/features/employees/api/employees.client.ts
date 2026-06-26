@@ -4,10 +4,8 @@ import {
   toProfilePayload,
   type EmployeeProfile,
 } from "@/features/onboarding/api/onboarding.client";
-import type {
-  OnboardingBankFormValues,
-  OnboardingProfileValues,
-} from "@/features/onboarding/schemas/onboarding.schema";
+import type { OnboardingBankFormValues, OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+import type { ProfessionalApiPayload } from "@/features/onboarding/api/onboarding.client";
 
 export type EmployeeStatus =
   | "Active"
@@ -553,6 +551,16 @@ export async function updateEmployeeProfileByHr(
   return jsonFetch<EmployeeProfile>(`/employees/${id}/profile`, {
     method: "PATCH",
     body: JSON.stringify(toHrProfilePayload(values, bank)),
+  });
+}
+
+export async function syncEmployeeProfessionalByHr(
+  id: number,
+  professional: ProfessionalApiPayload[],
+): Promise<EmployeeProfile> {
+  return jsonFetch<EmployeeProfile>(`/employees/${id}/profile/professional`, {
+    method: "PATCH",
+    body: JSON.stringify({ professional }),
   });
 }
 

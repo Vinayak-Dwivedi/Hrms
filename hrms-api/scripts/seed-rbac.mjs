@@ -20,6 +20,7 @@ const PERMISSIONS = [
   { code: "leave.approve", name: "Approve Leave", module: "leave", description: "Approve or reject leave" },
   { code: "leave.policy.manage", name: "Manage Leave Policy", module: "leave", description: "Configure leave types, policies, plans, and weekly off" },
   { code: "holiday.policy.manage", name: "Manage Holiday Policy", module: "leave", description: "Configure organisation holidays and holiday policy" },
+  { code: "shift.policy.manage", name: "Manage Shift Configuration", module: "attendance", description: "Configure work shifts and timings" },
   { code: "attendance.view", name: "View Attendance", module: "attendance", description: "View attendance records" },
   { code: "attendance.upload", name: "Upload Attendance", module: "attendance", description: "Bulk upload attendance" },
   { code: "payroll.view", name: "View Payroll", module: "payroll", description: "View payslips and payroll" },
@@ -90,6 +91,7 @@ const ROLE_PERMISSION_CODES = {
     "offboarding.clearance.operations",
     "leave.policy.manage",
     "holiday.policy.manage",
+    "shift.policy.manage",
   ],
 };
 

@@ -5,6 +5,10 @@ import {
   fetchOrgHierarchyRoleLookups,
   type OrgHierarchyRoleLookups,
 } from "@/features/org-hierarchy/components/OrgHierarchyRoleFields";
+import {
+  fetchEmployeeShift,
+  formatEmployeeShiftLabel,
+} from "@/features/shift-configuration/api/employee-shift.client";
 import EmployeeDetailView from "./EmployeeDetailView";
 import EmployeeModalShell from "./EmployeeModalShell";
 import {
@@ -65,6 +69,7 @@ export default function ViewEmployeeModal({
   const [invitationMessage, setInvitationMessage] = useState<string | null>(
     null,
   );
+  const [shiftLabel, setShiftLabel] = useState<string>("—");
 
   useEffect(() => {
     if (!open || employeeId == null) return;
@@ -75,12 +80,13 @@ export default function ViewEmployeeModal({
 
     (async () => {
       try {
-        const [emp, org, brs, roles, emps] = await Promise.all([
+        const [emp, org, brs, roles, emps, shift] = await Promise.all([
           fetchEmployeeById(employeeId),
           fetchOrgHierarchyRoleLookups(),
           fetchBranches(),
           fetchRoleOptions(),
           fetchEmployees(),
+          fetchEmployeeShift(employeeId).catch(() => null),
         ]);
         if (cancelled) return;
         setEmployee(emp);
@@ -88,6 +94,7 @@ export default function ViewEmployeeModal({
         setBranches(brs);
         setRoleOptions(roles);
         setAllEmployees(emps);
+        setShiftLabel(formatEmployeeShiftLabel(shift));
       } catch (e) {
         if (!cancelled) setLoadError((e as Error).message);
       } finally {
@@ -152,6 +159,7 @@ export default function ViewEmployeeModal({
             employee={employee}
             managerLabel={managerLabel}
             orgLookups={orgLookups}
+            shiftLabel={shiftLabel}
             systemAccessRoleLabel={systemAccessRoleLabel}
             onEdit={() => onEdit(employee.id)}
             onResendInvitation={

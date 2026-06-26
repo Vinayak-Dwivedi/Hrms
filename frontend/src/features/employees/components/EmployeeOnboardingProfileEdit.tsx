@@ -48,6 +48,7 @@ interface Props {
   employeeId?: number;
   onboardingSubmittedAt?: string | null;
   onDocumentsChanged?: () => void;
+  hideSections?: { work?: boolean };
 }
 
 const DOC_STATUS_CLASS: Record<string, string> = {
@@ -69,6 +70,7 @@ const EmployeeOnboardingProfileEdit = forwardRef<
     inGrid = false,
     onboardingSubmittedAt,
     onDocumentsChanged,
+    hideSections,
   },
   ref,
 ) {
@@ -92,51 +94,54 @@ const EmployeeOnboardingProfileEdit = forwardRef<
 
   useImperativeHandle(ref, () => ({
     validate: () => {
-      const profileEmpty = profileFormRef.current?.isEmpty() ?? true;
-      const bankEmpty = bankFormRef.current?.isEmpty() ?? true;
+      const profileDirty = profileFormRef.current?.isDirty() ?? false;
+      const bankDirty = bankFormRef.current?.isDirty() ?? false;
 
-      if (profileEmpty && bankEmpty) {
+      if (!profileDirty && !bankDirty) {
         return null;
       }
 
-      if (!profileEmpty) {
+      if (profileDirty) {
         const profileValues = profileFormRef.current?.validate();
         if (!profileValues) {
           return null;
         }
-        const bankValues = bankFormRef.current?.validate({ required: true });
-        if (!bankValues) {
-          return null;
+
+        if (bankDirty) {
+          const bankValues = bankFormRef.current?.validate({ required: true });
+          if (!bankValues) {
+            return null;
+          }
+          return { profile: profileValues, bank: bankValues };
         }
+
+        const bankValues = bankFormRef.current?.isEmpty()
+          ? null
+          : (bankFormRef.current?.getValues() ?? null);
         return { profile: profileValues, bank: bankValues };
       }
 
-      const bankValues = bankFormRef.current?.validate();
+      const bankValues = bankFormRef.current?.validate({ required: true });
       if (!bankValues) {
         return null;
       }
 
-      return null;
+      const profileValues = profileFormRef.current?.getValues();
+      if (!profileValues) {
+        return null;
+      }
+
+      return { profile: profileValues, bank: bankValues };
     },
     isEmpty: () =>
-      (profileFormRef.current?.isEmpty() ?? true) &&
-      (bankFormRef.current?.isEmpty() ?? true),
+      !(profileFormRef.current?.isDirty() ?? false) &&
+      !(bankFormRef.current?.isDirty() ?? false),
     revealValidationErrors: () => {
-      const profileEmpty = profileFormRef.current?.isEmpty() ?? true;
-      const bankEmpty = bankFormRef.current?.isEmpty() ?? true;
-
-      if (profileEmpty && bankEmpty) {
-        return;
-      }
-
-      if (!profileEmpty) {
+      if (profileFormRef.current?.isDirty()) {
         profileFormRef.current?.revealErrors();
-        bankFormRef.current?.revealErrors({ required: true });
-        return;
       }
-
-      if (!bankEmpty) {
-        bankFormRef.current?.revealErrors();
+      if (bankFormRef.current?.isDirty()) {
+        bankFormRef.current?.revealErrors({ required: true });
       }
     },
   }));
@@ -166,7 +171,7 @@ const EmployeeOnboardingProfileEdit = forwardRef<
   }
 
   const heading = (
-    <div className="col-span-full">
+    <div className="col-span-full" id="employee-onboarding-profile">
       <h3 className="text-lg font-semibold text-slate-800 m-0">
         Onboarding profile
       </h3>
@@ -181,9 +186,18 @@ const EmployeeOnboardingProfileEdit = forwardRef<
     <>
       <OnboardingProfileForm
         ref={profileFormRef}
+        companionSection={
+          <OnboardingBankForm
+            ref={bankFormRef}
+            embedded
+            initialValues={initialBank}
+          />
+        }
         embedded
-        initialValues={initialProfile}
         formOptionsSource="hr"
+        hideSections={hideSections}
+        initialValues={initialProfile}
+        sectionsLayout="grid"
       />
 
       <EmployeeFormSection compact title="Documents">
@@ -286,52 +300,6 @@ const EmployeeOnboardingProfileEdit = forwardRef<
           </div>
         )}
       </EmployeeFormSection>
-
-      <OnboardingBankForm
-        ref={bankFormRef}
-        embedded
-        initialValues={initialBank}
-      />
-
-      {profile?.professional && profile.professional.length > 0 ? (
-        <div className="col-span-full">
-          <EmployeeFormSection compact title="Professional experience">
-            <div className="col-span-full overflow-x-auto rounded-md border border-slate-200">
-              <table className="w-full border-collapse min-w-[480px] text-sm">
-                <thead>
-                  <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="px-3 py-2 font-medium">Company</th>
-                    <th className="px-3 py-2 font-medium">Designation</th>
-                    <th className="px-3 py-2 font-medium">From</th>
-                    <th className="px-3 py-2 font-medium">To</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {profile.professional.map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-3 py-2 text-gray-900">
-                        {row.companyName}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {row.designation}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {row.fromDate}
-                      </td>
-                      <td className="px-3 py-2 text-gray-800">
-                        {row.isCurrent ? "Present" : (row.toDate ?? "—")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="text-xs text-slate-500 m-0 col-span-full">
-              Professional experience is view-only here.
-            </p>
-          </EmployeeFormSection>
-        </div>
-      ) : null}
     </>
   );
 

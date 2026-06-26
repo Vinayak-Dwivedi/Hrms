@@ -36,6 +36,7 @@ export type AttendanceUploadRecord = {
   attendanceDate: string;
   inTime: string | null;
   outTime: string | null;
+  attendanceStatus: string | null;
   uploadedAt: string;
   fileName: string;
 };

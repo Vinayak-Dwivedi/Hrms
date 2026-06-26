@@ -1,13 +1,19 @@
 import {
   fetchEmployeeProfile,
   profileToFormValues,
+  professionalValuesToApiPayload,
+  syncEmployeeProfessional,
   updateEmployeeProfile,
   type EmployeeProfile,
 } from "@/features/onboarding/api/onboarding.client";
-import type { OnboardingProfileValues } from "@/features/onboarding/schemas/onboarding.schema";
+import type {
+  OnboardingProfileValues,
+  ProfessionalDetailValues,
+} from "@/features/onboarding/schemas/onboarding.schema";
 import {
   academicDetailSchema,
   collectOnboardingBankErrors,
+  collectWorkInformationFieldErrors,
   optionalEsicSchema,
   optionalUanSchema,
 } from "@/features/onboarding/schemas/onboarding.schema";
@@ -52,6 +58,8 @@ export type ProfileEditableState = {
   aadhaarNumber: string;
   uanNumber: string;
   esicNumber: string;
+  noPreviousEmployment: boolean;
+  professional: ProfessionalDetailValues[];
   academics: ProfileQualification[];
   accountNumber: string;
   accountName: string;
@@ -71,6 +79,7 @@ export type ProfileFieldTab =
   | "contact"
   | "emergency"
   | "personal"
+  | "work"
   | "academics"
   | "bank";
 
@@ -128,6 +137,7 @@ function mapOnboardingBankErrors(
 
 export function profileFieldErrorTab(fieldKey: string): ProfileFieldTab {
   if (fieldKey.startsWith("academics.")) return "academics";
+  if (fieldKey.startsWith("professional.")) return "work";
   if (
     fieldKey === "accountNumber" ||
     fieldKey === "accountName" ||
@@ -189,6 +199,16 @@ export function collectProfilePageFieldErrors(
     Object.assign(errors, zodIssuesToFieldErrors(emergencyResult.error.issues));
   }
 
+  if (shouldPersistProfessionalProfile(form, extended)) {
+    Object.assign(
+      errors,
+      collectWorkInformationFieldErrors(
+        form.professional,
+        form.noPreviousEmployment,
+      ),
+    );
+  }
+
   if (!requiresExtendedProfileSections(form, extended)) {
     return errors;
   }
@@ -209,14 +229,7 @@ function requiresExtendedProfileSections(
   form: ProfileEditableState,
   extended: EmployeeProfile,
 ): boolean {
-  return (
-    shouldPersistExtendedProfile(form, extended) ||
-    form.academics.some(
-      (row) =>
-        row.qualification === QUAL_CLASS_10 ||
-        row.qualification === QUAL_CLASS_12,
-    )
-  );
+  return shouldPersistExtendedProfile(form, extended);
 }
 
 function collectProfilePersonalErrors(
@@ -307,6 +320,57 @@ function collectProfileAcademicErrors(
   });
 
   return errors;
+}
+
+function createEmptyProfessionalRow(): ProfessionalDetailValues {
+  return {
+    companyName: "",
+    designation: "",
+    fromDate: "",
+    toDate: "",
+    isCurrent: false,
+    responsibilities: "",
+  };
+}
+
+function professionalFromExtended(
+  extended: EmployeeProfile,
+): ProfessionalDetailValues[] {
+  if (!extended.professional.length) return [];
+  const row = extended.professional[0]!;
+  return [
+    {
+      id: row.id,
+      companyName: row.companyName,
+      designation: row.designation,
+      fromDate: row.fromDate,
+      toDate: row.toDate ?? "",
+      isCurrent: row.isCurrent,
+      responsibilities: row.responsibilities ?? "",
+    },
+  ];
+}
+
+function professionalForOnboardingPayload(
+  form: ProfileEditableState,
+): OnboardingProfileValues["professional"] {
+  if (form.noPreviousEmployment) return [];
+  return (form.professional ?? [])
+    .filter(
+      (row) =>
+        row.companyName.trim().length > 0 &&
+        row.designation.trim().length > 0 &&
+        row.fromDate.trim().length > 0,
+    )
+    .map((row) => ({
+      id: row.id,
+      companyName: row.companyName,
+      designation: row.designation,
+      fromDate: row.fromDate,
+      toDate: row.toDate || "",
+      isCurrent: row.isCurrent ?? false,
+      responsibilities: row.responsibilities ?? "",
+    }));
 }
 
 function bankPayloadForValidation(
@@ -442,6 +506,11 @@ export function profilePageToEditable(
     aadhaarNumber: onboardingValues.aadhaarNo ?? "",
     uanNumber: onboardingValues.uanNo ?? "",
     esicNumber: onboardingValues.esicNo ?? "",
+    noPreviousEmployment: false,
+    professional:
+      extended.professional.length > 0
+        ? professionalFromExtended(extended)
+        : [createEmptyProfessionalRow()],
     academics:
       extended.academic.length > 0
         ? extended.academic.map((a) => ({
@@ -482,9 +551,29 @@ export function editableToOnboardingPayload(
     aadhaarNo: form.aadhaarNumber.trim() || base.aadhaarNo,
     uanNo: form.uanNumber.trim() || base.uanNo,
     esicNo: form.esicNumber.trim() || base.esicNo,
+    professional: professionalForOnboardingPayload(form),
     academic: academicsFromEditable(form.academics, base.academic),
     bank: bankFromEditable(form, base.bank),
   };
+}
+
+export function shouldPersistProfessionalProfile(
+  form: ProfileEditableState,
+  loaded: EmployeeProfile,
+): boolean {
+  const loadedProfessional = professionalFromExtended(loaded);
+  const loadedFresher = loaded.professional.length === 0;
+  return (
+    JSON.stringify(
+      professionalValuesToApiPayload(
+        form.professional,
+        form.noPreviousEmployment,
+      ),
+    ) !==
+    JSON.stringify(
+      professionalValuesToApiPayload(loadedProfessional, loadedFresher),
+    )
+  );
 }
 
 export function shouldPersistExtendedProfile(
@@ -494,6 +583,7 @@ export function shouldPersistExtendedProfile(
   const hasLoadedExtended =
     loaded.academic.length > 0 ||
     loaded.bank.length > 0 ||
+    loaded.professional.length > 0 ||
     !!loaded.identity.panNumber ||
     !!loaded.identity.aadhaarNumber ||
     !!loaded.personal.fatherName ||
@@ -676,6 +766,15 @@ export async function saveEmployeeProfilePage(
     emergencyContactName: form.emergencyContactName.trim(),
     emergencyContactPhone: form.emergencyContactPhone.trim(),
   });
+
+  if (shouldPersistProfessionalProfile(form, loadedExtended)) {
+    await syncEmployeeProfessional(
+      professionalValuesToApiPayload(
+        form.professional,
+        form.noPreviousEmployment,
+      ),
+    );
+  }
 
   if (shouldPersistExtendedProfile(form, loadedExtended)) {
     await updateEmployeeProfile(
