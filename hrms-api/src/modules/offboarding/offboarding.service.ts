@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import {
   accessRevocations,
@@ -187,7 +187,26 @@ export async function deleteExitReason(id: number) {
 // ── Resignation flows (admin config) ──
 
 export async function listFlows() {
-  return db.select().from(resignationFlows).orderBy(desc(resignationFlows.updatedAt));
+  const flows = await db.select().from(resignationFlows).orderBy(desc(resignationFlows.updatedAt));
+  if (flows.length === 0) return [];
+  const flowIds = flows.map((f) => f.id);
+  const scopeRows = await db
+    .select({
+      flowId: resignationFlowScope.flowId,
+      scopeType: resignationFlowScope.scopeType,
+      scopeId: resignationFlowScope.scopeId,
+      priority: resignationFlowScope.priority,
+    })
+    .from(resignationFlowScope)
+    .where(inArray(resignationFlowScope.flowId, flowIds))
+    .orderBy(asc(resignationFlowScope.priority));
+  const scopeByFlowId = new Map<number, { scopeType: string; scopeId: number | null; priority: number }[]>();
+  for (const row of scopeRows) {
+    const arr = scopeByFlowId.get(row.flowId) ?? [];
+    arr.push({ scopeType: row.scopeType, scopeId: row.scopeId ?? null, priority: row.priority });
+    scopeByFlowId.set(row.flowId, arr);
+  }
+  return flows.map((f) => ({ ...f, scope: scopeByFlowId.get(f.id) ?? [] }));
 }
 
 export async function getFlow(id: number) {

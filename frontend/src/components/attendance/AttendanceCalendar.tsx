@@ -52,12 +52,13 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const B = brandStyle;
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  Present:      { label: "Present",  color: "#16a34a", bg: "#dcfce7" },
-  Absent:       { label: "Absent",   color: "#dc2626", bg: "#fee2e2" },
-  HalfDay:      { label: "Half Day", color: "#ea580c", bg: "#ffedd5" },
-  Leave:        { label: "Leave",    color: "#a16207", bg: "#fef3c7" },
-  LeavePending: { label: "Pending",  color: "#92400e", bg: "#ffedd5" },
-  Holiday:      { label: "Holiday",  color: "#7c3aed", bg: "#ede9fe" },
+  Present:      { label: "Present",    color: "#16a34a", bg: "#dcfce7" },
+  Absent:       { label: "Absent",     color: "#dc2626", bg: "#fee2e2" },
+  HalfDay:      { label: "Half Day",   color: "#ea580c", bg: "#ffedd5" },
+  Leave:        { label: "Leave",      color: "#a16207", bg: "#fef3c7" },
+  LeavePending: { label: "Pending",    color: "#92400e", bg: "#ffedd5" },
+  Holiday:      { label: "Holiday",    color: "#7c3aed", bg: "#ede9fe" },
+  Weekend:      { label: "Weekly Off", color: "#6d28d9", bg: "#ede9fe" },
 };
 
 const LEGEND = [
@@ -65,17 +66,11 @@ const LEGEND = [
   { color: "#fecaca", label: "Absent" },
   { color: "#fef08a", label: "Leave (approved)" },
   { color: "#fed7aa", label: "Leave (pending)" },
-  { color: "#e9d5ff", label: "Holiday/Weekend" },
+  { color: "#e9d5ff", label: "Holiday / Weekly Off" },
 ];
 
 function toYMD(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function isWeekendDate(ymd: string): boolean {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
-  return day === 0 || day === 6;
 }
 
 function buildGrid(year: number, month: number): Date[][] {
@@ -234,8 +229,8 @@ function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmi
       setSubmitError("Cannot apply leave for past dates.");
       return;
     }
-    if (isWeekendDate(fromDate)) {
-      setSubmitError("Cannot apply leave on a weekend.");
+    if (dataMap.get(fromDate)?.status === "Weekend") {
+      setSubmitError("Cannot apply leave on a weekly off day.");
       return;
     }
     if (durationMode === "Full Day" && workingDays === 0) {
@@ -995,7 +990,6 @@ export default function AttendanceCalendar({
       setSelected(entry);
     } else {
       if (ymd < today) return;
-      if (isWeekendDate(ymd)) return;
       openLeaveFormForDate(ymd);
     }
   }
@@ -1070,7 +1064,7 @@ export default function AttendanceCalendar({
                 else if (entry?.status === "Absent")                       bg = "#fef2f2";
                 else if (entry?.status === "Leave")                        bg = "#fef9c3";
                 else if (entry?.status === "LeavePending")                 bg = "#ffedd5";
-                else if (isHoliday || isWeekend)                           bg = "#f5f3ff";
+                else if (isHoliday || isWeekend)                           bg = "#ede9fe";
 
                 return (
                   <div
@@ -1096,9 +1090,11 @@ export default function AttendanceCalendar({
 
                     {badge && inMonth && (
                       <span style={{ position: "absolute", top: 10, right: 10, background: badge.bg, color: badge.color, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "1px 5px", lineHeight: "16px" }}>
-                        {entry?.status === "LeavePending"
-                          ? badge.label
-                          : badge.label.slice(0, entry?.status === "HalfDay" ? 2 : 1)}
+                        {entry?.status === "LeavePending" ? badge.label
+                          : entry?.status === "HalfDay" ? badge.label.slice(0, 2)
+                          : entry?.status === "Weekend" ? "WO"
+                          : entry?.status === "Holiday" ? "Hol"
+                          : badge.label.slice(0, 1)}
                       </span>
                     )}
 

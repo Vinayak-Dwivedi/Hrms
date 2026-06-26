@@ -52,7 +52,8 @@ import {
 } from "@/services/leave-request-validation";
 import { runWorkflowOnNewRequest } from "@/services/leave-workflow-engine";
 import { validateLeaveApplication } from "@/services/leave-validation";
-import { holidaysForEmployee } from "@/services/holiday-calendar-resolver";
+import { holidaysForEmployee, loadEmployeeDimensions } from "@/services/holiday-calendar-resolver";
+import { weeklyOffDatesForEmployee } from "@/services/weekly-off-resolver";
 import { writeAuditLogAsync } from "@/infrastructure/audit/audit-writer";
 import { loadLeaveRequestParticipants } from "@/services/leave-routing";
 import { notifyManagerOnSubmission } from "@/services/leave-notifications";
@@ -426,8 +427,8 @@ meRouter.get("/attendance/month", async (req, res, next) => {
     const month1 = q.month ?? now.getMonth() + 1;
     const { start, end } = startEndOfMonth(year, month1 - 1);
 
-    // Attendance records + holidays for the same range, in parallel.
-    const [rows, monthHolidays] = await Promise.all([
+    // Attendance records + holidays + weekly-off dates, all in parallel.
+    const [rows, monthHolidays, empDims] = await Promise.all([
       db
         .select()
         .from(attendanceRecords)
@@ -440,14 +441,17 @@ meRouter.get("/attendance/month", async (req, res, next) => {
         )
         .orderBy(asc(attendanceRecords.date)),
       holidaysForEmployee(emp.id, start, end),
+      loadEmployeeDimensions(emp.id),
     ]);
+
+    const weeklyOffSet = empDims
+      ? await weeklyOffDatesForEmployee(empDims, start, end)
+      : new Set<string>();
 
     res.json({
       year,
       month: month1,
       records: rows,
-      // M5 — surface the employee's holidays for the month so the calendar
-      // can render holiday cells alongside attendance cells.
       holidays: monthHolidays.map((h) => ({
         id: h.id,
         date: h.date,
@@ -455,6 +459,9 @@ meRouter.get("/attendance/month", async (req, res, next) => {
         type: h.type,
         isHalfDay: h.isHalfDay,
       })),
+      // Policy-based weekly-off dates for this employee. Attendance records
+      // and holiday records take precedence — these fill in the rest.
+      weeklyOffDates: [...weeklyOffSet],
     });
   } catch (e) {
     next(e);

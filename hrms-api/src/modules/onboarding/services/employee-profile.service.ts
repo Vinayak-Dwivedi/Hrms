@@ -154,8 +154,8 @@ export async function upsertProfile(
     }
     const encryptedLegacy = encryptEmployeeLegacySensitive(
       {
-        panNo: input.identity.panNumber,
-        aadhaarNo: input.identity.aadhaarNumber,
+        panNo: input.identity.panNumber || null,
+        aadhaarNo: input.identity.aadhaarNumber || null,
         uanNo: input.identity.uanNumber?.trim() || null,
         esicNo: input.identity.esicNumber?.trim() || null,
       },

@@ -2,9 +2,11 @@
 // expand it into a set of off-day date strings within a range. Uses the
 // same specificity-ranking logic as the holiday calendar resolver.
 
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, isNotNull, lte } from "drizzle-orm";
 import { db } from "@/db/runtime";
 import {
+  leavePlans,
+  orgHierarchyDepartmentBranches,
   weeklyOffConfigs,
   weeklyOffRosterEntries,
   weeklyOffScope,
@@ -244,14 +246,92 @@ export async function rosterOffDatesForEmployee(
   );
 }
 
+/** Resolve weekly-off config via the Leave Policy grid (leavePlans.weeklyOffConfigId).
+ *  The grid assigns weekly off at Branch+Department(+SubDepartment) level via gridScopeKey.
+ *  We try the most-specific key first (with sub-dept), then dept-only.
+ *  If employees.branchId is null (org-hierarchy-only employees), we derive the branch from
+ *  orgHierarchyDepartmentBranches so the lookup still works. */
+async function resolveWeeklyOffFromLeavePlan(emp: EmployeeDimensions): Promise<{
+  configId: number;
+  mode: string;
+  settings: Record<string, unknown>;
+} | null> {
+  // employees.departmentId also references orgHierarchyDepartments.id, so use
+  // either the structure-join value or the direct employee column as fallback.
+  const departmentId = emp.orgHierarchyDepartmentId ?? emp.departmentId;
+  if (departmentId == null) return null;
+
+  // Prefer the employee's explicit branchId; fall back to the department→branch link.
+  let branchIds: number[];
+  if (emp.branchId != null) {
+    branchIds = [emp.branchId];
+  } else {
+    const links = await db
+      .select({ branchId: orgHierarchyDepartmentBranches.branchId })
+      .from(orgHierarchyDepartmentBranches)
+      .where(eq(orgHierarchyDepartmentBranches.departmentId, departmentId));
+    branchIds = links.map((r) => r.branchId);
+  }
+  if (branchIds.length === 0) return null;
+
+  // employees.subDepartmentId also references orgHierarchySubDepartments.id.
+  const subDepartmentId = emp.orgHierarchySubDepartmentId ?? emp.subDepartmentId;
+
+  // Build candidate keys from most specific (sub-dept) to least (dept-only).
+  const keys: string[] = [];
+  for (const bId of branchIds) {
+    if (subDepartmentId != null) keys.push(`B${bId}:D${departmentId}:S${subDepartmentId}`);
+    keys.push(`B${bId}:D${departmentId}`);
+  }
+
+  for (const key of keys) {
+    const [plan] = await db
+      .select({ weeklyOffConfigId: leavePlans.weeklyOffConfigId })
+      .from(leavePlans)
+      .where(
+        and(
+          eq(leavePlans.gridScopeKey, key),
+          eq(leavePlans.status, "Active"),
+          isNotNull(leavePlans.weeklyOffConfigId),
+        ),
+      )
+      .limit(1);
+    if (!plan?.weeklyOffConfigId) continue;
+
+    const [config] = await db
+      .select({ mode: weeklyOffConfigs.mode, settings: weeklyOffConfigs.settings })
+      .from(weeklyOffConfigs)
+      .where(
+        and(
+          eq(weeklyOffConfigs.id, plan.weeklyOffConfigId),
+          eq(weeklyOffConfigs.status, "Published"),
+        ),
+      )
+      .limit(1);
+    if (!config) continue;
+
+    return {
+      configId: plan.weeklyOffConfigId,
+      mode: config.mode,
+      settings: (config.settings ?? {}) as Record<string, unknown>,
+    };
+  }
+  return null;
+}
+
 /** Off-day dates for an employee in a range, handling all three modes:
- *  Fixed/Rotational expand from the config; Roster reads the planner's roster. */
+ *  Fixed/Rotational expand from the config; Roster reads the planner's roster.
+ *  Resolution order:
+ *  1. Leave Policy grid (leavePlans.weeklyOffConfigId) — most specific.
+ *  2. weeklyOffScope direct assignment — fallback (e.g. Company-wide default). */
 export async function weeklyOffDatesForEmployee(
   emp: EmployeeDimensions,
   fromDate: string,
   toDate: string,
 ): Promise<Set<string>> {
-  const config = await resolveWeeklyOffForEmployee(emp);
+  const config =
+    (await resolveWeeklyOffFromLeavePlan(emp)) ??
+    (await resolveWeeklyOffForEmployee(emp));
   if (!config) return new Set();
   if (config.mode === "Roster") {
     return rosterOffDatesForEmployee(emp.id, fromDate, toDate);

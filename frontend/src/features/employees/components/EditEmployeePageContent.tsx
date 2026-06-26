@@ -63,6 +63,10 @@ export default function EditEmployeePageContent({ employeeId }: Props) {
         <EditEmployeeForm
           employee={employee}
           onRefreshEmployee={() => loadEmployee({ silent: true })}
+          readOnly={
+            employee.employeeStatus === "Exited" ||
+            employee.employeeStatus === "Inactive"
+          }
           onSuccess={() => router.push("/employees")}
         />
       )}

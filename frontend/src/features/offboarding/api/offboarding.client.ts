@@ -47,6 +47,7 @@ export type ResignationFlow = {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  scope: FlowScopeRow[];
 };
 
 export type ResignationFlowDetail = ResignationFlow & { scope: FlowScopeRow[] };
@@ -375,6 +376,139 @@ export function updateFlow(id: number, body: Partial<FlowUpsertPayload>): Promis
 
 export function deleteFlow(id: number): Promise<ResignationFlow> {
   return unwrap(jsonFetch<{ data: ResignationFlow }>(`/flows/${id}`, { method: "DELETE" }));
+}
+
+// ── Manager exit requests ──
+
+export type ManagerExitType = "Absconding" | "ResignedWithoutNotice";
+
+export type ExitRequestStatus = "Pending" | "Approved" | "Rejected";
+
+export type EmployeeExitRequest = {
+  id: number;
+  employeeId: number;
+  requestedBy: number;
+  exitType: ManagerExitType;
+  requestedLwd: string | null;
+  evidenceNote: string | null;
+  noticeRequiredDays: number | null;
+  noticeServedDays: number;
+  settlementRule: string | null;
+  accessRevokeTiming: "Immediate" | "OnLWD";
+  status: ExitRequestStatus;
+  hrActionBy: number | null;
+  hrRemarks: string | null;
+  activeLeavesSnapshot: unknown[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EmployeeExit = {
+  id: number;
+  employeeId: number;
+  exitType: string;
+  initiatedBy: "Manager" | "HR";
+  exitRequestId: number | null;
+  resignationId: number | null;
+  lastWorkingDate: string;
+  effectiveDate: string;
+  noticeRequiredDays: number | null;
+  noticeServedDays: number | null;
+  settlementRule: string | null;
+  terminationReasonCode: string | null;
+  remarks: string | null;
+  isBackdated: boolean;
+  accessRevokedAt: string | null;
+  createdAt: string;
+};
+
+export function createExitRequest(body: {
+  employeeId: number;
+  exitType: ManagerExitType;
+  requestedLwd?: string | null;
+  evidenceNote?: string | null;
+  noticeServedDays?: number;
+}): Promise<{ request: EmployeeExitRequest; isBackdated: boolean; activeLeavesCount: number }> {
+  return unwrap(
+    jsonFetch<{ data: { request: EmployeeExitRequest; isBackdated: boolean; activeLeavesCount: number } }>(
+      "/manager/exit-requests",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  );
+}
+
+export function listManagerExitRequests(): Promise<EmployeeExitRequest[]> {
+  return unwrap(jsonFetch<{ data: EmployeeExitRequest[] }>("/manager/exit-requests"));
+}
+
+export function listHrExitRequests(): Promise<EmployeeExitRequest[]> {
+  return unwrap(jsonFetch<{ data: EmployeeExitRequest[] }>("/hr/exit-requests"));
+}
+
+export function getHrExitRequest(id: number): Promise<EmployeeExitRequest> {
+  return unwrap(jsonFetch<{ data: EmployeeExitRequest }>(`/hr/exit-requests/${id}`));
+}
+
+export function hrApproveExitRequest(
+  id: number,
+  body: {
+    lastWorkingDate: string;
+    settlementRule?: string | null;
+    accessRevokeTiming?: "Immediate" | "OnLWD";
+    hrRemarks?: string | null;
+  },
+): Promise<{ exit: EmployeeExit; isBackdated: boolean }> {
+  return unwrap(
+    jsonFetch<{ data: { exit: EmployeeExit; isBackdated: boolean } }>(`/hr/exit-requests/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export function hrRejectExitRequest(id: number, hrRemarks?: string | null): Promise<EmployeeExitRequest> {
+  return unwrap(
+    jsonFetch<{ data: EmployeeExitRequest }>(`/hr/exit-requests/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ hrRemarks }),
+    }),
+  );
+}
+
+export type DirectExitType =
+  | "Resigned"
+  | "ResignedWithoutNotice"
+  | "ResignedWithPartialNotice"
+  | "Absconding"
+  | "Terminated";
+
+export function hrDirectExit(
+  employeeId: number,
+  body: {
+    exitType: DirectExitType;
+    lastWorkingDate: string;
+    noticeRequiredDays?: number | null;
+    noticeServedDays?: number | null;
+    settlementRule?: string | null;
+    terminationReasonCode?: string | null;
+    remarks?: string | null;
+    accessRevokeTiming?: "Immediate" | "OnLWD";
+  },
+): Promise<{ exit: EmployeeExit; isBackdated: boolean; activeLeavesCount: number }> {
+  return unwrap(
+    jsonFetch<{ data: { exit: EmployeeExit; isBackdated: boolean; activeLeavesCount: number } }>(
+      `/hr/employees/${employeeId}/direct-exit`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  );
+}
+
+export function getEmployeeExit(employeeId: number): Promise<EmployeeExit | null> {
+  return unwrap(jsonFetch<{ data: EmployeeExit | null }>(`/hr/employees/${employeeId}/exit`));
+}
+
+export function listEmployeeExits(): Promise<EmployeeExit[]> {
+  return unwrap(jsonFetch<{ data: EmployeeExit[] }>("/hr/exits"));
 }
 
 // ── Admin: exit reasons ──

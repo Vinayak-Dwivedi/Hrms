@@ -53,8 +53,8 @@ export async function upsertIdentity(
   const columnSupport = await getEmployeeColumnSupport();
   const values = encryptIdentitySensitive(
     {
-      panNumber: identity.panNumber,
-      aadhaarNumber: identity.aadhaarNumber,
+      panNumber: identity.panNumber || null,
+      aadhaarNumber: identity.aadhaarNumber || null,
       passportNumber: identity.passportNumber?.trim() || null,
       passportExpiry: identity.passportExpiry ?? null,
       uanNumber: identity.uanNumber?.trim() || null,

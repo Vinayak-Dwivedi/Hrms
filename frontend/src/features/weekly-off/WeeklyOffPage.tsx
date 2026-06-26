@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarRange, Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { CalendarRange, ChevronRight, Eye, EyeOff, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   deleteWeeklyOff,
   getWeeklyOff,
@@ -14,9 +15,12 @@ import {
   type WeeklyOffDetail,
   type WeeklyOffSummary,
 } from "./api/weekly-off.client";
+import { getLeaveGrid, type LeaveGridData } from "@/features/leave-policy/api/leave-plan-grid.client";
 import { cn } from "@/lib/utils";
 import RosterDialog from "./RosterDialog";
 import WeeklyOffDialog from "./WeeklyOffDialog";
+
+type Assignment = { branch: string; department: string; subDepartment: string | null };
 
 type DialogTarget = WeeklyOffSummary | "new" | null;
 
@@ -47,27 +51,44 @@ function offDaysSummary(d: WeeklyOffDetail): string {
   return parts.length ? parts.join(", ") : "—";
 }
 
-function scopeSummary(d: WeeklyOffDetail): string {
-  if (d.scope.some((s) => s.scopeType === "Company")) return "Entire organisation";
-  const n = d.scope.length;
-  if (n === 0) return "Unassigned";
-  return `${n} group${n === 1 ? "" : "s"}`;
+function getWeeklyOffAssignments(configId: number, grid: LeaveGridData): Assignment[] {
+  const result: Assignment[] = [];
+  for (const loc of grid.tree) {
+    for (const dept of loc.departments) {
+      const deptKey = `B${loc.branchId}:D${dept.departmentId}`;
+      const deptCell = grid.cells[deptKey];
+      if (deptCell?.weeklyOffConfigId === configId) {
+        result.push({ branch: loc.branchName, department: dept.departmentName, subDepartment: null });
+      }
+      for (const sub of dept.subDepartments) {
+        const subKey = `B${loc.branchId}:D${dept.departmentId}:S${sub.id}`;
+        const subCell = grid.cells[subKey];
+        if (subCell?.weeklyOffConfigId === configId) {
+          result.push({ branch: loc.branchName, department: dept.departmentName, subDepartment: sub.name });
+        }
+      }
+    }
+  }
+  return result;
 }
 
 export default function WeeklyOffPage() {
   const [items, setItems] = useState<WeeklyOffSummary[]>([]);
   const [details, setDetails] = useState<Map<number, WeeklyOffDetail>>(new Map());
+  const [leaveGrid, setLeaveGrid] = useState<LeaveGridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogTarget>(null);
   const [rosterFor, setRosterFor] = useState<WeeklyOffSummary | null>(null);
+  const [scopeDialog, setScopeDialog] = useState<{ name: string; assignments: Assignment[] } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const list = await listWeeklyOff();
+      const [list, grid] = await Promise.all([listWeeklyOff(), getLeaveGrid().catch(() => null)]);
       setItems(list);
+      setLeaveGrid(grid);
       const full = await Promise.all(list.map((c) => getWeeklyOff(c.id).catch(() => null)));
       const m = new Map<number, WeeklyOffDetail>();
       for (const d of full) if (d) m.set(d.id, d);
@@ -104,8 +125,12 @@ export default function WeeklyOffPage() {
   }
 
   const rows = useMemo(
-    () => items.map((c) => ({ c, d: details.get(c.id) })),
-    [items, details],
+    () => items.map((c) => ({
+      c,
+      d: details.get(c.id),
+      assignments: leaveGrid ? getWeeklyOffAssignments(c.id, leaveGrid) : null,
+    })),
+    [items, details, leaveGrid],
   );
 
   return (
@@ -157,7 +182,7 @@ export default function WeeklyOffPage() {
                   </td>
                 </tr>
               )}
-              {rows.map(({ c, d }) => (
+              {rows.map(({ c, d, assignments }) => (
                 <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50/50">
                   <Td>
                     <button
@@ -178,14 +203,19 @@ export default function WeeklyOffPage() {
                   </Td>
                   <Td className="text-gray-700">{d ? offDaysSummary(d) : "…"}</Td>
                   <Td className="text-gray-700">
-                    {d ? (
-                      scopeSummary(d) === "Unassigned" ? (
-                        <span className="text-gray-400 italic">Unassigned</span>
-                      ) : (
-                        scopeSummary(d)
-                      )
-                    ) : (
+                    {assignments === null ? (
                       "…"
+                    ) : assignments.length === 0 ? (
+                      <span className="text-gray-400 italic">Unassigned</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setScopeDialog({ name: c.name, assignments })}
+                        className="inline-flex items-center gap-1 text-[lab(36.9089%_35.0961_-85.6872)] hover:underline text-left"
+                      >
+                        {assignments.length === 1 ? "1 group" : `${assignments.length} groups`}
+                        <ChevronRight size={12} className="shrink-0 opacity-60" />
+                      </button>
                     )}
                   </Td>
                   <Td className="text-center">
@@ -257,7 +287,85 @@ export default function WeeklyOffPage() {
       )}
 
       {rosterFor && <RosterDialog config={rosterFor} onClose={() => setRosterFor(null)} />}
+
+      {scopeDialog && (
+        <ScopeViewDialog name={scopeDialog.name} assignments={scopeDialog.assignments} onClose={() => setScopeDialog(null)} />
+      )}
     </div>
+  );
+}
+
+function ScopeViewDialog({
+  name,
+  assignments,
+  onClose,
+}: {
+  name: string;
+  assignments: Assignment[];
+  onClose: () => void;
+}) {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1100] bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3 border-b border-gray-100">
+          <p className="text-[11px] font-bold tracking-widest uppercase text-gray-400 mb-0.5">
+            Weekly Off
+          </p>
+          <h2 className="text-[15px] font-semibold text-gray-900 leading-tight">
+            {name}
+          </h2>
+          <p className="text-[12px] text-gray-500 mt-1">
+            Applied to {assignments.length === 1 ? "1 group" : `${assignments.length} groups`} in Leave Policy:
+          </p>
+        </div>
+
+        {/* Assignments list */}
+        <div className="px-5 py-3 max-h-72 overflow-y-auto">
+          <ul className="divide-y divide-gray-100">
+            {assignments.map((a, i) => (
+              <li key={i} className="flex items-start gap-3 py-2.5">
+                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 mt-1" />
+                <div className="min-w-0 text-[13px] text-gray-800">
+                  <span className="font-medium capitalize">{a.branch}</span>
+                  <span className="text-gray-400 mx-1">›</span>
+                  <span>{a.department}</span>
+                  {a.subDepartment && (
+                    <>
+                      <span className="text-gray-400 mx-1">›</span>
+                      <span>{a.subDepartment}</span>
+                    </>
+                  )}
+                  {!a.subDepartment && (
+                    <span className="text-[11px] text-gray-400 ml-1.5">(dept-wide)</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 px-5 py-3 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[13px] font-medium text-gray-700 hover:text-gray-900 px-4 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -16,11 +16,7 @@ import {
   indianPanSchema,
   indianUanSchema,
 } from "@/lib/india-validation";
-import {
-  MAX_ACADEMIC_RECORDS,
-  QUAL_CLASS_10,
-  QUAL_CLASS_12,
-} from "@/modules/onboarding/constants/academic";
+import { MAX_ACADEMIC_RECORDS } from "@/modules/onboarding/constants/academic";
 import { MARITAL_STATUS_OPTIONS } from "@/modules/onboarding/constants/personal";
 import { BLOOD_GROUP_VALUES } from "@/modules/onboarding/constants/blood-groups";
 
@@ -116,8 +112,8 @@ export const bankDetailSchema = z.object({
 });
 
 export const identitySchema = z.object({
-  panNumber: indianPanSchema,
-  aadhaarNumber: indianAadhaarSchema,
+  panNumber: z.union([z.literal(""), indianPanSchema]),
+  aadhaarNumber: z.union([z.literal(""), indianAadhaarSchema]),
   passportNumber: z.string().trim().max(20).optional().nullable(),
   passportExpiry: z
     .string()
@@ -130,10 +126,10 @@ export const identitySchema = z.object({
 
 export const personalSchema = z
   .object({
-    currentAddress: z.string().trim().min(1).max(200),
-    permanentAddress: z.string().trim().min(1).max(200),
-    emergencyContactName: z.string().trim().min(1).max(200),
-    emergencyContactPhone: indianMobileSchema,
+    currentAddress: z.string().trim().max(5000).default(""),
+    permanentAddress: z.string().trim().max(5000).default(""),
+    emergencyContactName: z.string().trim().max(200).default(""),
+    emergencyContactPhone: z.union([z.literal(""), indianMobileSchema]).default(""),
     maritalStatus: z.enum(MARITAL_STATUS_OPTIONS),
     spouseName: z.string().trim().max(200).optional().nullable(),
     fatherName: z.string().trim().max(200).optional().nullable(),
@@ -171,68 +167,7 @@ export const upsertProfileSchema = z.object({
   academic: z
     .array(academicDetailSchema)
     .max(MAX_ACADEMIC_RECORDS)
-    .default([])
-    .superRefine((rows, ctx) => {
-      const isClass10 = (q: string) =>
-        q === QUAL_CLASS_10 || /^Class 10\b/.test(q);
-      const isClass12 = (q: string) =>
-        q === QUAL_CLASS_12 || /^Class 12\b/.test(q);
-
-      const class10Count = rows.filter((r) =>
-        isClass10(r.qualification.trim()),
-      ).length;
-      const class12Count = rows.filter((r) =>
-        isClass12(r.qualification.trim()),
-      ).length;
-
-      if (class10Count > 1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Only one Class 10 record is allowed.",
-        });
-      }
-      if (class12Count > 1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Only one Class 12 record is allowed.",
-        });
-      }
-
-      const class10Index = rows.findIndex((r) =>
-        isClass10(r.qualification.trim()),
-      );
-      const class12Index = rows.findIndex((r) =>
-        isClass12(r.qualification.trim()),
-      );
-      if (class10Index === -1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Class 10 details are required.",
-        });
-      }
-      if (class12Index === -1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Class 12 details are required.",
-        });
-      }
-      if (class10Index === -1 || class12Index === -1) return;
-
-      const class10Year = rows[class10Index]?.yearTo;
-      const class12Year = rows[class12Index]?.yearTo;
-      if (class10Year == null || class12Year == null) return;
-
-      if (class12Year < class10Year + 2) {
-        ctx.addIssue({
-          code: "custom",
-          path: [class12Index, "yearTo"],
-          message:
-            class12Year < class10Year
-              ? "Class 12 passing year cannot be before Class 10."
-              : "Class 12 passing year must be at least 2 years after Class 10.",
-        });
-      }
-    }),
+    .default([]),
   professional: z
     .array(professionalDetailSchema)
     .max(1, "Only one previous company record is allowed.")

@@ -198,6 +198,11 @@ export const auditActionEnum = pgEnum("audit_action_enum", [
   // Access revocation + final closure (Phase 6)
   "OFFBOARDING_ACCESS_REVOKED",
   "OFFBOARDING_CASE_CLOSED",
+  // Manager-initiated exit requests
+  "EXIT_REQUEST_RAISED",
+  "EXIT_REQUEST_APPROVED",
+  "EXIT_REQUEST_REJECTED",
+  "HR_DIRECT_EXIT",
 ]);
 export const documentStatusEnum = pgEnum("document_status_enum", [
   "Pending",
@@ -1452,6 +1457,98 @@ export const accessRevocations = pgTable(
   ],
 );
 
+// ── Manager-initiated exit requests (absconding / resigned-without-notice) ──
+// One open request (status=Pending) is allowed per employee at a time.
+// After HR approves, an employeeExit record is created and request is Approved.
+export const employeeExitRequests = pgTable(
+  "employee_exit_requests",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    requestedBy: integer("requested_by")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" }),
+    // Absconding | ResignedWithoutNotice (manager scope)
+    exitType: varchar("exit_type", { length: 30 }).notNull(),
+    requestedLwd: date("requested_lwd"),
+    evidenceNote: text("evidence_note"),
+    // Snapshot of employee's active/upcoming leave requests at time of raising.
+    activeLeavesSnapshot: jsonb("active_leaves_snapshot").notNull().default([]),
+    noticeRequiredDays: integer("notice_required_days"),
+    noticeServedDays: integer("notice_served_days").notNull().default(0),
+    // EncashLeave | ForfeitLeave | PartialEncash | Depends
+    settlementRule: varchar("settlement_rule", { length: 30 }),
+    // Immediate | OnLWD — when should access be revoked
+    accessRevokeTiming: varchar("access_revoke_timing", { length: 20 })
+      .notNull()
+      .default("Immediate"),
+    // Pending | Approved | Rejected
+    status: varchar("status", { length: 20 }).notNull().default("Pending"),
+    hrActionBy: integer("hr_action_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    hrRemarks: text("hr_remarks"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("idx_exit_req_employee").on(table.employeeId),
+    index("idx_exit_req_requested_by").on(table.requestedBy),
+    index("idx_exit_req_status").on(table.status),
+  ],
+);
+
+// ── Official exit record — created on HR approval (manager request or direct) ──
+export const employeeExits = pgTable(
+  "employee_exits",
+  {
+    id: serial("id").primaryKey(),
+    employeeId: integer("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "restrict" })
+      .unique(),
+    // Resigned | ResignedWithoutNotice | ResignedWithPartialNotice | Absconding | Terminated
+    exitType: varchar("exit_type", { length: 30 }).notNull(),
+    // Manager | HR
+    initiatedBy: varchar("initiated_by", { length: 10 }).notNull(),
+    exitRequestId: integer("exit_request_id").references(
+      () => employeeExitRequests.id,
+      { onDelete: "set null" },
+    ),
+    resignationId: integer("resignation_id").references(() => resignations.id, {
+      onDelete: "set null",
+    }),
+    lastWorkingDate: date("last_working_date").notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    noticeRequiredDays: integer("notice_required_days"),
+    noticeServedDays: integer("notice_served_days"),
+    // EncashLeave | ForfeitLeave | PartialEncash | Depends
+    settlementRule: varchar("settlement_rule", { length: 30 }),
+    // For Terminated — legal reason code (performance, misconduct, redundancy, etc.)
+    terminationReasonCode: varchar("termination_reason_code", { length: 50 }),
+    remarks: text("remarks"),
+    isBackdated: boolean("is_backdated").notNull().default(false),
+    accessRevokedAt: timestamp("access_revoked_at", { withTimezone: true }),
+    createdBy: integer("created_by").references(() => employees.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_emp_exit_employee").on(table.employeeId),
+    index("idx_emp_exit_type").on(table.exitType),
+  ],
+);
+
 // ───────────────────────────────────────────────────────────────────────────
 // GROUP 3 — ATTENDANCE
 // ───────────────────────────────────────────────────────────────────────────
@@ -2237,6 +2334,10 @@ export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
 export type NewEmployeeDocument = typeof employeeDocuments.$inferInsert;
 export type Resignation = typeof resignations.$inferSelect;
 export type NewResignation = typeof resignations.$inferInsert;
+export type EmployeeExitRequest = typeof employeeExitRequests.$inferSelect;
+export type NewEmployeeExitRequest = typeof employeeExitRequests.$inferInsert;
+export type EmployeeExit = typeof employeeExits.$inferSelect;
+export type NewEmployeeExit = typeof employeeExits.$inferInsert;
 export type RegularisationRequest =
   typeof regularisationRequests.$inferSelect;
 export type NewRegularisationRequest =

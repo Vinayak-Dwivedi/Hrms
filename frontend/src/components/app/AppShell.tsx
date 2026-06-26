@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Clock,
   GitBranch,
+  Lock,
   LogOut,
   MapPin,
   Network,
@@ -105,16 +106,11 @@ const USER_MGMT_SECTION: NavSection = {
       requiredPermission: NAV_ENTRY_PERMISSIONS.employeesCreate,
     },
     {
-      icon: ShieldPlus,
-      label: "Add Permission",
-      href: "/add-permission",
+      icon: Lock,
+      label: "Permissions",
+      href: "/permissions",
+      also: ["/add-permission", "/user-roles"],
       requiredPermission: NAV_ENTRY_PERMISSIONS.adminPermissions,
-    },
-    {
-      icon: Shield,
-      label: "System Access Roles",
-      href: "/user-roles",
-      requiredPermission: NAV_ENTRY_PERMISSIONS.adminRoles,
     },
   ],
 };

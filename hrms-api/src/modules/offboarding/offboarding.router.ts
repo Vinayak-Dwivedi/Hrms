@@ -707,3 +707,136 @@ offboardingRouter.post("/cases/:id/close", casesAccess, async (req, res, next) =
     next(e);
   }
 });
+
+// ─────────────── Manager exit requests (absconding / no-notice resign) ───────────────
+
+import * as exitSvc from "@/modules/offboarding/exit-request.service";
+import { z } from "zod";
+
+const createExitRequestSchema = z.object({
+  employeeId: z.number().int().positive(),
+  exitType: z.enum(["Absconding", "ResignedWithoutNotice"]),
+  requestedLwd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  evidenceNote: z.string().trim().max(2000).optional().nullable(),
+  noticeServedDays: z.number().int().min(0).optional(),
+});
+
+const hrApproveExitRequestSchema = z.object({
+  lastWorkingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  settlementRule: z.enum(["EncashLeave", "ForfeitLeave", "PartialEncash", "Depends"]).optional().nullable(),
+  accessRevokeTiming: z.enum(["Immediate", "OnLWD"]).optional(),
+  hrRemarks: z.string().trim().max(1000).optional().nullable(),
+});
+
+const hrDirectExitSchema = z.object({
+  exitType: z.enum(["Resigned", "ResignedWithoutNotice", "ResignedWithPartialNotice", "Absconding", "Terminated"]),
+  lastWorkingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  noticeRequiredDays: z.number().int().min(0).optional().nullable(),
+  noticeServedDays: z.number().int().min(0).optional().nullable(),
+  settlementRule: z.enum(["EncashLeave", "ForfeitLeave", "PartialEncash", "Depends"]).optional().nullable(),
+  terminationReasonCode: z.string().trim().max(50).optional().nullable(),
+  remarks: z.string().trim().max(2000).optional().nullable(),
+  accessRevokeTiming: z.enum(["Immediate", "OnLWD"]).optional(),
+});
+
+const hrRemarksSchema = z.object({
+  hrRemarks: z.string().trim().max(1000).optional().nullable(),
+});
+
+// Manager: submit an exit request for one of their reportees.
+offboardingRouter.post("/manager/exit-requests", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+    const body = createExitRequestSchema.parse(req.body ?? {});
+    const result = await exitSvc.createExitRequest(mgr.id, body, auditCtx(req));
+    res.status(201).json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Manager: list their submitted exit requests.
+offboardingRouter.get("/manager/exit-requests", async (req, res, next) => {
+  try {
+    const mgr = await loadCurrentManager(req.user!.id);
+    res.json({ data: await exitSvc.listManagerExitRequests(mgr.id) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: list all exit requests.
+offboardingRouter.get("/hr/exit-requests", hrAccess, async (_req, res, next) => {
+  try {
+    res.json({ data: await exitSvc.listHrExitRequests() });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: get single exit request.
+offboardingRouter.get("/hr/exit-requests/:id", hrAccess, async (req, res, next) => {
+  try {
+    res.json({ data: await exitSvc.getExitRequestById(idParam(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: approve a manager exit request.
+offboardingRouter.post("/hr/exit-requests/:id/approve", hrAccess, async (req, res, next) => {
+  try {
+    const hr = await loadCurrentEmployee(req.user!.id);
+    const body = hrApproveExitRequestSchema.parse(req.body ?? {});
+    const result = await exitSvc.hrApproveExitRequest(hr.id, idParam(req), body, auditCtx(req));
+    res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: reject a manager exit request.
+offboardingRouter.post("/hr/exit-requests/:id/reject", hrAccess, async (req, res, next) => {
+  try {
+    const hr = await loadCurrentEmployee(req.user!.id);
+    const body = hrRemarksSchema.parse(req.body ?? {});
+    const result = await exitSvc.hrRejectExitRequest(hr.id, idParam(req), body.hrRemarks ?? null, auditCtx(req));
+    res.json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: direct exit for any employee (all 5 exit types, no prior manager request needed).
+offboardingRouter.post("/hr/employees/:id/direct-exit", hrAccess, async (req, res, next) => {
+  try {
+    const hr = await loadCurrentEmployee(req.user!.id);
+    const body = hrDirectExitSchema.parse(req.body ?? {});
+    const result = await exitSvc.hrDirectExit(
+      hr.id,
+      { employeeId: idParam(req), ...body },
+      auditCtx(req),
+    );
+    res.status(201).json({ data: result });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: get exit record for an employee.
+offboardingRouter.get("/hr/employees/:id/exit", hrAccess, async (req, res, next) => {
+  try {
+    res.json({ data: await exitSvc.getEmployeeExit(idParam(req)) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// HR: list all official exits.
+offboardingRouter.get("/hr/exits", hrAccess, async (_req, res, next) => {
+  try {
+    res.json({ data: await exitSvc.listEmployeeExits() });
+  } catch (e) {
+    next(e);
+  }
+});

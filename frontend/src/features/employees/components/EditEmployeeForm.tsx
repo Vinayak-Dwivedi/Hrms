@@ -72,6 +72,7 @@ const maxDobDate = new Date(`${maxDob}T23:59:59`);
 interface Props {
   employee: EmployeeDetail;
   embedded?: boolean;
+  readOnly?: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
   onRefreshEmployee?: () => void | Promise<void>;
@@ -87,6 +88,7 @@ type FormLookups = OrgHierarchyRoleLookups & {
 function EditEmployeeFormContent({
   employee,
   embedded = false,
+  readOnly = false,
   onSuccess,
   onCancel,
   onRefreshEmployee,
@@ -273,6 +275,15 @@ function EditEmployeeFormContent({
         </div>
       )}
 
+      {readOnly && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>
+            This employee&apos;s status is <strong>{employee.employeeStatus}</strong>. Their profile is view-only and cannot be modified.
+          </span>
+        </div>
+      )}
+
+      <fieldset disabled={readOnly} className={readOnly ? "opacity-70 pointer-events-none" : undefined}>
       <div className={employeeFormSectionsGridClass}>
         <EmployeeFormSection compact icon={User} title="Basic Information">
           <EmployeeFormField>
@@ -555,37 +566,49 @@ function EditEmployeeFormContent({
         ref={onboardingRef}
       />
       </div>
+      </fieldset>
 
       <div
         className={`flex items-center justify-end gap-3 px-5 py-3 bg-gray-50 border border-slate-200 rounded-md ${employeeCardClass}`}
       >
-        {onCancel ? (
-          <button
-            className={employeeListBtnOutlineClass}
-            onClick={onCancel}
-            type="button"
-          >
-            Cancel
-          </button>
-        ) : (
+        {readOnly ? (
           <Link
             className={employeeListBtnOutlineClass}
-            href={`/employees/${employee.id}`}
+            href="/employees"
           >
-            Cancel
+            Back to employees
           </Link>
+        ) : (
+          <>
+            {onCancel ? (
+              <button
+                className={employeeListBtnOutlineClass}
+                onClick={onCancel}
+                type="button"
+              >
+                Cancel
+              </button>
+            ) : (
+              <Link
+                className={employeeListBtnOutlineClass}
+                href={`/employees/${employee.id}`}
+              >
+                Cancel
+              </Link>
+            )}
+            <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
+              {([canSubmit, isSubmitting]) => (
+                <button
+                  className={`${employeeListBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                  disabled={!canSubmit || isSubmitting}
+                  type="submit"
+                >
+                  {isSubmitting ? "Saving…" : "Save changes"}
+                </button>
+              )}
+            </form.Subscribe>
+          </>
         )}
-        <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
-          {([canSubmit, isSubmitting]) => (
-            <button
-              className={`${employeeListBtnClass} disabled:opacity-60 disabled:cursor-not-allowed`}
-              disabled={!canSubmit || isSubmitting}
-              type="submit"
-            >
-              {isSubmitting ? "Saving…" : "Save changes"}
-            </button>
-          )}
-        </form.Subscribe>
       </div>
     </form>
     </FormValidationRevealProvider>
@@ -595,6 +618,7 @@ function EditEmployeeFormContent({
 export default function EditEmployeeForm({
   employee,
   embedded = false,
+  readOnly = false,
   onSuccess,
   onCancel,
   onRefreshEmployee,
@@ -650,6 +674,7 @@ export default function EditEmployeeForm({
       embedded={embedded}
       employees={employees}
       lookupsError={lookupsError}
+      readOnly={readOnly}
       roleOptions={roleOptions}
       onCancel={onCancel}
       onRefreshEmployee={onRefreshEmployee}

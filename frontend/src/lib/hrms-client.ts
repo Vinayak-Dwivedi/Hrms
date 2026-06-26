@@ -464,6 +464,7 @@ export async function fetchMonthAttendance(
   const data = await jsonFetch<{
     records: RawAttendance[];
     holidays?: MonthHolidayRow[];
+    weeklyOffDates?: string[];
   }>(`/me/attendance/month?year=${year}&month=${month1}`);
 
   const attendance = data.records.map<DayAttendance>((r) => ({
@@ -477,19 +478,35 @@ export async function fetchMonthAttendance(
     location: r.location ?? undefined,
   }));
 
-  // Merge holidays in. An actual attendance record (Present, Leave, etc.)
-  // wins over a Holiday cell — if the employee worked on a designated
-  // holiday, the calendar should show the real attendance.
-  const haveAttendance = new Set(attendance.map((a) => a.date));
+  // Attendance records win over everything.
+  const haveRecord = new Set(attendance.map((a) => a.date));
+
+  // Merge holidays. Actual attendance (Present/Leave/etc.) beats a holiday.
   const holidayDays = (data.holidays ?? [])
-    .filter((h) => !haveAttendance.has(h.date))
+    .filter((h) => !haveRecord.has(h.date))
     .map<DayAttendance>((h) => ({
       date: h.date,
       status: "Holiday",
       holidayName: h.name,
     }));
 
-  return [...attendance, ...holidayDays].sort((a, b) =>
+  // Track all dates already spoken for so weekly-off doesn't overwrite them.
+  const haveAny = new Set([...haveRecord, ...holidayDays.map((h) => h.date)]);
+
+  // Merge policy-based weekly-off dates. Attendance and holidays win.
+  const weeklyOffDays = (data.weeklyOffDates ?? [])
+    .filter((d) => !haveAny.has(d))
+    .map<DayAttendance>((d) => ({
+      date: d,
+      status: "Weekend",
+    }));
+
+  console.log("[weekly-off-check]", {
+    weeklyOffDatesFromApi: data.weeklyOffDates ?? "FIELD_ABSENT",
+    weeklyOffDaysAdded: weeklyOffDays.map((d) => d.date),
+  });
+
+  return [...attendance, ...holidayDays, ...weeklyOffDays].sort((a, b) =>
     a.date.localeCompare(b.date),
   );
 }
@@ -585,8 +602,10 @@ export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void>
     return;
   }
 
-  await jsonFetch("/me/leave-requests", {
+  const res = await fetch(buildUrl("/me/leave-requests"), {
     method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       leaveTypeCode: input.leaveTypeCode,
       fromDate: input.fromDate,
@@ -596,6 +615,10 @@ export async function submitLeaveRequest(input: SubmitLeaveInput): Promise<void>
       reason: input.reason,
     }),
   });
+  if (!res.ok) {
+    redirectToLoginOn401(res);
+    throw await parseHrmsApiError(res);
+  }
 }
 
 // ─────────────────── Regularisation ───────────────────

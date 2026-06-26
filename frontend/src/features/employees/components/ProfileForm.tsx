@@ -524,6 +524,75 @@ function ProfileActionBar({
   );
 }
 
+const PROFILE_FIELD_TAB: Record<string, ProfileTab> = {
+  phone: "contact",
+  personalEmail: "contact",
+  currentAddress: "contact",
+  permanentAddress: "contact",
+  emergencyContactName: "emergency",
+  emergencyContactPhone: "emergency",
+  panNumber: "personal",
+  aadhaarNumber: "personal",
+  uanNumber: "personal",
+  esicNumber: "personal",
+  fatherName: "personal",
+  motherName: "personal",
+  accountNumber: "bank",
+  accountName: "bank",
+  bankName: "bank",
+  branchName: "bank",
+  ifscCode: "bank",
+};
+
+type ProfileValidationMap = {
+  fieldErrors: Record<string, string>;
+  firstErrorTab: ProfileTab | null;
+  generalMessages: string[];
+};
+
+function mapProfileFormValidationIssues(details: unknown): ProfileValidationMap {
+  const fieldErrors: Record<string, string> = {};
+  const generalMessages: string[] = [];
+  let firstErrorTab: ProfileTab | null = null;
+
+  if (!Array.isArray(details)) return { fieldErrors, firstErrorTab, generalMessages };
+
+  for (const issue of details) {
+    const item = issue as { path?: unknown; message?: unknown };
+    const message = typeof item?.message === "string" ? item.message : "";
+    if (!message) continue;
+    const path = Array.isArray(item?.path) ? (item.path as (string | number)[]) : [];
+
+    let fieldKey: string | null = null;
+
+    if (path.length >= 2 && path[0] === "identity" && typeof path[1] === "string") {
+      fieldKey = path[1];
+    } else if (path.length >= 2 && path[0] === "personal" && typeof path[1] === "string") {
+      fieldKey = path[1];
+    } else if (path.length === 1 && (path[0] === "phone" || path[0] === "personalEmail")) {
+      fieldKey = path[0] as string;
+    } else if (path.length >= 3 && path[0] === "bank" && typeof path[1] === "number" && typeof path[2] === "string") {
+      fieldKey = path[2];
+    } else if (path.length >= 1 && path[0] === "academic") {
+      if (!firstErrorTab) firstErrorTab = "academics";
+      generalMessages.push(message);
+      continue;
+    }
+
+    if (fieldKey && fieldKey in PROFILE_FIELD_TAB) {
+      if (!fieldErrors[fieldKey]) {
+        fieldErrors[fieldKey] = message;
+        const tab = PROFILE_FIELD_TAB[fieldKey];
+        if (tab && !firstErrorTab) firstErrorTab = tab;
+      }
+    } else if (fieldKey === null) {
+      generalMessages.push(message);
+    }
+  }
+
+  return { fieldErrors, firstErrorTab, generalMessages };
+}
+
 export default function ProfileForm() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -777,6 +846,8 @@ export default function ProfileForm() {
     }
 
     setSaving(true);
+    setFieldErrors({});
+    setSubmitError(null);
     try {
       if (pendingPhotoFileRef.current) {
         await uploadProfilePhoto(pendingPhotoFileRef.current);
@@ -794,7 +865,21 @@ export default function ProfileForm() {
       committedFormRef.current = data.form;
       toast.success("Profile updated successfully.");
     } catch (err) {
-      toast.error((err as Error).message ?? "Failed to update profile.");
+      const errAny = err as { details?: unknown; message?: string };
+      const { fieldErrors: mapped, firstErrorTab, generalMessages } = mapProfileFormValidationIssues(errAny.details);
+      const hasFieldErrors = Object.keys(mapped).length > 0;
+      const hasGeneral = generalMessages.length > 0;
+
+      if (hasFieldErrors || hasGeneral) {
+        if (hasFieldErrors) setFieldErrors(mapped);
+        const bannerParts: string[] = [];
+        if (hasFieldErrors) bannerParts.push("Please fix the highlighted errors below.");
+        bannerParts.push(...generalMessages);
+        setSubmitError(bannerParts.join(" "));
+        if (firstErrorTab) setActiveTab(firstErrorTab);
+      } else {
+        toast.error((err as Error).message ?? "Failed to update profile.");
+      }
     } finally {
       setSaving(false);
     }
@@ -1401,6 +1486,8 @@ export default function ProfileForm() {
                   type="button"
                   onClick={() => {
                     setShowResetConfirm(false);
+                    setFieldErrors({});
+                    setSubmitError(null);
                     pendingPhotoFileRef.current = null;
                     if (photoPreview) {
                       URL.revokeObjectURL(photoPreview);

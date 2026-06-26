@@ -373,7 +373,7 @@ function academicsFromEditable(
   base: OnboardingProfileValues["academic"],
 ): OnboardingProfileValues["academic"] {
   const mapped = rows
-    .filter((r) => r.qualification.trim() || r.institution.trim())
+    .filter((r) => r.qualification.trim() && r.institution.trim())
     .map((r) => ({
       id: parseAcademicId(r.id),
       qualification: r.qualification.trim(),

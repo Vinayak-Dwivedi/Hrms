@@ -21,6 +21,7 @@ export const USER_MGMT_HREFS = [
   "/hierarchy",
   "/departments",
   "/add-employee",
+  "/permissions",
   "/add-permission",
   "/user-roles",
 ];
