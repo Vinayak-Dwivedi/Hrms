@@ -91,6 +91,7 @@ function ApproveDialog({
   onSuccess: () => void;
 }) {
   const [lwd, setLwd] = useState(request.requestedLwd ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(request.requestedLwd ?? "");
   const [settlement, setSettlement] = useState(request.settlementRule ?? "ForfeitLeave");
   const [accessTiming, setAccessTiming] = useState<"Immediate" | "OnLWD">(request.accessRevokeTiming);
   const [remarks, setRemarks] = useState("");
@@ -104,6 +105,7 @@ function ApproveDialog({
     try {
       const result = await hrApproveExitRequest(request.id, {
         lastWorkingDate: lwd,
+        effectiveDate: effectiveDate || lwd,
         settlementRule: settlement,
         accessRevokeTiming: accessTiming,
         hrRemarks: remarks.trim() || null,
@@ -155,10 +157,16 @@ function ApproveDialog({
           </div>
         )}
 
-        {/* LWD */}
-        <div>
-          <label className={labelClass}>Last Working Date *</label>
-          <input type="date" value={lwd} onChange={(e) => setLwd(e.target.value)} className={inputClass} />
+        {/* LWD + Effective Date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Last Working Date *</label>
+            <input type="date" value={lwd} onChange={(e) => { setLwd(e.target.value); if (!effectiveDate) setEffectiveDate(e.target.value); }} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Effective Exit Date *</label>
+            <input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className={inputClass} />
+          </div>
         </div>
 
         {/* Settlement rule */}
@@ -296,6 +304,7 @@ function DirectExitDialog({
 }) {
   const [exitType, setExitType] = useState<DirectExitType>("Resigned");
   const [lwd, setLwd] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState("");
   const [noticeDays, setNoticeDays] = useState("");
   const [servedDays, setServedDays] = useState("");
   const [settlement, setSettlement] = useState("EncashLeave");
@@ -311,6 +320,7 @@ function DirectExitDialog({
       const result = await hrDirectExit(employeeId, {
         exitType,
         lastWorkingDate: lwd,
+        effectiveDate: effectiveDate || lwd,
         noticeRequiredDays: noticeDays ? Number(noticeDays) : null,
         noticeServedDays: servedDays ? Number(servedDays) : null,
         settlementRule: settlement,
@@ -362,10 +372,16 @@ function DirectExitDialog({
           </div>
         </div>
 
-        {/* LWD */}
-        <div>
-          <label className={labelClass}>Last Working Date *</label>
-          <input type="date" value={lwd} onChange={(e) => setLwd(e.target.value)} className={inputClass} />
+        {/* LWD + Effective Date */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Last Working Date *</label>
+            <input type="date" value={lwd} onChange={(e) => { setLwd(e.target.value); if (!effectiveDate) setEffectiveDate(e.target.value); }} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Effective Exit Date *</label>
+            <input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className={inputClass} />
+          </div>
         </div>
 
         {/* Notice days */}

@@ -716,13 +716,14 @@ import { z } from "zod";
 const createExitRequestSchema = z.object({
   employeeId: z.number().int().positive(),
   exitType: z.enum(["Absconding", "ResignedWithoutNotice"]),
-  requestedLwd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  evidenceNote: z.string().trim().max(2000).optional().nullable(),
+  requestedLwd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  evidenceNote: z.string().trim().min(1, "Reason is required.").max(2000),
   noticeServedDays: z.number().int().min(0).optional(),
 });
 
 const hrApproveExitRequestSchema = z.object({
   lastWorkingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   settlementRule: z.enum(["EncashLeave", "ForfeitLeave", "PartialEncash", "Depends"]).optional().nullable(),
   accessRevokeTiming: z.enum(["Immediate", "OnLWD"]).optional(),
   hrRemarks: z.string().trim().max(1000).optional().nullable(),
@@ -731,6 +732,7 @@ const hrApproveExitRequestSchema = z.object({
 const hrDirectExitSchema = z.object({
   exitType: z.enum(["Resigned", "ResignedWithoutNotice", "ResignedWithPartialNotice", "Absconding", "Terminated"]),
   lastWorkingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  effectiveDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   noticeRequiredDays: z.number().int().min(0).optional().nullable(),
   noticeServedDays: z.number().int().min(0).optional().nullable(),
   settlementRule: z.enum(["EncashLeave", "ForfeitLeave", "PartialEncash", "Depends"]).optional().nullable(),

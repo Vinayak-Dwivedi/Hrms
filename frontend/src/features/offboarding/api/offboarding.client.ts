@@ -426,8 +426,8 @@ export type EmployeeExit = {
 export function createExitRequest(body: {
   employeeId: number;
   exitType: ManagerExitType;
-  requestedLwd?: string | null;
-  evidenceNote?: string | null;
+  requestedLwd: string;
+  evidenceNote: string;
   noticeServedDays?: number;
 }): Promise<{ request: EmployeeExitRequest; isBackdated: boolean; activeLeavesCount: number }> {
   return unwrap(
@@ -454,6 +454,7 @@ export function hrApproveExitRequest(
   id: number,
   body: {
     lastWorkingDate: string;
+    effectiveDate?: string | null;
     settlementRule?: string | null;
     accessRevokeTiming?: "Immediate" | "OnLWD";
     hrRemarks?: string | null;
@@ -488,6 +489,7 @@ export function hrDirectExit(
   body: {
     exitType: DirectExitType;
     lastWorkingDate: string;
+    effectiveDate?: string | null;
     noticeRequiredDays?: number | null;
     noticeServedDays?: number | null;
     settlementRule?: string | null;

@@ -70,17 +70,16 @@ function RaiseDialog({
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    if (!employeeId) {
-      toast.error("Please select an employee.");
-      return;
-    }
+    if (!employeeId) { toast.error("Please select an employee."); return; }
+    if (!requestedLwd) { toast.error("Last Working Date is required."); return; }
+    if (!evidenceNote.trim()) { toast.error("Reason / comments are required."); return; }
     setBusy(true);
     try {
       const result = await createExitRequest({
         employeeId: Number(employeeId),
         exitType,
-        requestedLwd: requestedLwd || null,
-        evidenceNote: evidenceNote.trim() || null,
+        requestedLwd,
+        evidenceNote: evidenceNote.trim(),
       });
       const emp = team.find((t) => t.id === Number(employeeId));
       const name = emp ? `${emp.firstName} ${emp.lastName}` : "Employee";
@@ -143,9 +142,9 @@ function RaiseDialog({
           </div>
         </div>
 
-        {/* Requested LWD (optional) */}
+        {/* Requested LWD — mandatory */}
         <div>
-          <label className={labelClass}>Last Working Date <span className="text-gray-400 normal-case font-normal">(optional — leave blank for HR to decide)</span></label>
+          <label className={labelClass}>Last Working Date *</label>
           <input
             type="date"
             value={requestedLwd}
@@ -154,9 +153,9 @@ function RaiseDialog({
           />
         </div>
 
-        {/* Evidence note */}
+        {/* Evidence note — mandatory */}
         <div>
-          <label className={labelClass}>Evidence / Remarks <span className="text-gray-400 normal-case font-normal">(optional)</span></label>
+          <label className={labelClass}>Reason / Comments *</label>
           <textarea
             rows={3}
             value={evidenceNote}
@@ -256,7 +255,7 @@ export default function ManagerExitRequestsSection() {
         <TableShell minWidth={860}>
           <thead>
             <tr>
-              {["Employee", "Exit Type", "Requested LWD", "Notice Days", "Status", "Raised On", "HR Remarks"].map((h) => (
+              {["Employee", "Exit Type", "LWD", "Reason", "Status", "Raised On", "HR Remarks"].map((h) => (
                 <th key={h} style={headStyle}>{h}</th>
               ))}
             </tr>
@@ -291,8 +290,14 @@ export default function ManagerExitRequestsSection() {
                     <td style={{ ...cellStyle, whiteSpace: "nowrap" }}>
                       {fmtDate(r.requestedLwd)}
                     </td>
-                    <td style={{ ...cellStyle, textAlign: "center" }}>
-                      {r.noticeRequiredDays ?? "—"}
+                    <td style={{ ...cellStyle, maxWidth: 200 }}>
+                      {r.evidenceNote ? (
+                        <span className="block truncate text-sm text-gray-600" title={r.evidenceNote ?? ""} style={{ maxWidth: 180 }}>
+                          {r.evidenceNote}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#cbd5e1" }}>—</span>
+                      )}
                     </td>
                     <td style={cellStyle}>
                       <StatusPill bg={s.bg} color={s.color} label={s.label} />

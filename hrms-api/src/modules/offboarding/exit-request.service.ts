@@ -314,6 +314,7 @@ export async function hrApproveExitRequest(
   requestId: number,
   input: {
     lastWorkingDate: string;
+    effectiveDate?: string | null;
     settlementRule?: string | null;
     accessRevokeTiming?: "Immediate" | "OnLWD";
     hrRemarks?: string | null;
@@ -350,7 +351,7 @@ export async function hrApproveExitRequest(
         initiatedBy: "Manager",
         exitRequestId: requestId,
         lastWorkingDate: input.lastWorkingDate,
-        effectiveDate: input.lastWorkingDate,
+        effectiveDate: input.effectiveDate ?? input.lastWorkingDate,
         noticeRequiredDays: req.noticeRequiredDays,
         noticeServedDays: req.noticeServedDays,
         settlementRule: input.settlementRule ?? req.settlementRule,
@@ -439,6 +440,7 @@ export async function hrDirectExit(
     employeeId: number;
     exitType: ExitType;
     lastWorkingDate: string;
+    effectiveDate?: string | null;
     noticeRequiredDays?: number | null;
     noticeServedDays?: number | null;
     settlementRule?: SettlementRule | null;
@@ -469,7 +471,7 @@ export async function hrDirectExit(
         exitType: input.exitType,
         initiatedBy: "HR",
         lastWorkingDate: input.lastWorkingDate,
-        effectiveDate: input.lastWorkingDate,
+        effectiveDate: input.effectiveDate ?? input.lastWorkingDate,
         noticeRequiredDays: input.noticeRequiredDays ?? null,
         noticeServedDays: input.noticeServedDays ?? null,
         settlementRule,
