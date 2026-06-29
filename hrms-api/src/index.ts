@@ -1,6 +1,7 @@
 import { createApp } from "@/app";
 import { env } from "@/env";
 import { ensureMaritalStatusEnum } from "@/lib/ensure-marital-status-enum";
+import { startSecureyeTcpServer } from "@/modules/biometric/secureye-tcp.server";
 
 const app = createApp();
 
@@ -12,8 +13,12 @@ async function start() {
     console.log(`[Health Check] http://localhost:${env.PORT}/api/health`);
   });
 
+  // Secureye biometric TCP server (ZKTeco LogClient push protocol)
+  const tcpServer = startSecureyeTcpServer(4370);
+
   function shutdown(signal: NodeJS.Signals) {
     console.log(`[hrms-api] ${signal} received, closing`);
+    tcpServer.close();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(1), 10_000).unref();
   }
