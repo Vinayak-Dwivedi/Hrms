@@ -132,13 +132,19 @@ export async function deletePermission(id: number): Promise<void> {
 }
 
 export const PERMISSION_MODULES = [
+  "admin",
+  "approvals",
+  "attendance",
+  "clearances",
+  "dashboard",
   "employees",
   "leave",
-  "attendance",
-  "payroll",
-  "onboarding",
   "offboarding",
-  "admin",
+  "onboarding",
+  "payroll",
+  "reports",
+  "settings",
+  "shifts",
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];

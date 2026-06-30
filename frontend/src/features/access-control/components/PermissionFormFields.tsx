@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import type { PermissionFormValues } from "../schemas/permission.schema";
 import { PERMISSION_MODULES } from "../api/permissions.client";
 import {
@@ -57,36 +58,42 @@ export default function PermissionFormFields({ values, onChange, disabled }: Pro
         <label className={employeeFilterLabelClass} htmlFor="perm-module">
           Module
         </label>
-        <select
-          className={employeeSelectClass}
-          disabled={disabled}
-          id="perm-module"
-          onChange={(e) =>
-            set("module", e.target.value as PermissionFormValues["module"])
-          }
-          value={values.module}
-        >
-          {PERMISSION_MODULES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            className={employeeSelectClass}
+            disabled={disabled}
+            id="perm-module"
+            onChange={(e) =>
+              set("module", e.target.value as PermissionFormValues["module"])
+            }
+            value={values.module}
+          >
+            {PERMISSION_MODULES.map((m) => (
+              <option key={m} value={m}>
+                {m.charAt(0).toUpperCase() + m.slice(1)}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        </div>
       </div>
       <div>
         <label className={employeeFilterLabelClass} htmlFor="perm-status">
           Status
         </label>
-        <select
-          className={employeeSelectClass}
-          disabled={disabled}
-          id="perm-status"
-          onChange={(e) => set("isActive", e.target.value === "active")}
-          value={values.isActive ? "active" : "inactive"}
-        >
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+        <div className="relative">
+          <select
+            className={employeeSelectClass}
+            disabled={disabled}
+            id="perm-status"
+            onChange={(e) => set("isActive", e.target.value === "active")}
+            value={values.isActive ? "active" : "inactive"}
+          >
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        </div>
       </div>
       <div className="md:col-span-2">
         <label className={employeeFilterLabelClass} htmlFor="perm-desc">
