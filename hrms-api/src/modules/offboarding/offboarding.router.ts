@@ -118,7 +118,7 @@ offboardingRouter.post("/resignations/:id/withdraw", async (req, res, next) => {
 
 offboardingRouter.get("/manager/resignations", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     res.json({ data: await svc.listManagerResignations(mgr.id) });
   } catch (e) {
     next(e);
@@ -127,7 +127,7 @@ offboardingRouter.get("/manager/resignations", async (req, res, next) => {
 
 offboardingRouter.post("/manager/resignations/:id/approve", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const body = managerApproveSchema.parse(req.body ?? {});
     res.json({ data: await svc.managerApprove(mgr.id, idParam(req), body, auditCtx(req)) });
   } catch (e) {
@@ -137,7 +137,7 @@ offboardingRouter.post("/manager/resignations/:id/approve", async (req, res, nex
 
 offboardingRouter.post("/manager/resignations/:id/reject", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const body = decisionRemarksSchema.parse(req.body ?? {});
     res.json({
       data: await svc.managerReject(mgr.id, idParam(req), body.remarks ?? null, auditCtx(req)),
@@ -149,7 +149,7 @@ offboardingRouter.post("/manager/resignations/:id/reject", async (req, res, next
 
 offboardingRouter.post("/manager/resignations/:id/discuss", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const body = decisionRemarksSchema.parse(req.body ?? {});
     res.json({
       data: await svc.managerRequestDiscussion(mgr.id, idParam(req), body.remarks ?? null, auditCtx(req)),
@@ -748,7 +748,7 @@ const hrRemarksSchema = z.object({
 // Manager: submit an exit request for one of their reportees.
 offboardingRouter.post("/manager/exit-requests", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const body = createExitRequestSchema.parse(req.body ?? {});
     const result = await exitSvc.createExitRequest(mgr.id, body, auditCtx(req));
     res.status(201).json({ data: result });
@@ -760,7 +760,7 @@ offboardingRouter.post("/manager/exit-requests", async (req, res, next) => {
 // Manager: list their submitted exit requests.
 offboardingRouter.get("/manager/exit-requests", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     res.json({ data: await exitSvc.listManagerExitRequests(mgr.id) });
   } catch (e) {
     next(e);

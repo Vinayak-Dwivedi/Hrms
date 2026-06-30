@@ -290,7 +290,7 @@ export default function TeamAttendanceReport({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 m-0 tracking-tight">
             Team Attendance – Full Report
@@ -300,25 +300,30 @@ export default function TeamAttendanceReport({
             members
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             type="button"
             onClick={() => setUploadOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
-            <Upload size={14} /> Upload Attendance
+            <Upload size={14} />
+            <span className="hidden sm:inline">Upload Attendance</span>
+            <span className="sm:hidden">Upload</span>
           </button>
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
-            All Members <ChevronDown size={14} />
+            <span className="hidden sm:inline">All Members</span>
+            <span className="sm:hidden">Members</span>
+            <ChevronDown size={14} />
           </button>
           <button
             type="button"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
           >
-            <Download size={14} /> Export
+            <Download size={14} />
+            <span className="hidden sm:inline">Export</span>
           </button>
         </div>
       </div>

@@ -366,12 +366,18 @@ export default function AppShell({
     identityFromAuthUser(user),
   );
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setCollapsed(loadCollapsed());
   }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   // Open the section for the current route; close the other collapsible section.
   // Manual toggles on the same page are kept until the route changes.
@@ -467,15 +473,28 @@ export default function AppShell({
   };
 
   return (
-    <div
-      className="flex min-h-screen bg-[#f4f6f9]"
-    >
+    <div className="flex min-h-screen bg-[#f4f6f9]">
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={[
-          "flex flex-col shrink-0 transition-[width] duration-200 ease-out py-2 pb-2",
+          // On mobile: fixed overlay, full sidebar width, toggleable
+          // On desktop: static, collapsible
+          "fixed inset-y-0 left-0 z-50 flex flex-col shrink-0 py-2 pb-2",
+          "transition-transform lg:transition-[width] duration-200 ease-out",
+          "lg:static lg:inset-y-auto lg:left-auto lg:z-auto",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          "w-[248px]",
+          collapsed ? "lg:w-[72px]" : "lg:w-[248px]",
           enterpriseSidebarClass,
-          collapsed ? "w-[72px]" : "w-[248px]",
         ].join(" ")}
       >
         {/* Logo */}
@@ -483,21 +502,22 @@ export default function AppShell({
           className={[
             "flex items-center h-14 border-b gap-2",
             enterpriseSidebarBorderClass,
-            collapsed ? "px-4 justify-center" : "pl-5 pr-4",
+            collapsed ? "lg:px-4 lg:justify-center pl-5 pr-4" : "pl-5 pr-4",
           ].join(" ")}
         >
-          {!collapsed && <AppLogo />}
+          <div className={collapsed ? "lg:hidden" : ""}><AppLogo /></div>
         </div>
 
         {/* Nav (sectioned) */}
         <nav
           className={[
             "flex flex-col flex-1 gap-4 overflow-y-auto",
-            collapsed ? "p-2" : "py-[14px] pr-3 pl-0",
+            collapsed ? "lg:p-2 py-[14px] pr-3 pl-0" : "py-[14px] pr-3 pl-0",
           ].join(" ")}
         >
           {sections.map((section) => {
-            const sectionKey = section.sectionKey ?? section.title;
+            // On mobile overlay, always show labels even if desktop is collapsed
+            const effectiveCollapsed = collapsed && !mobileOpen;
             const isCollapsible = section.collapsible && section.sectionKey;
             const isOpen = isCollapsible
               ? (openSections[section.sectionKey!] ?? false)
@@ -507,7 +527,7 @@ export default function AppShell({
 
             return (
               <div key={section.title} className="flex flex-col gap-1">
-                {isCollapsible && !collapsed ? (
+                {isCollapsible && !effectiveCollapsed ? (
                   <button
                     type="button"
                     aria-expanded={isOpen}
@@ -529,7 +549,7 @@ export default function AppShell({
                       size={14}
                     />
                   </button>
-                ) : isCollapsible && collapsed ? (
+                ) : isCollapsible && effectiveCollapsed ? (
                   <button
                     type="button"
                     title={section.title}
@@ -555,16 +575,16 @@ export default function AppShell({
                       <Link
                         key={label}
                         href={href}
-                        title={collapsed ? label : undefined}
+                        title={effectiveCollapsed ? label : undefined}
                         aria-current={active ? "page" : undefined}
                         className={navLinkClassName(active, {
-                          collapsed,
+                          collapsed: effectiveCollapsed,
                           nested: Boolean(isCollapsible),
                           theme: "enterprise",
                         })}
                       >
                         <Icon size={16} />
-                        {!collapsed && (
+                        {!effectiveCollapsed && (
                           <>
                             <span className="flex-1">{label}</span>
                             {badge !== null && badge > 0 && (
@@ -590,7 +610,7 @@ export default function AppShell({
         </nav>
 
         {/* Footer — logout is now in the header user dropdown only. */}
-        {!collapsed && (
+        {(!collapsed || mobileOpen) && (
           <div className={["border-t p-3", enterpriseSidebarBorderClass].join(" ")}>
             <p className="text-[10px] text-center text-slate-400 m-0">
               iLeads HRMS {APP_VERSION} · {APP_LOCATION}
@@ -601,7 +621,7 @@ export default function AppShell({
 
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-        <AppHeader role={role} identity={identity} sessionUser={user} />
+        <AppHeader role={role} identity={identity} sessionUser={user} onMobileMenuToggle={() => setMobileOpen((o) => !o)} />
         <main className={["flex-1", enterpriseMainPaddingClass].join(" ")}>{children}</main>
       </div>
     </div>

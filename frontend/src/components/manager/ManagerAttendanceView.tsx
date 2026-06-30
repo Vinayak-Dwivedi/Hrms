@@ -119,10 +119,7 @@ export default function ManagerAttendanceView({
   );
 
   return (
-    <div
-      className="flex flex-col flex-1 min-h-0 gap-2"
-      style={{ height: "calc(100vh - 7rem)" }}
-    >
+    <div className="flex flex-col flex-1 min-h-0 gap-2">
       {scope === "mine" ? (
         <RoleAttendance
           role="manager"

@@ -71,10 +71,15 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setCollapsed(loadCollapsed());
   }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -110,13 +115,25 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex" style={{ minHeight: "100vh", background: "#f5f6fa" }}>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
       <aside
-        className="flex flex-col shrink-0"
+        className={[
+          "fixed inset-y-0 left-0 z-50 flex flex-col shrink-0",
+          "transition-transform lg:transition-none duration-200 ease-out",
+          "lg:static lg:inset-y-auto lg:left-auto lg:z-auto",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+        ].join(" ")}
         style={{
-          width: sidebarWidth,
+          width: mobileOpen ? 240 : sidebarWidth,
           background: "#fff",
           borderRight: "1px solid #e5e7eb",
-          transition: "width 180ms ease",
         }}
       >
         <div
@@ -188,14 +205,25 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex-1 min-w-0">
         <header
-          className="flex items-center justify-between px-6"
+          className="flex items-center justify-between px-4 sm:px-6 gap-3"
           style={{ height: 64 }}
         >
-          <nav className="flex items-center gap-2 text-sm">
-            <span style={{ color: "#9ca3af" }}>HR</span>
-            <span style={{ color: "#d1d5db" }}>/</span>
-            <span className="font-semibold text-gray-800">{crumb}</span>
-          </nav>
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileOpen((o) => !o)}
+              aria-label="Open navigation menu"
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg"
+              style={{ background: "#fff1f2", border: "1px solid #fecdd3", color: "#be185d", cursor: "pointer" }}
+            >
+              <Menu size={16} />
+            </button>
+            <nav className="flex items-center gap-2 text-sm min-w-0">
+              <span style={{ color: "#9ca3af" }}>HR</span>
+              <span style={{ color: "#d1d5db" }}>/</span>
+              <span className="font-semibold text-gray-800 truncate">{crumb}</span>
+            </nav>
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -229,7 +257,7 @@ export default function HRShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="px-6 pb-6">{children}</main>
+        <main className="px-4 pb-4 sm:px-6 sm:pb-6">{children}</main>
       </div>
     </div>
   );

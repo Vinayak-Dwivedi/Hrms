@@ -148,21 +148,24 @@ export async function loadCurrentEmployee(
  * Loads the current manager. A "manager" here means an employee that has at
  * least one direct report (employees.reporting_manager_id = me.id). If the
  * authenticated user is linked to an employee but no one reports to them,
- * returns 403.
+ * returns 403 — UNLESS the JWT role is "master" (admin), in which case the
+ * check is bypassed so admins can access team views even with no direct reports.
  */
-export async function loadCurrentManager(userId: string) {
+export async function loadCurrentManager(userId: string, jwtRole?: string) {
   const me = await loadCurrentEmployee(userId);
-  const [report] = await db
-    .select({ id: employees.id })
-    .from(employees)
-    .where(eq(employees.reportingManagerId, me.id))
-    .limit(1);
-  if (!report) {
-    throw new ApiError(
-      403,
-      "NOT_A_MANAGER",
-      "Authenticated user is not a reporting manager.",
-    );
+  if (jwtRole !== "master") {
+    const [report] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.reportingManagerId, me.id))
+      .limit(1);
+    if (!report) {
+      throw new ApiError(
+        403,
+        "NOT_A_MANAGER",
+        "Authenticated user is not a reporting manager.",
+      );
+    }
   }
   return me;
 }

@@ -3,6 +3,7 @@ export type AttendanceStatus =
   | "Absent"
   | "Half Day"
   | "Leave"
+  | "LeavePending"
   | "Holiday"
   | "Weekend";
 

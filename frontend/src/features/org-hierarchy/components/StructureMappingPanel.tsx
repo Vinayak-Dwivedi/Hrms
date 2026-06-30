@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, PlusCircle, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Pencil, PlusCircle, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import EmployeeModalShell from "@/features/employees/components/EmployeeModalShell";
@@ -496,123 +496,135 @@ export default function StructureMappingPanel({
               <label className={employeeFilterLabelClass} htmlFor="struct-location">
                 Location
               </label>
-              <select
-                id="struct-location"
-                className={employeeSelectClass}
-                value={locationId}
-                onChange={(e) => {
-                  setLocationId(e.target.value);
-                  setValues((current) => ({
-                    ...current,
-                    departmentId: "",
-                    subDepartmentId: "",
-                    designationId: "",
-                  }));
-                }}
-              >
-                <option value="">Select location</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="struct-location"
+                  className={employeeSelectClass}
+                  value={locationId}
+                  onChange={(e) => {
+                    setLocationId(e.target.value);
+                    setValues((current) => ({
+                      ...current,
+                      departmentId: "",
+                      subDepartmentId: "",
+                      designationId: "",
+                    }));
+                  }}
+                >
+                  <option value="">Select location</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
             </div>
 
             <div>
               <label className={employeeFilterLabelClass} htmlFor="struct-dept">
                 Department
               </label>
-              <select
-                id="struct-dept"
-                className={employeeSelectClass}
-                value={values.departmentId}
-                disabled={!locationId}
-                onChange={(e) =>
-                  setValues((v) => ({
-                    ...v,
-                    departmentId: e.target.value,
-                    subDepartmentId: "",
-                    designationId: "",
-                  }))
-                }
-              >
-                <option value="">
-                  {locationId ? "Select department" : "Select location first"}
-                </option>
-                {visibleDepartments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
+              <div className="relative">
+                <select
+                  id="struct-dept"
+                  className={employeeSelectClass}
+                  value={values.departmentId}
+                  disabled={!locationId}
+                  onChange={(e) =>
+                    setValues((v) => ({
+                      ...v,
+                      departmentId: e.target.value,
+                      subDepartmentId: "",
+                      designationId: "",
+                    }))
+                  }
+                >
+                  <option value="">
+                    {locationId ? "Select department" : "Select location first"}
                   </option>
-                ))}
-              </select>
+                  {visibleDepartments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
             </div>
 
             <div>
               <label className={employeeFilterLabelClass} htmlFor="struct-sub">
                 Sub Department
               </label>
-              <select
-                id="struct-sub"
-                className={employeeSelectClass}
-                value={values.subDepartmentId}
-                onChange={(e) =>
-                  setValues((v) => ({
-                    ...v,
-                    subDepartmentId: e.target.value,
-                    designationId: "",
-                  }))
-                }
-                disabled={!locationId || !values.departmentId}
-              >
-                <option value="">
-                  {!locationId
-                    ? "Select location first"
-                    : !values.departmentId
-                      ? "Select department first"
-                      : "Select sub-department"}
-                </option>
-                {visibleSubDepartments.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+              <div className="relative">
+                <select
+                  id="struct-sub"
+                  className={employeeSelectClass}
+                  value={values.subDepartmentId}
+                  onChange={(e) =>
+                    setValues((v) => ({
+                      ...v,
+                      subDepartmentId: e.target.value,
+                      designationId: "",
+                    }))
+                  }
+                  disabled={!locationId || !values.departmentId}
+                >
+                  <option value="">
+                    {!locationId
+                      ? "Select location first"
+                      : !values.departmentId
+                        ? "Select department first"
+                        : "Select sub-department"}
                   </option>
-                ))}
-              </select>
+                  {visibleSubDepartments.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
             </div>
 
             <div>
               <label className={employeeFilterLabelClass} htmlFor="struct-desig">
                 Designation
               </label>
-              <select
-                id="struct-desig"
-                className={employeeSelectClass}
-                value={values.designationId}
-                onChange={(e) =>
-                  setValues((v) => ({
-                    ...v,
-                    designationId: e.target.value,
-                  }))
-                }
-                disabled={
-                  !locationId || !values.departmentId || !values.subDepartmentId
-                }
-              >
-                <option value="">
-                  {!locationId
-                    ? "Select location first"
-                    : !values.departmentId
-                      ? "Select department first"
-                      : !values.subDepartmentId
-                        ? "Select sub-department first"
-                        : "Select designation"}
-                </option>
-                {visibleDesignations.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
+              <div className="relative">
+                <select
+                  id="struct-desig"
+                  className={employeeSelectClass}
+                  value={values.designationId}
+                  onChange={(e) =>
+                    setValues((v) => ({
+                      ...v,
+                      designationId: e.target.value,
+                    }))
+                  }
+                  disabled={
+                    !locationId || !values.departmentId || !values.subDepartmentId
+                  }
+                >
+                  <option value="">
+                    {!locationId
+                      ? "Select location first"
+                      : !values.departmentId
+                        ? "Select department first"
+                        : !values.subDepartmentId
+                          ? "Select sub-department first"
+                          : "Select designation"}
                   </option>
-                ))}
-              </select>
+                  {visibleDesignations.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              </div>
             </div>
 
             <div>

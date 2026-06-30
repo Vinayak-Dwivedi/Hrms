@@ -104,7 +104,7 @@ function capStatus(s: string): string {
 // ── /me — manager's own profile and snapshots ───────────────────────────────
 managerRouter.get("/me", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const [designation] = mgr.designationId
       ? await db.select({ name: designations.name }).from(designations)
           .where(eq(designations.id, mgr.designationId)).limit(1)
@@ -146,7 +146,7 @@ managerRouter.get("/me", async (req, res, next) => {
 
 managerRouter.get("/me/attendance/today", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const today = todayYmd();
     const [row] = await db
       .select()
@@ -169,7 +169,7 @@ const monthQuery = z.object({
 
 managerRouter.get("/me/attendance/month", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const now = new Date();
     const q = monthQuery.parse(req.query);
     const year = q.year ?? now.getFullYear();
@@ -189,7 +189,7 @@ managerRouter.get("/me/attendance/month", async (req, res, next) => {
 
 managerRouter.get("/me/leave-requests", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const rows = await db
       .select({
         id: leaveRequests.id,
@@ -218,7 +218,7 @@ managerRouter.get("/me/leave-requests", async (req, res, next) => {
 
 managerRouter.get("/me/leave-balances", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const rows = await fetchEmployeeLeaveBalances(mgr.id);
     res.json({ balances: rows });
   } catch (e) {
@@ -228,7 +228,7 @@ managerRouter.get("/me/leave-balances", async (req, res, next) => {
 
 managerRouter.get("/me/regularisation-requests", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const rows = await db
       .select()
       .from(regularisationRequests)
@@ -250,7 +250,7 @@ const createRegSchema = z.object({
 
 managerRouter.post("/me/regularisation-requests", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const body = createRegSchema.parse(req.body);
     if (body.date > todayYmd()) {
       throw new ApiError(400, "FUTURE_DATE", "Regularisation is only allowed for past or current dates.");
@@ -276,7 +276,7 @@ managerRouter.post("/me/regularisation-requests", async (req, res, next) => {
 // ── Team ────────────────────────────────────────────────────────────────────
 managerRouter.get("/team", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const team = await db
       .select({
         id: employees.id,
@@ -306,7 +306,7 @@ managerRouter.get("/team", async (req, res, next) => {
 // Plus the team size, so the UI can compute a percentage.
 managerRouter.get("/team/attrition", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -353,7 +353,7 @@ managerRouter.get("/team/attrition", async (req, res, next) => {
 
 managerRouter.get("/team/attendance", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const now = new Date();
     const defaultTo = ymd(now);
     const defaultFrom = ymd(new Date(now.getTime() - 6 * 86_400_000));
@@ -569,7 +569,7 @@ managerRouter.get("/team/attendance-report", async (req, res, next) => {
 // ── Leave Approvals ─────────────────────────────────────────────────────────
 managerRouter.get("/leave-approvals", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const statusQ = typeof req.query.status === "string" ? req.query.status : undefined;
 
     const conds = [
@@ -643,7 +643,7 @@ const remarksBody = z.object({ remarks: z.string().max(2000).optional() }).stric
 
 managerRouter.post("/leave-approvals/:id/approve", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
@@ -720,7 +720,7 @@ managerRouter.post("/leave-approvals/:id/approve", async (req, res, next) => {
 
 managerRouter.post("/leave-approvals/:id/reject", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
     const body = remarksBody.parse(req.body ?? {});
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
@@ -782,7 +782,7 @@ managerRouter.post("/leave-approvals/:id/reject", async (req, res, next) => {
 
 managerRouter.post("/leave-approvals/:id/forward", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
     if (!(await leaveOwnedByManager(idNum, mgr.id))) {
       throw new ApiError(404, "NOT_FOUND", "Request not found.");
@@ -819,7 +819,7 @@ managerRouter.post("/leave-approvals/:id/forward", async (req, res, next) => {
 
 managerRouter.get("/leave-approvals/:id/documents/:index", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
     const index = Number(req.params.index);
     if (!Number.isFinite(index) || index < 0) {
@@ -850,7 +850,7 @@ managerRouter.get("/leave-approvals/:id/documents/:index", async (req, res, next
 // ── Regularisation Approvals ────────────────────────────────────────────────
 managerRouter.get("/regularisation-approvals", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const statusQ = typeof req.query.status === "string" ? req.query.status : undefined;
     const teamIds = (
       await db
@@ -902,7 +902,7 @@ function minutesBetween(startTime: string, endTime: string): number {
 
 managerRouter.post("/regularisation-approvals/:id/approve", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
 
     // Wrap the status flip + attendance backfill in a single transaction so a
@@ -967,7 +967,7 @@ managerRouter.post("/regularisation-approvals/:id/approve", async (req, res, nex
 
 managerRouter.post("/regularisation-approvals/:id/reject", async (req, res, next) => {
   try {
-    const mgr = await loadCurrentManager(req.user!.id);
+    const mgr = await loadCurrentManager(req.user!.id, req.user!.role);
     const idNum = parseLeaveId(req.params.id);
     const body = remarksBody.parse(req.body ?? {});
     const [row] = await db

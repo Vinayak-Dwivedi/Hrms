@@ -375,6 +375,7 @@ interface RawAttendance {
   earlyExitMinutes: number;
   status: string;
   location: string | null;
+  leaveRequestId?: number | null;
 }
 
 // Format a "HH:MM:SS" string (from postgres time column) as 24-hour HH:MM
@@ -440,6 +441,8 @@ function mapAttStatus(s: string): DayAttendance["status"] {
       return "HalfDay";
     case "Leave":
       return "Leave";
+    case "LeavePending":
+      return "LeavePending";
     case "Holiday":
       return "Holiday";
     case "Weekend":
@@ -467,9 +470,17 @@ export async function fetchMonthAttendance(
     weeklyOffDates?: string[];
   }>(`/me/attendance/month?year=${year}&month=${month1}`);
 
-  const holidayByDate = new Map(
-    (data.holidays ?? []).map((h) => [h.date, h.name] as const),
-  );
+  const attendance: DayAttendance[] = data.records.map((r) => ({
+    date: r.date,
+    status: mapAttStatus(r.status),
+    punchIn: formatTimeOfDay(r.punchIn) ?? undefined,
+    punchOut: formatTimeOfDay(r.punchOut),
+    hoursWorked: formatMinutes(r.workingMinutes),
+    lateBy: r.lateByMinutes ? `${r.lateByMinutes}m` : undefined,
+    earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
+    location: r.location ?? undefined,
+    leaveRequestId: r.leaveRequestId ? String(r.leaveRequestId) : undefined,
+  }));
 
   // Attendance records win over everything.
   const haveRecord = new Set(attendance.map((a) => a.date));
@@ -861,6 +872,7 @@ export async function fetchManagerMonthAttendance(
     lateBy: r.lateByMinutes ? `${r.lateByMinutes}m` : undefined,
     earlyExit: r.earlyExitMinutes ? `${r.earlyExitMinutes}m` : undefined,
     location: r.location ?? undefined,
+    leaveRequestId: r.leaveRequestId ? String(r.leaveRequestId) : undefined,
   }));
 }
 

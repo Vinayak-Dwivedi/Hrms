@@ -24,6 +24,7 @@ export default function TeamLeaveSection() {
   const [requests, setRequests] = useState<ApprovalLeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [noTeam, setNoTeam] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [rejectId, setRejectId] = useState<number | null>(null);
 
@@ -32,8 +33,14 @@ export default function TeamLeaveSection() {
       const rows = await fetchLeaveApprovals("all");
       setRequests(rows);
       setLoadError(null);
+      setNoTeam(false);
     } catch (e) {
-      setLoadError((e as Error).message);
+      const msg = (e as Error).message ?? "";
+      if (msg.toLowerCase().includes("not a reporting manager")) {
+        setNoTeam(true);
+      } else {
+        setLoadError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -112,6 +119,10 @@ export default function TeamLeaveSection() {
 
         {loading ? (
           <div className="p-6 text-gray-500">Loading team leave…</div>
+        ) : noTeam ? (
+          <div className="flex flex-1 items-center justify-center py-12 text-center text-sm text-gray-400">
+            No team members under you yet.
+          </div>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col">
             <LeaveApprovalsTable

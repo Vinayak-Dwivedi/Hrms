@@ -1565,6 +1565,7 @@ export default function Approvals() {
   const [regSubTab, setRegSubTab] = useState<RegSubTab>("pending");
   const [regRequests, setRegRequests] = useState<ApprovalRegRequest[]>([]);
   const [regLoading, setRegLoading] = useState(true);
+  const [regNoTeam, setRegNoTeam] = useState(false);
   const [regRejectingId, setRegRejectingId] = useState<number | null>(null);
   const [regBusyId, setRegBusyId] = useState<number | null>(null);
   const [regFilters, setRegFilters] = useState<ApprovalFilters>(EMPTY_FILTERS);
@@ -1598,7 +1599,10 @@ export default function Approvals() {
       const data = await fetchLeaveApprovals("all");
       setLeaveRequests(data);
     } catch (e) {
-      toast.error(`Failed to load leave approvals: ${(e as Error).message}`);
+      const msg = (e as Error).message ?? "";
+      if (!msg.toLowerCase().includes("not a reporting manager")) {
+        toast.error(`Failed to load leave approvals: ${msg}`);
+      }
     } finally {
       setLeaveLoading(false);
     }
@@ -1609,8 +1613,14 @@ export default function Approvals() {
     try {
       const data = await fetchRegularisationApprovals("all");
       setRegRequests(data);
+      setRegNoTeam(false);
     } catch (e) {
-      toast.error(`Failed to load regularisations: ${(e as Error).message}`);
+      const msg = (e as Error).message ?? "";
+      if (msg.toLowerCase().includes("not a reporting manager")) {
+        setRegNoTeam(true);
+      } else {
+        toast.error(`Failed to load regularisations: ${msg}`);
+      }
     } finally {
       setRegLoading(false);
     }
@@ -2051,6 +2061,10 @@ export default function Approvals() {
           {regLoading ? (
             <div className="text-center py-12 text-gray-400 text-sm">
               Loading regularisations…
+            </div>
+          ) : regNoTeam ? (
+            <div className="text-center py-16 text-gray-400 text-sm">
+              No team members under you yet.
             </div>
           ) : (
             <>

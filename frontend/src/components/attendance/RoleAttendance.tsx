@@ -198,10 +198,7 @@ export default function RoleAttendance({
       {loading || (role === "manager" && managerProbeLoading) ? (
         <div className={enterpriseLoadingClass}>Loading attendance…</div>
       ) : (
-        <div
-          className="flex flex-col flex-1 min-h-0 gap-2"
-          style={{ height: "calc(100vh - 7rem)" }}
-        >
+        <div className="flex flex-col flex-1 min-h-0 gap-2">
           {(leadingToolbar || showViewToggle) && (
             <div className="flex items-center shrink-0 gap-3 justify-between">
               <div className="flex items-center gap-3 min-w-0">
@@ -213,12 +210,7 @@ export default function RoleAttendance({
             </div>
           )}
           {view === "calendar" ? (
-            <div
-              className={cn(
-                enterpriseCardClass,
-                "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
-              )}
-            >
+            <div className="overflow-auto rounded-md">
               <AttendanceCalendar
                 data={data}
                 initialYear={calYear}
@@ -243,12 +235,7 @@ export default function RoleAttendance({
               />
             </div>
           ) : (
-            <div
-              className={cn(
-                enterpriseCardClass,
-                "p-3 overflow-hidden flex flex-col flex-1 min-h-0",
-              )}
-            >
+            <div className={cn(enterpriseCardClass, "p-3 overflow-auto")}>
               <MyAttendanceReport />
             </div>
           )}

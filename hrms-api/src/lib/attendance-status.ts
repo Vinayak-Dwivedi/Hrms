@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db/runtime";
-import { attendanceUploads, leaveRequests } from "@/db/schema/hrms";
+import { attendanceRecords, attendanceUploads, leaveRequests } from "@/db/schema/hrms";
 import {
   deriveAttendanceStatus,
   resolveWorkingMinutes,
@@ -17,6 +17,7 @@ export type ApprovedLeaveDay = "full" | "half";
 
 export type AttendanceDayContext = {
   approvedLeave: Map<string, ApprovedLeaveDay>;
+  pendingLeave: Map<string, number>; // date → leaveRequestId
   holidays: Set<string>;
   weeklyOff: Set<string>;
 };
@@ -30,6 +31,7 @@ export type PunchInput = {
 export type DayStatusFlags = {
   approvedLeaveFull: boolean;
   approvedLeaveHalf: boolean;
+  pendingLeaveFull: boolean;
   isHoliday: boolean;
   isWeeklyOff: boolean;
 };
@@ -37,6 +39,7 @@ export type DayStatusFlags = {
 export function emptyAttendanceDayContext(): AttendanceDayContext {
   return {
     approvedLeave: new Map(),
+    pendingLeave: new Map(),
     holidays: new Set(),
     weeklyOff: new Set(),
   };
@@ -61,18 +64,20 @@ export function flagsForDate(
   return {
     approvedLeaveFull: leave === "full",
     approvedLeaveHalf: leave === "half",
+    pendingLeaveFull: context.pendingLeave.has(date),
     isHoliday: context.holidays.has(date),
     isWeeklyOff: context.weeklyOff.has(date),
   };
 }
 
-/** Fixed precedence: approved leave → holiday → weekly off → punch rules. */
+/** Fixed precedence: approved leave → pending leave → holiday → weekly off → punch rules. */
 export function resolveAttendanceStatus(
   punch: PunchInput,
   flags: DayStatusFlags,
 ): AttendanceStatus {
   if (flags.approvedLeaveFull) return "Leave";
   if (flags.approvedLeaveHalf) return "Half Day";
+  if (flags.pendingLeaveFull) return "LeavePending";
   if (flags.isHoliday) return "Holiday";
   if (flags.isWeeklyOff) return "Weekend";
 
@@ -106,7 +111,7 @@ export async function loadAttendanceDayContext(
   const emp = await loadEmployeeDimensions(employeeId);
   if (!emp) return emptyAttendanceDayContext();
 
-  const [leaveRows, holidayList, weeklyOffSet] = await Promise.all([
+  const [leaveRows, pendingLeaveRows, holidayList, weeklyOffSet] = await Promise.all([
     db
       .select({
         fromDate: leaveRequests.fromDate,
@@ -118,6 +123,21 @@ export async function loadAttendanceDayContext(
         and(
           eq(leaveRequests.employeeId, employeeId),
           eq(leaveRequests.status, "Approved"),
+          lte(leaveRequests.fromDate, toDate),
+          gte(leaveRequests.toDate, fromDate),
+        ),
+      ),
+    db
+      .select({
+        id: leaveRequests.id,
+        fromDate: leaveRequests.fromDate,
+        toDate: leaveRequests.toDate,
+      })
+      .from(leaveRequests)
+      .where(
+        and(
+          eq(leaveRequests.employeeId, employeeId),
+          eq(leaveRequests.status, "Pending"),
           lte(leaveRequests.fromDate, toDate),
           gte(leaveRequests.toDate, fromDate),
         ),
@@ -138,8 +158,17 @@ export async function loadAttendanceDayContext(
     }
   }
 
+  const pendingLeave = new Map<string, number>();
+  for (const lr of pendingLeaveRows) {
+    for (const d of expandDateRangeYmd(lr.fromDate, lr.toDate)) {
+      if (d < fromDate || d > toDate) continue;
+      if (!pendingLeave.has(d)) pendingLeave.set(d, lr.id);
+    }
+  }
+
   return {
     approvedLeave,
+    pendingLeave,
     holidays: new Set(holidayList.map((h) => h.date)),
     weeklyOff: weeklyOffSet,
   };
@@ -158,7 +187,7 @@ export async function loadAttendanceDayContextBatch(
   return new Map(entries);
 }
 
-/** Dates in range that are leave/holiday/weekly-off but may lack upload rows. */
+/** Dates in range that are leave/pending-leave/holiday/weekly-off but may lack upload rows. */
 export function specialStatusDatesInRange(
   context: AttendanceDayContext,
   fromDate: string,
@@ -166,6 +195,9 @@ export function specialStatusDatesInRange(
 ): string[] {
   const dates = new Set<string>();
   for (const d of context.approvedLeave.keys()) {
+    if (d >= fromDate && d <= toDate) dates.add(d);
+  }
+  for (const d of context.pendingLeave.keys()) {
     if (d >= fromDate && d <= toDate) dates.add(d);
   }
   for (const d of context.holidays) {
@@ -186,16 +218,18 @@ export type MonthAttendanceRecord = {
   earlyExitMinutes: number;
   status: AttendanceStatus;
   location: null;
+  leaveRequestId?: number;
 };
 
-/** Build calendar month rows from uploads + leave/holiday/weekly-off context. */
+/** Build calendar month rows from uploads + biometric records + leave/holiday/weekly-off context.
+ *  Biometric (attendance_records) takes precedence over manual uploads for the same date. */
 export async function buildMonthAttendanceFromUploads(
   employeeInternalId: number,
   empId: string,
   fromDate: string,
   toDate: string,
 ): Promise<MonthAttendanceRecord[]> {
-  const [uploadRows, dayContext] = await Promise.all([
+  const [uploadRows, biometricRows, dayContext] = await Promise.all([
     db
       .select({
         attendanceDate: attendanceUploads.attendanceDate,
@@ -212,38 +246,86 @@ export async function buildMonthAttendanceFromUploads(
         ),
       )
       .orderBy(asc(attendanceUploads.attendanceDate)),
+    db
+      .select({
+        date: attendanceRecords.date,
+        punchIn: attendanceRecords.punchIn,
+        punchOut: attendanceRecords.punchOut,
+        workingMinutes: attendanceRecords.workingMinutes,
+        lateByMinutes: attendanceRecords.lateByMinutes,
+        earlyExitMinutes: attendanceRecords.earlyExitMinutes,
+      })
+      .from(attendanceRecords)
+      .where(
+        and(
+          eq(attendanceRecords.employeeId, employeeInternalId),
+          gte(attendanceRecords.date, fromDate),
+          lte(attendanceRecords.date, toDate),
+        ),
+      )
+      .orderBy(asc(attendanceRecords.date)),
     loadAttendanceDayContext(employeeInternalId, fromDate, toDate),
   ]);
 
-  const uploadByDate = new Map(
-    uploadRows.map((row) => [row.attendanceDate, row]),
-  );
+  const uploadByDate = new Map(uploadRows.map((row) => [row.attendanceDate, row]));
+  const biometricByDate = new Map(biometricRows.map((row) => [row.date, row]));
 
-  const records: MonthAttendanceRecord[] = uploadRows.map((row) => ({
-    date: row.attendanceDate,
-    punchIn: row.inTime,
-    punchOut: row.outTime,
-    workingMinutes: resolveWorkingMinutes(
-      row.inTime,
-      row.outTime,
-      row.totalHours ?? undefined,
-    ),
-    lateByMinutes: 0,
-    earlyExitMinutes: 0,
-    status: resolveAttendanceStatusForDate(
-      row.attendanceDate,
-      {
-        inTime: row.inTime,
-        outTime: row.outTime,
-        totalHours: row.totalHours,
-      },
-      dayContext,
-    ),
-    location: null,
-  }));
+  const allDates = new Set([...uploadByDate.keys(), ...biometricByDate.keys()]);
+  const records: MonthAttendanceRecord[] = [];
+
+  for (const date of [...allDates].sort()) {
+    const bio = biometricByDate.get(date);
+    const upload = uploadByDate.get(date);
+
+    if (bio) {
+      const status = resolveAttendanceStatusForDate(
+        date,
+        { inTime: bio.punchIn, outTime: bio.punchOut, totalHours: null },
+        dayContext,
+      );
+      records.push({
+        date,
+        punchIn: bio.punchIn,
+        punchOut: bio.punchOut,
+        workingMinutes: bio.workingMinutes ?? resolveWorkingMinutes(bio.punchIn, bio.punchOut),
+        lateByMinutes: bio.lateByMinutes,
+        earlyExitMinutes: bio.earlyExitMinutes,
+        status,
+        location: null,
+        leaveRequestId:
+          status === "Leave" || status === "LeavePending"
+            ? (dayContext.pendingLeave.get(date) ?? undefined)
+            : undefined,
+      });
+    } else if (upload) {
+      const status = resolveAttendanceStatusForDate(
+        date,
+        { inTime: upload.inTime, outTime: upload.outTime, totalHours: upload.totalHours },
+        dayContext,
+      );
+      records.push({
+        date,
+        punchIn: upload.inTime,
+        punchOut: upload.outTime,
+        workingMinutes: resolveWorkingMinutes(
+          upload.inTime,
+          upload.outTime,
+          upload.totalHours ?? undefined,
+        ),
+        lateByMinutes: 0,
+        earlyExitMinutes: 0,
+        status,
+        location: null,
+        leaveRequestId:
+          status === "Leave" || status === "LeavePending"
+            ? (dayContext.pendingLeave.get(date) ?? undefined)
+            : undefined,
+      });
+    }
+  }
 
   for (const date of specialStatusDatesInRange(dayContext, fromDate, toDate)) {
-    if (uploadByDate.has(date)) continue;
+    if (biometricByDate.has(date) || uploadByDate.has(date)) continue;
     const status = resolveAttendanceStatusForDate(
       date,
       { inTime: null, outTime: null, totalHours: null },
@@ -259,6 +341,10 @@ export async function buildMonthAttendanceFromUploads(
       earlyExitMinutes: 0,
       status,
       location: null,
+      leaveRequestId:
+        status === "LeavePending"
+          ? (dayContext.pendingLeave.get(date) ?? undefined)
+          : undefined,
     });
   }
 

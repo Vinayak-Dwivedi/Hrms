@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, Menu, UserRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NotificationBell from "@/components/app/NotificationBell";
@@ -103,10 +103,12 @@ export default function AppHeader({
   role,
   identity,
   sessionUser,
+  onMobileMenuToggle,
 }: {
   role: Role;
   identity: Employee | null;
   sessionUser: LoggedInUser;
+  onMobileMenuToggle?: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -163,11 +165,23 @@ export default function AppHeader({
 
   return (
     <>
-      <header className={[enterpriseShellBarClass, "justify-between", enterpriseHeaderClass].join(" ")}>
-        <nav className="flex items-center gap-2 text-sm leading-relaxed">
-          <span className="font-semibold text-slate-800">{crumb}</span>
-        </nav>
-        <div className="flex items-center gap-3">
+      <header className={[enterpriseShellBarClass, "justify-between gap-3", enterpriseHeaderClass].join(" ")}>
+        <div className="flex items-center gap-3 min-w-0">
+          {onMobileMenuToggle && (
+            <button
+              type="button"
+              onClick={onMobileMenuToggle}
+              aria-label="Open navigation menu"
+              className="lg:hidden flex items-center justify-center w-9 h-9 rounded-md hover:bg-slate-100 transition-colors shrink-0"
+            >
+              <Menu size={20} className="text-slate-600" />
+            </button>
+          )}
+          <nav className="flex items-center gap-2 text-sm leading-relaxed min-w-0">
+            <span className="font-semibold text-slate-800 truncate">{crumb}</span>
+          </nav>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <NotificationBell />
           <div className="relative" ref={menuRef}>
             <button
@@ -181,8 +195,8 @@ export default function AppHeader({
                 initials={initials}
                 src={identity?.avatarUrl}
               />
-              <div className="flex flex-col items-start min-w-0">
-                <span className="text-[13px] font-medium text-slate-700 leading-tight">
+              <div className="hidden sm:flex flex-col items-start min-w-0">
+                <span className="text-[13px] font-medium text-slate-700 leading-tight truncate max-w-[140px]">
                   {displayName}
                 </span>
                 {identity?.role && (

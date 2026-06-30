@@ -116,9 +116,10 @@ interface LeaveFormProps {
   leaveBalances: LeaveType[];
   holidays: UpcomingHoliday[];
   onSubmit?: (input: LeaveSubmission) => Promise<void>;
+  dataMap?: Map<string, DayAttendance>;
 }
 
-function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmit }: LeaveFormProps) {
+function LeaveFormModal({ defaultDate, onClose, leaveBalances, holidays, onSubmit, dataMap = new Map() }: LeaveFormProps) {
   const types = leaveBalances;
   const todayStr = toYMD(new Date());
 
@@ -998,121 +999,126 @@ export default function AttendanceCalendar({
     <>
       <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb", overflow: "hidden" }}>
 
-        {/* Legend + navigation */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderBottom: "1px solid #e5e7eb" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        {/* Legend + navigation — stacks on mobile, side-by-side on sm+ */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-[14px] border-b border-gray-200">
+          {/* Legend */}
+          <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
             {LEGEND.map((item) => (
-              <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span key={item.label} className="flex items-center gap-1.5">
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: item.color, flexShrink: 0, display: "inline-block", border: "1px solid rgba(0,0,0,0.06)" }} />
-                <span style={{ fontSize: 13, color: "#374151" }}>{item.label}</span>
+                <span className="hidden sm:inline text-[11px] lg:text-[13px] text-gray-600">{item.label}</span>
               </span>
             ))}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          {/* Nav controls */}
+          <div className="flex items-center gap-2 sm:gap-2.5 self-end sm:self-auto shrink-0">
             {onSubmitLeave && leaveBalances.length > 0 && (
               <button
                 type="button"
                 onClick={() => openLeaveFormForDate(today)}
                 style={{
-                  padding: "6px 14px",
+                  padding: "5px 12px",
                   borderRadius: 8,
                   border: `1px solid ${B.primaryBorder}`,
                   background: B.primaryLight,
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: 600,
                   color: B.primaryMuted,
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
                 }}
               >
                 Apply Leave
               </button>
             )}
             <NavBtn onClick={prev}>&#8249;</NavBtn>
-            <span style={{ fontSize: 15, fontWeight: 600, color: "#111827", minWidth: 115, textAlign: "center" }}>
+            <span className="text-[13px] sm:text-[15px] font-semibold text-gray-900 text-center" style={{ minWidth: 100 }}>
               {MONTHS[month]} {year}
             </span>
             <NavBtn onClick={next}>&#8250;</NavBtn>
           </div>
         </div>
 
-        {/* Grid */}
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #e5e7eb" }}>
-            {DAYS.map((d, i) => (
-              <div key={d} style={{ padding: "12px 0", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#6b7280", letterSpacing: "0.06em", borderRight: i < 6 ? "1px solid #e5e7eb" : undefined }}>
-                {d}
+        {/* Grid — horizontally scrollable on small screens */}
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: 420 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: "1px solid #e5e7eb" }}>
+              {DAYS.map((d, i) => (
+                <div key={d} style={{ padding: "10px 0", textAlign: "center", fontSize: 11, fontWeight: 600, color: "#6b7280", letterSpacing: "0.06em", borderRight: i < 6 ? "1px solid #e5e7eb" : undefined }}>
+                  {/* Full name on md+, single letter on mobile */}
+                  <span className="hidden sm:inline">{d}</span>
+                  <span className="sm:hidden">{d.slice(0, 1)}</span>
+                </div>
+              ))}
+            </div>
+
+            {weeks.map((week, wi) => (
+              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: wi < weeks.length - 1 ? "1px solid #e5e7eb" : undefined }}>
+                {week.map((date, di) => {
+                  const ymd       = toYMD(date);
+                  const inMonth   = date.getMonth() === month;
+                  const isToday   = ymd === today;
+                  const entry     = dataMap.get(ymd);
+                  const isHoliday = entry?.status === "Holiday";
+                  const isWeekend = entry?.status === "Weekend";
+                  const badge     = entry?.status ? STATUS_BADGE[entry.status] : undefined;
+                  const isClickable = inMonth;
+
+                  let bg = "#fff";
+                  if (!inMonth)                                              bg = "#f9fafb";
+                  else if (entry?.status === "Present" || entry?.status === "HalfDay") bg = "#f0fdf4";
+                  else if (entry?.status === "Absent")                       bg = "#fef2f2";
+                  else if (entry?.status === "Leave")                        bg = "#fef9c3";
+                  else if (entry?.status === "LeavePending")                 bg = "#ffedd5";
+                  else if (isHoliday || isWeekend)                           bg = "#ede9fe";
+
+                  return (
+                    <div
+                      key={ymd}
+                      onClick={() => handleCellClick(date, inMonth)}
+                      style={{
+                        background: bg,
+                        borderRight: di < 6 ? "1px solid #e5e7eb" : undefined,
+                        outline: isToday ? `2px solid ${B.primary}` : undefined,
+                        outlineOffset: "-2px",
+                        padding: "8px 6px",
+                        minHeight: 72,
+                        position: "relative",
+                        cursor: isClickable ? "pointer" : "default",
+                        transition: "filter 0.1s",
+                      }}
+                      onMouseEnter={(e) => { if (isClickable) (e.currentTarget as HTMLDivElement).style.filter = "brightness(0.96)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = ""; }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 600, color: inMonth ? "#111827" : "#9ca3af" }}>
+                        {date.getDate()}
+                      </span>
+
+                      {badge && inMonth && (
+                        <span style={{ position: "absolute", top: 6, right: 4, background: badge.bg, color: badge.color, fontSize: 9, fontWeight: 700, borderRadius: 4, padding: "1px 4px", lineHeight: "15px" }}>
+                          {entry?.status === "LeavePending" ? badge.label
+                            : entry?.status === "HalfDay" ? badge.label.slice(0, 2)
+                            : entry?.status === "Weekend" ? "WO"
+                            : entry?.status === "Holiday" ? "Hol"
+                            : badge.label.slice(0, 1)}
+                        </span>
+                      )}
+
+                      {isHoliday && entry?.holidayName && inMonth && (
+                        <p className="hidden sm:block" style={{ fontSize: 11, color: "#7c3aed", marginTop: 3, fontWeight: 500 }}>{entry.holidayName}</p>
+                      )}
+
+                      {entry?.punchIn && inMonth && (
+                        <p className="hidden sm:block" style={{ fontSize: 10, color: "#6b7280", marginTop: 3 }}>
+                          {entry.punchIn} – {entry.punchOut ?? "——"}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
-
-          {weeks.map((week, wi) => (
-            <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: wi < weeks.length - 1 ? "1px solid #e5e7eb" : undefined }}>
-              {week.map((date, di) => {
-                const ymd       = toYMD(date);
-                const inMonth   = date.getMonth() === month;
-                const isToday   = ymd === today;
-                const entry     = dataMap.get(ymd);
-                const isHoliday = entry?.status === "Holiday";
-                const isWeekend = entry?.status === "Weekend";
-                const badge     = entry?.status ? STATUS_BADGE[entry.status] : undefined;
-                const isUpcoming = inMonth && !entry && ymd > today;
-                const isClickable = inMonth;
-
-                let bg = "#fff";
-                if (!inMonth)                                              bg = "#f9fafb";
-                else if (entry?.status === "Present" || entry?.status === "HalfDay") bg = "#f0fdf4";
-                else if (entry?.status === "Absent")                       bg = "#fef2f2";
-                else if (entry?.status === "Leave")                        bg = "#fef9c3";
-                else if (entry?.status === "LeavePending")                 bg = "#ffedd5";
-                else if (isHoliday || isWeekend)                           bg = "#ede9fe";
-
-                return (
-                  <div
-                    key={ymd}
-                    onClick={() => handleCellClick(date, inMonth)}
-                    style={{
-                      background: bg,
-                      borderRight: di < 6 ? "1px solid #e5e7eb" : undefined,
-                      outline: isToday ? `2px solid ${B.primary}` : undefined,
-                      outlineOffset: "-2px",
-                      padding: "10px 12px",
-                      minHeight: 92,
-                      position: "relative",
-                      cursor: isClickable ? "pointer" : "default",
-                      transition: "filter 0.1s",
-                    }}
-                    onMouseEnter={(e) => { if (isClickable) (e.currentTarget as HTMLDivElement).style.filter = "brightness(0.96)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.filter = ""; }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: inMonth ? "#111827" : "#9ca3af" }}>
-                      {date.getDate()}
-                    </span>
-
-                    {badge && inMonth && (
-                      <span style={{ position: "absolute", top: 10, right: 10, background: badge.bg, color: badge.color, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "1px 5px", lineHeight: "16px" }}>
-                        {entry?.status === "LeavePending" ? badge.label
-                          : entry?.status === "HalfDay" ? badge.label.slice(0, 2)
-                          : entry?.status === "Weekend" ? "WO"
-                          : entry?.status === "Holiday" ? "Hol"
-                          : badge.label.slice(0, 1)}
-                      </span>
-                    )}
-
-                    {isHoliday && entry?.holidayName && inMonth && (
-                      <p style={{ fontSize: 12, color: "#7c3aed", marginTop: 4, fontWeight: 500 }}>{entry.holidayName}</p>
-                    )}
-
-                    {entry?.punchIn && inMonth && (
-                      <>
-                        <p style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{entry.punchIn} – {entry.punchOut ?? "——"}</p>
-                        {entry.hoursWorked && <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{entry.hoursWorked}</p>}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
         </div>
       </div>
 
@@ -1161,6 +1167,7 @@ export default function AttendanceCalendar({
           leaveBalances={leaveBalances}
           holidays={holidays}
           onSubmit={onSubmitLeave}
+          dataMap={dataMap}
           onClose={() => { setShowLeaveForm(false); setUpcomingYmd(null); }}
         />
       )}

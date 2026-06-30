@@ -46,10 +46,10 @@ export const enterpriseHeaderClass =
 
 /** Shared height/padding for the sidebar logo row and top header bar. */
 export const enterpriseShellBarClass =
-  "flex items-center min-h-[4.5rem] shrink-0 px-[30px] py-[18px]";
+  "flex items-center min-h-[4rem] shrink-0 px-4 sm:px-6 lg:px-[30px] py-3 lg:py-[18px]";
 
 /** Main content area padding below the shell chrome. */
-export const enterpriseMainPaddingClass = "px-[30px] py-[22px] lg:py-[30px]";
+export const enterpriseMainPaddingClass = "px-4 py-4 sm:px-6 sm:py-5 lg:px-[30px] lg:py-[30px]";
 
 export const enterpriseToggleActiveClass =
   "bg-slate-100 text-slate-800 border border-slate-300";

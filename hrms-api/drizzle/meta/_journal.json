@@ -435,6 +435,13 @@
       "when": 1782086400000,
       "tag": "20260622100000_biometric_raw_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1782345600000,
+      "tag": "20260625100000_shift_configs",
+      "breakpoints": true
     }
   ]
 }
