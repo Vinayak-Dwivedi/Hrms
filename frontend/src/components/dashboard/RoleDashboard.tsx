@@ -1597,7 +1597,7 @@ export default function RoleDashboard({ role }: { role: Role }) {
           <h3 className={cn(cardTitleClass, "mb-3")}>
             Quick Links
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 flex-1 w-full content-stretch">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 w-full content-start my-auto">
             {quickLinks.map(({ icon: Icon, label, href, external }) => (
               <a
                 key={label}
