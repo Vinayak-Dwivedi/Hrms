@@ -137,7 +137,7 @@ iclockRouter.get(["/cdata", "/cdata.aspx"], (req, res) => {
       "TransTimes=00:00;06:00",
       "TransInterval=1",
       "TransFlag=10111110",
-      "TimeZone=8",
+      "TimeZone=5.5",
       "Realtime=1",
       "EncryptionMode=0",
     ].join("\n"),
