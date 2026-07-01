@@ -255,10 +255,24 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
 /**
  * GET /iclock/getrequest
  * Device polls for pending commands (e.g. enroll user, delete user).
- * Respond "OK" when there are no commands queued.
+ * We respond with a DATE command on every poll to keep the device clock
+ * in sync with IST (UTC+5:30) — fixes device displaying wrong time.
  */
-iclockRouter.get(["/getrequest", "/getrequest.aspx"], (req, res) => {
-  res.set("Content-Type", "text/plain").send("OK");
+iclockRouter.get(["/getrequest", "/getrequest.aspx"], (_req, res) => {
+  // Build current IST time using UTC+5:30 offset — no Intl dependency.
+  const nowMs = Date.now();
+  const istMs = nowMs + 5.5 * 60 * 60 * 1000;
+  const ist = new Date(istMs);
+  const yyyy = ist.getUTCFullYear();
+  const mo = String(ist.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(ist.getUTCDate()).padStart(2, "0");
+  const hh = String(ist.getUTCHours()).padStart(2, "0");
+  const mi = String(ist.getUTCMinutes()).padStart(2, "0");
+  const ss = String(ist.getUTCSeconds()).padStart(2, "0");
+  const dateStr = `${yyyy}-${mo}-${dd} ${hh}:${mi}:${ss}`;
+  // Use epoch seconds as command ID so each poll is a fresh command.
+  const cmdId = Math.floor(nowMs / 1000);
+  res.set("Content-Type", "text/plain").send(`C:${cmdId}:DATE ${dateStr}`);
 });
 
 /**
