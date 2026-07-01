@@ -8,7 +8,6 @@ import {
 
   Clock,
 
-  GraduationCap,
 
   History,
 
@@ -187,8 +186,6 @@ export function quickLinksFor(
 
       { icon: History, label: "Punch History", href: "/attendance" },
 
-      { icon: Users, label: "Company Directory", href: "/directory" },
-
       { icon: CalendarIcon, label: "Apply Leave", href: "/attendance?apply=1" },
 
     ];
@@ -278,10 +275,6 @@ export function quickLinksFor(
     },
 
     { icon: History, label: "Punch History", href: "/attendance" },
-
-    { icon: Users, label: "Company Directory", href: "/directory" },
-
-    { icon: GraduationCap, label: "L&D Portal", href: "/lnd" },
 
   ];
 
