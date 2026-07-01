@@ -401,114 +401,130 @@ managerRouter.get("/team/attendance-report", async (req, res, next) => {
     const fromDate = query.fromDate ?? defaultFrom;
     const toDate = query.toDate ?? defaultTo;
     const offset = (query.page - 1) * query.limit;
+    const term = query.search ? `%${query.search}%` : null;
 
-    const employeeFilters = [eq(employees.employeeStatus, "Active")];
+    // Search filter fragments per employee alias used in each CTE branch.
+    const searchBio = term
+      ? sql`AND (eb.emp_id ILIKE ${term} OR eb.first_name ILIKE ${term} OR eb.last_name ILIKE ${term} OR eb.middle_name ILIKE ${term})`
+      : sql``;
+    const searchUpl = term
+      ? sql`AND (eu.emp_id ILIKE ${term} OR eu.first_name ILIKE ${term} OR eu.last_name ILIKE ${term} OR eu.middle_name ILIKE ${term})`
+      : sql``;
 
-    if (query.search) {
-      const term = `%${query.search}%`;
-      employeeFilters.push(
-        or(
-          ilike(employees.empId, term),
-          ilike(employees.firstName, term),
-          ilike(employees.lastName, term),
-          ilike(employees.middleName, term),
-        )!,
-      );
-    }
+    type RawRow = {
+      employee_internal_id: number;
+      employee_code: string;
+      attendance_date: string;
+      in_time: string | null;
+      out_time: string | null;
+      total_hours: string | null;
+      first_name: string;
+      middle_name: string | null;
+      last_name: string;
+      department_name: string | null;
+      sub_department_name: string | null;
+      designation_name: string | null;
+      location_name: string | null;
+      l2_first_name: string | null;
+      l2_middle_name: string | null;
+      l2_last_name: string | null;
+      l3_first_name: string | null;
+      l3_middle_name: string | null;
+      l3_last_name: string | null;
+    };
 
-    const whereClause = and(...employeeFilters);
-
-    const uploadJoin = and(
-      attendanceUploadToEmployeeJoin(),
-      gte(attendanceUploads.attendanceDate, fromDate),
-      lte(attendanceUploads.attendanceDate, toDate),
-    );
-
-    const baseFrom = db
-      .select({
-        uploadId: attendanceUploads.id,
-        employeeInternalId: employees.id,
-        attendanceDate: attendanceUploads.attendanceDate,
-        employeeCode: employees.empId,
-        inTime: attendanceUploads.inTime,
-        outTime: attendanceUploads.outTime,
-        totalHours: attendanceUploads.totalHours,
-        firstName: employees.firstName,
-        middleName: employees.middleName,
-        lastName: employees.lastName,
-        structDepartmentName: structDept.name,
-        legacyDepartmentName: legacyDept.name,
-        structSubDepartmentName: structSubDept.name,
-        legacySubDepartmentName: legacySubDept.name,
-        structDesignationName: structDesignation.name,
-        legacyDesignationName: legacyDesignation.name,
-        locationBranchName: locationBranch.name,
-        fallbackBranchName: fallbackBranch.name,
-        l2FirstName: reportingMgr.firstName,
-        l2MiddleName: reportingMgr.middleName,
-        l2LastName: reportingMgr.lastName,
-        l3FirstName: l3Mgr.firstName,
-        l3MiddleName: l3Mgr.middleName,
-        l3LastName: l3Mgr.lastName,
-      })
-      .from(employees)
-      .leftJoin(attendanceUploads, uploadJoin)
-      .leftJoin(
-        orgHierarchyStructure,
-        eq(employees.orgHierarchyStructureId, orgHierarchyStructure.id),
-      )
-      .leftJoin(structDept, eq(orgHierarchyStructure.departmentId, structDept.id))
-      .leftJoin(legacyDept, eq(employees.departmentId, legacyDept.id))
-      .leftJoin(
-        structSubDept,
-        eq(orgHierarchyStructure.subDepartmentId, structSubDept.id),
-      )
-      .leftJoin(legacySubDept, eq(employees.subDepartmentId, legacySubDept.id))
-      .leftJoin(
-        structDesignation,
-        eq(orgHierarchyStructure.designationId, structDesignation.id),
-      )
-      .leftJoin(
-        legacyDesignation,
-        eq(employees.designationId, legacyDesignation.id),
-      )
-      .leftJoin(locationBranch, eq(employees.locationId, locationBranch.id))
-      .leftJoin(fallbackBranch, eq(employees.branchId, fallbackBranch.id))
-      .leftJoin(reportingMgr, eq(employees.reportingManagerId, reportingMgr.id))
-      .leftJoin(l3Mgr, eq(reportingMgr.reportingManagerId, l3Mgr.id));
-
-    const [rawRows, countRows] = await Promise.all([
-      baseFrom
-        .where(whereClause)
-        .orderBy(
-          asc(employees.lastName),
-          asc(employees.firstName),
-          desc(attendanceUploads.attendanceDate),
+    // Merged date-spine from both biometric (attendance_records) and upload sources.
+    // DISTINCT ON (employee_id, date) with prio ASC keeps biometric when both exist.
+    const [countRaw, dataRaw] = await Promise.all([
+      db.execute<{ total: number }>(sql`
+        WITH merged AS (
+          SELECT ar.employee_id, ar.date::text AS att_date
+          FROM   attendance_records ar
+          JOIN   employees eb ON eb.id = ar.employee_id
+          WHERE  eb.employee_status = 'Active'
+            AND  ar.date BETWEEN ${fromDate}::date AND ${toDate}::date
+            ${searchBio}
+          UNION
+          SELECT eu.id, au.attendance_date::text
+          FROM   attendance_uploads au
+          JOIN   employees eu ON lower(trim(au.employee_code)) = lower(trim(eu.emp_id))
+          WHERE  eu.employee_status = 'Active'
+            AND  au.attendance_date BETWEEN ${fromDate}::date AND ${toDate}::date
+            ${searchUpl}
         )
-        .limit(query.limit)
-        .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(employees)
-        .leftJoin(attendanceUploads, uploadJoin)
-        .where(whereClause),
+        SELECT count(*)::int AS total FROM merged
+      `),
+      db.execute<RawRow>(sql`
+        WITH merged AS (
+          SELECT ar.employee_id, ar.date::text AS att_date,
+                 ar.punch_in::text AS in_time, ar.punch_out::text AS out_time,
+                 NULL::text        AS total_hours, 1 AS prio
+          FROM   attendance_records ar
+          JOIN   employees eb ON eb.id = ar.employee_id
+          WHERE  eb.employee_status = 'Active'
+            AND  ar.date BETWEEN ${fromDate}::date AND ${toDate}::date
+            ${searchBio}
+          UNION ALL
+          SELECT eu.id, au.attendance_date::text,
+                 au.in_time::text, au.out_time::text, au.total_hours::text, 2
+          FROM   attendance_uploads au
+          JOIN   employees eu ON lower(trim(au.employee_code)) = lower(trim(eu.emp_id))
+          WHERE  eu.employee_status = 'Active'
+            AND  au.attendance_date BETWEEN ${fromDate}::date AND ${toDate}::date
+            ${searchUpl}
+        ),
+        deduped AS (
+          SELECT DISTINCT ON (employee_id, att_date)
+                 employee_id, att_date, in_time, out_time, total_hours
+          FROM   merged
+          ORDER  BY employee_id, att_date, prio ASC
+        )
+        SELECT
+          e.id::int                      AS employee_internal_id,
+          e.emp_id                       AS employee_code,
+          d.att_date                     AS attendance_date,
+          d.in_time, d.out_time, d.total_hours,
+          e.first_name, e.middle_name, e.last_name,
+          COALESCE(sd.name,  ld.name)   AS department_name,
+          COALESCE(ssd.name, lsd.name)  AS sub_department_name,
+          COALESCE(sdes.name,ldes.name) AS designation_name,
+          COALESCE(lb.name,  fb.name)   AS location_name,
+          rm.first_name  AS l2_first_name, rm.middle_name  AS l2_middle_name, rm.last_name  AS l2_last_name,
+          l3.first_name  AS l3_first_name, l3.middle_name  AS l3_middle_name, l3.last_name  AS l3_last_name
+        FROM   deduped d
+        JOIN   employees e    ON e.id   = d.employee_id
+        LEFT JOIN org_hierarchy_structure   ohs  ON ohs.id  = e.org_hierarchy_structure_id
+        LEFT JOIN org_hierarchy_departments  sd  ON sd.id   = ohs.department_id
+        LEFT JOIN org_hierarchy_departments  ld  ON ld.id   = e.department_id
+        LEFT JOIN org_hierarchy_sub_departments ssd ON ssd.id = ohs.sub_department_id
+        LEFT JOIN org_hierarchy_sub_departments lsd ON lsd.id = e.sub_department_id
+        LEFT JOIN org_hierarchy_designations sdes ON sdes.id  = ohs.designation_id
+        LEFT JOIN org_hierarchy_designations ldes ON ldes.id  = e.designation_id
+        LEFT JOIN branches lb ON lb.id = e.location_id
+        LEFT JOIN branches fb ON fb.id = e.branch_id
+        LEFT JOIN employees rm ON rm.id = e.reporting_manager_id
+        LEFT JOIN employees l3 ON l3.id = rm.reporting_manager_id
+        ORDER  BY e.last_name ASC, e.first_name ASC, d.att_date DESC
+        LIMIT  ${query.limit} OFFSET ${offset}
+      `),
     ]);
 
+    // postgres.js returns array directly; node-postgres uses result.rows — handle both.
+    const dataRows: RawRow[] = Array.isArray(dataRaw)
+      ? (dataRaw as RawRow[])
+      : ((dataRaw as unknown as { rows: RawRow[] }).rows ?? []);
+    const countRow: { total: number } | undefined = Array.isArray(countRaw)
+      ? (countRaw[0] as { total: number } | undefined)
+      : (countRaw as unknown as { rows: Array<{ total: number }> }).rows[0];
+
     const shiftMap = await resolveShiftsForEmployees(
-      rawRows.map((row) => row.employeeInternalId),
+      [...new Set(dataRows.map((r) => r.employee_internal_id))],
     );
+    const employeeIds = [...new Set(dataRows.map((r) => r.employee_internal_id))];
+    const dayContextMap = await loadAttendanceDayContextBatch(employeeIds, fromDate, toDate);
 
-    const employeeIds = [
-      ...new Set(rawRows.map((row) => row.employeeInternalId)),
-    ];
-    const dayContextMap = await loadAttendanceDayContextBatch(
-      employeeIds,
-      fromDate,
-      toDate,
-    );
-
-    const rows = rawRows.map((row) => {
-      const resolved = shiftMap.get(row.employeeInternalId);
+    const rows = dataRows.map((row) => {
+      const resolved = shiftMap.get(row.employee_internal_id);
       const shift: AttendanceReportShiftInfo | null = resolved
         ? {
             name: resolved.name,
@@ -521,43 +537,41 @@ managerRouter.get("/team/attendance-report", async (req, res, next) => {
         : null;
 
       return shapeAttendanceReportRow({
-        attendanceDate: row.attendanceDate,
-        employeeCode: row.employeeCode,
-        inTime: row.inTime,
-        outTime: row.outTime,
-        totalHours: row.totalHours,
-        hasUploadRecord: row.uploadId != null && row.attendanceDate != null,
-        firstName: row.firstName,
-        middleName: row.middleName,
-        lastName: row.lastName,
-        departmentName: row.structDepartmentName ?? row.legacyDepartmentName,
-        subDepartmentName:
-          row.structSubDepartmentName ?? row.legacySubDepartmentName,
-        designationName:
-          row.structDesignationName ?? row.legacyDesignationName,
-        locationName: row.locationBranchName ?? row.fallbackBranchName,
-        reportingManagerL2: row.l2FirstName
+        attendanceDate: row.attendance_date,
+        employeeCode: row.employee_code,
+        inTime: row.in_time,
+        outTime: row.out_time,
+        totalHours: row.total_hours,
+        hasUploadRecord: true,
+        firstName: row.first_name,
+        middleName: row.middle_name,
+        lastName: row.last_name,
+        departmentName: row.department_name,
+        subDepartmentName: row.sub_department_name,
+        designationName: row.designation_name,
+        locationName: row.location_name,
+        reportingManagerL2: row.l2_first_name
           ? formatEmployeeFullName({
-              firstName: row.l2FirstName,
-              middleName: row.l2MiddleName,
-              lastName: row.l2LastName,
+              firstName: row.l2_first_name,
+              middleName: row.l2_middle_name,
+              lastName: row.l2_last_name,
             })
           : null,
-        reportingManagerL3: row.l3FirstName
+        reportingManagerL3: row.l3_first_name
           ? formatEmployeeFullName({
-              firstName: row.l3FirstName,
-              middleName: row.l3MiddleName,
-              lastName: row.l3LastName,
+              firstName: row.l3_first_name,
+              middleName: row.l3_middle_name,
+              lastName: row.l3_last_name,
             })
           : null,
         shift,
-        dayContext: dayContextMap.get(row.employeeInternalId),
+        dayContext: dayContextMap.get(row.employee_internal_id),
       });
     });
 
     res.json({
       rows,
-      total: countRows[0]?.count ?? 0,
+      total: countRow?.total ?? 0,
       page: query.page,
       limit: query.limit,
     });

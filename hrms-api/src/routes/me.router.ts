@@ -496,30 +496,59 @@ meRouter.get("/attendance/report", async (req, res, next) => {
     const toDate = query.toDate ?? defaultTo;
     const offset = (query.page - 1) * query.limit;
 
-    const dateFilter = and(
-      attendanceUploadMatchesEmpId(emp.empId),
-      gte(attendanceUploads.attendanceDate, fromDate),
-      lte(attendanceUploads.attendanceDate, toDate),
-    );
+    type AttRow = {
+      attendance_date: string;
+      in_time: string | null;
+      out_time: string | null;
+      total_hours: string | null;
+    };
 
-    const [uploadRows, countResult] = await Promise.all([
-      db
-        .select({
-          attendanceDate: attendanceUploads.attendanceDate,
-          inTime: attendanceUploads.inTime,
-          outTime: attendanceUploads.outTime,
-          totalHours: attendanceUploads.totalHours,
-        })
-        .from(attendanceUploads)
-        .where(dateFilter)
-        .orderBy(desc(attendanceUploads.attendanceDate))
-        .limit(query.limit)
-        .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(attendanceUploads)
-        .where(dateFilter),
+    // Merge biometric (attendance_records) and upload sources; biometric wins on same date.
+    const [countRaw, dataRaw] = await Promise.all([
+      db.execute<{ total: number }>(sql`
+        SELECT count(*)::int AS total FROM (
+          SELECT ar.date::text FROM attendance_records ar
+          WHERE  ar.employee_id = ${emp.id}
+            AND  ar.date BETWEEN ${fromDate}::date AND ${toDate}::date
+          UNION
+          SELECT au.attendance_date::text FROM attendance_uploads au
+          WHERE  lower(trim(au.employee_code)) = lower(trim(${emp.empId}))
+            AND  au.attendance_date BETWEEN ${fromDate}::date AND ${toDate}::date
+        ) combined
+      `),
+      db.execute<AttRow>(sql`
+        WITH merged AS (
+          SELECT ar.date::text AS att_date,
+                 ar.punch_in::text AS in_time, ar.punch_out::text AS out_time,
+                 NULL::text        AS total_hours, 1 AS prio
+          FROM   attendance_records ar
+          WHERE  ar.employee_id = ${emp.id}
+            AND  ar.date BETWEEN ${fromDate}::date AND ${toDate}::date
+          UNION ALL
+          SELECT au.attendance_date::text,
+                 au.in_time::text, au.out_time::text, au.total_hours::text, 2
+          FROM   attendance_uploads au
+          WHERE  lower(trim(au.employee_code)) = lower(trim(${emp.empId}))
+            AND  au.attendance_date BETWEEN ${fromDate}::date AND ${toDate}::date
+        ),
+        deduped AS (
+          SELECT DISTINCT ON (att_date) att_date, in_time, out_time, total_hours
+          FROM   merged
+          ORDER  BY att_date, prio ASC
+        )
+        SELECT att_date AS attendance_date, in_time, out_time, total_hours
+        FROM   deduped
+        ORDER  BY att_date DESC
+        LIMIT  ${query.limit} OFFSET ${offset}
+      `),
     ]);
+
+    const attRows: AttRow[] = Array.isArray(dataRaw)
+      ? (dataRaw as AttRow[])
+      : ((dataRaw as unknown as { rows: AttRow[] }).rows ?? []);
+    const countRow: { total: number } | undefined = Array.isArray(countRaw)
+      ? (countRaw[0] as { total: number } | undefined)
+      : (countRaw as unknown as { rows: Array<{ total: number }> }).rows[0];
 
     const shiftMap = await resolveShiftsForEmployees([emp.id]);
     const resolved = shiftMap.get(emp.id);
@@ -536,13 +565,13 @@ meRouter.get("/attendance/report", async (req, res, next) => {
 
     const dayContext = await loadAttendanceDayContext(emp.id, fromDate, toDate);
 
-    const rows = uploadRows.map((row) =>
+    const rows = attRows.map((row) =>
       shapeAttendanceReportRow({
-        attendanceDate: row.attendanceDate,
+        attendanceDate: row.attendance_date,
         employeeCode: emp.empId,
-        inTime: row.inTime,
-        outTime: row.outTime,
-        totalHours: row.totalHours,
+        inTime: row.in_time,
+        outTime: row.out_time,
+        totalHours: row.total_hours,
         hasUploadRecord: true,
         firstName: emp.firstName,
         middleName: emp.middleName,
@@ -560,7 +589,7 @@ meRouter.get("/attendance/report", async (req, res, next) => {
 
     res.json({
       rows,
-      total: countResult[0]?.count ?? 0,
+      total: countRow?.total ?? 0,
       page: query.page,
       limit: query.limit,
       employeeId: emp.empId,
