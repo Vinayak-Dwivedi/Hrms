@@ -37,9 +37,9 @@ function deriveStatus(
 
 async function upsertAttendancePunch(
   employeeId: number,
-  dateStr: string,   // "YYYY-MM-DD"
-  timeStr: string,   // "HH:mm:ss"
-  _deviceIsCheckIn: boolean, // kept for signature compat; logic is auto below
+  dateStr: string,        // "YYYY-MM-DD"
+  timeStr: string,        // "HH:mm:ss"
+  deviceIsCheckIn: boolean,
 ) {
   const [existing] = await db
     .select()
@@ -51,9 +51,11 @@ async function upsertAttendancePunch(
       ),
     );
 
-  // Smart auto-detection: ignore device punch direction.
-  // First scan of the day → punch-in. Already has punch-in → punch-out.
-  const isCheckIn = !existing || !existing.punchIn;
+  // Use device PunchType as primary signal; fall back to auto-detection when
+  // the device sends 0 for everything (some firmware quirks).
+  const isCheckIn = existing?.punchIn
+    ? deviceIsCheckIn && !existing.punchOut // if punchIn exists, only allow check-in if no punchOut yet AND device says check-in
+    : true; // no existing record or no punchIn → always treat as check-in
 
   if (!existing) {
     await db.insert(attendanceRecords).values({
@@ -67,8 +69,8 @@ async function upsertAttendancePunch(
     return;
   }
 
-  if (isCheckIn) {
-    // Update to earliest punch-in seen
+  if (isCheckIn || !existing.punchIn) {
+    // Keep the earliest punch-in seen
     const newPunchIn =
       !existing.punchIn || timeStr < existing.punchIn
         ? timeStr
@@ -83,11 +85,19 @@ async function upsertAttendancePunch(
         ),
       );
   } else {
-    // Update to latest punch-out seen
+    // Keep the latest punch-out seen
     const newPunchOut =
       !existing.punchOut || timeStr > existing.punchOut
         ? timeStr
         : existing.punchOut;
+
+    // Guard: DB constraint requires punch_out > punch_in — skip if violated
+    if (existing.punchIn && newPunchOut <= existing.punchIn) {
+      console.warn(
+        `[ESSL] skipping punchOut=${newPunchOut} ≤ punchIn=${existing.punchIn} for emp=${employeeId} date=${dateStr}`,
+      );
+      return;
+    }
 
     let workingMinutes = existing.workingMinutes ?? 0;
     if (existing.punchIn && newPunchOut) {
@@ -202,20 +212,21 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
       // Store raw log — UNIQUE on (device_sn, raw_user_id, punch_time) so
       // duplicate pushes from device retries are silently ignored.
       const punchTime = new Date(`${dateStr}T${timeStr}+05:30`); // treat as IST
-      try {
-        await db
-          .insert(biometricRawLogs)
-          .values({
-            deviceSn: sn,
-            employeeId: employee?.id ?? null,
-            rawUserId,
-            punchTime,
-            punchType,
-            verifyType,
-          })
-          .onConflictDoNothing();
-      } catch {
-        // Duplicate — already stored, skip processing.
+      // onConflictDoNothing() does NOT throw — check rowCount to detect duplicates.
+      const rawInsert = await db
+        .insert(biometricRawLogs)
+        .values({
+          deviceSn: sn,
+          employeeId: employee?.id ?? null,
+          rawUserId,
+          punchTime,
+          punchType,
+          verifyType,
+        })
+        .onConflictDoNothing();
+
+      if (rawInsert.rowCount === 0) {
+        // Duplicate record (device replay) — raw log already stored, skip.
         processed++;
         continue;
       }
