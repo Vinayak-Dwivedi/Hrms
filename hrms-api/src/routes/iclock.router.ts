@@ -196,12 +196,13 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
 
       if (!rawUserId || !rawDateTime) continue;
 
-      // Parse date and time directly from the string (device sends local IST time).
+      // Parse raw datetime from device (device firmware ignores TimeZone=5.5
+      // and sends times in CST = UTC+8; convert to IST = UTC+5:30 for storage).
       const [datePart, timePart] = rawDateTime.split(" ");
-      const dateStr = datePart ?? "";
-      const timeStr = (timePart ?? "").slice(0, 8); // "HH:mm:ss"
+      const rawDateStr = datePart ?? "";
+      const rawTimeStr = (timePart ?? "").slice(0, 8); // "HH:mm:ss"
 
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !timeStr) continue;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDateStr) || !rawTimeStr) continue;
 
       // Resolve employee (biometric UserID = employee empId code).
       const [employee] = await db
@@ -211,7 +212,12 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
 
       // Store raw log — UNIQUE on (device_sn, raw_user_id, punch_time) so
       // duplicate pushes from device retries are silently ignored.
-      const punchTime = new Date(`${dateStr}T${timeStr}+05:30`); // treat as IST
+      // Device sends CST (UTC+8); convert to IST (UTC+5:30) for dateStr/timeStr.
+      const punchTime = new Date(`${rawDateStr}T${rawTimeStr}+08:00`); // CST
+      const IST_OFFSET = (5 * 60 + 30) * 60_000;
+      const istDate = new Date(punchTime.getTime() + IST_OFFSET);
+      const dateStr = istDate.toISOString().slice(0, 10);   // YYYY-MM-DD in IST
+      const timeStr = istDate.toISOString().slice(11, 19);  // HH:mm:ss in IST
       // onConflictDoNothing() does NOT throw — check rowCount to detect duplicates.
       const rawInsert = await db
         .insert(biometricRawLogs)
@@ -240,6 +246,7 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
 
       // PunchType 0/2/4 = entering direction; 1/3/5 = leaving direction.
       const isCheckIn = [0, 2, 4].includes(punchType);
+      console.log(`[ESSL] emp=${rawUserId} raw=${rawDateStr}T${rawTimeStr}(CST)→${dateStr}T${timeStr}(IST) ${isCheckIn ? "IN" : "OUT"}`);
       await upsertAttendancePunch(employee.id, dateStr, timeStr, isCheckIn);
 
       processed++;
@@ -258,20 +265,22 @@ iclockRouter.post(["/cdata", "/cdata.aspx"], async (req, res, next) => {
  * We respond with a DATE command on every poll to keep the device clock
  * in sync with IST (UTC+5:30) — fixes device displaying wrong time.
  */
-iclockRouter.get(["/getrequest", "/getrequest.aspx"], (_req, res) => {
-  // Build current IST time using UTC+5:30 offset — no Intl dependency.
+iclockRouter.get(["/getrequest", "/getrequest.aspx"], (req, res) => {
+  // Device firmware ignores TimeZone=5.5 and stays in CST (UTC+8).
+  // Send DATE in CST so the device RTC stays correctly synced.
   const nowMs = Date.now();
-  const istMs = nowMs + 5.5 * 60 * 60 * 1000;
-  const ist = new Date(istMs);
-  const yyyy = ist.getUTCFullYear();
-  const mo = String(ist.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(ist.getUTCDate()).padStart(2, "0");
-  const hh = String(ist.getUTCHours()).padStart(2, "0");
-  const mi = String(ist.getUTCMinutes()).padStart(2, "0");
-  const ss = String(ist.getUTCSeconds()).padStart(2, "0");
+  const cstMs = nowMs + 8 * 60 * 60 * 1000; // UTC+8 = CST
+  const cst = new Date(cstMs);
+  const yyyy = cst.getUTCFullYear();
+  const mo = String(cst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(cst.getUTCDate()).padStart(2, "0");
+  const hh = String(cst.getUTCHours()).padStart(2, "0");
+  const mi = String(cst.getUTCMinutes()).padStart(2, "0");
+  const ss = String(cst.getUTCSeconds()).padStart(2, "0");
   const dateStr = `${yyyy}-${mo}-${dd} ${hh}:${mi}:${ss}`;
-  // Use epoch seconds as command ID so each poll is a fresh command.
   const cmdId = Math.floor(nowMs / 1000);
+  const sn = (req.query["SN"] as string) ?? "?";
+  console.log(`[ESSL] getrequest sn=${sn} → DATE ${dateStr} (CST/UTC+8)`);
   res.set("Content-Type", "text/plain").send(`C:${cmdId}:DATE ${dateStr}`);
 });
 
@@ -279,6 +288,8 @@ iclockRouter.get(["/getrequest", "/getrequest.aspx"], (_req, res) => {
  * POST /iclock/devicecmd
  * Device acknowledges that it executed a command we sent.
  */
-iclockRouter.post(["/devicecmd", "/devicecmd.aspx"], (_req, res) => {
+iclockRouter.post(["/devicecmd", "/devicecmd.aspx"], (req, res) => {
+  const sn = (req.query["SN"] as string) ?? "?";
+  console.log(`[ESSL] devicecmd ack sn=${sn} — DATE command applied`);
   res.set("Content-Type", "text/plain").send("OK");
 });
